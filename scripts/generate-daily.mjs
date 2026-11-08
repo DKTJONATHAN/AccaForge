@@ -307,7 +307,7 @@ async function askGroq(candidates){
   model,
   messages:[{role:"user",content:selectionPrompt}],
   // JSON mode avoids Groq best-effort schema-validation 400s; validate every field and business rule locally below.
-  response_format:{type:"json_object},
+  response_format:{type:"json_object"},
   // Keep prompt + reserved completion comfortably below the Groq free-tier TPM ceiling.
   max_completion_tokens:2000,
   temperature:0.2
