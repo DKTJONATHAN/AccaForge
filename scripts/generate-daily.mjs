@@ -140,7 +140,7 @@ function buildCandidates(events){
   candidates.push(...best.values());
  }
  // Restrict the model to realistic short-priced markets; no long-shot legs are considered.
- return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,180);
+ return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,100);
 }
 async function askGemini(candidates){
  const schema={type:"OBJECT",properties:{accas:{type:"ARRAY",minItems:3,maxItems:3,items:{
