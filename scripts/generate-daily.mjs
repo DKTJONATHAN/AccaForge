@@ -20,8 +20,7 @@ async function oddsFetch(input){
   const hasRemaining=Number.isFinite(remaining)&&response.headers.has("x-requests-remaining");
   console.log("Odds API key slot "+(index+1)+": HTTP "+response.status+(hasRemaining?", remaining="+remaining:""));
   if((response.status===429||response.status===401||response.status===403)&&attempted.size<oddsKeys.length){console.warn("Odds API key slot "+(index+1)+" unavailable; rotating to the next configured key.");continue;}
-  if(response.ok&&hasRemaining&&remaining<=2)oddsKeyCursor=(index+1)%oddsKeys.length;
-  else if(response.ok)oddsKeyCursor=index;
+  if(response.ok)oddsKeyCursor=(index+1)%oddsKeys.length;
   return response;
  }
  throw new Error("All configured Odds API keys were rejected or rate-limited. Check key validity and account quotas.");
@@ -33,7 +32,7 @@ const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals";
 const extraMarkets=env.ODDS_EXTRA_MARKETS||"btts,double_chance";
 const extraEventLimit=Math.max(0,Math.min(30,Number(env.ODDS_EXTRA_EVENT_LIMIT||8)));
-const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||8)));
+const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||12)));
 const model=env.GEMINI_MODEL||"gemini-3.8-flash";
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
@@ -90,8 +89,15 @@ async function getFootballEvents(){
   for(const event of await response.json())events.push({...event,sport_key:sport.key});
  }
  const now=Date.now();
- const horizon=now+72*60*60*1000;
+ const lookaheadDays=Math.max(3,Math.min(14,Number(env.ODDS_LOOKAHEAD_DAYS||7)));
+ const horizon=now+lookaheadDays*24*60*60*1000;
+ for(const sport of selected){
+  const leagueEvents=events.filter(event=>event.sport_key===sport.key);
+  const next=leagueEvents.filter(event=>Date.parse(event.commence_time)>now).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
+  console.log("Fixture discovery "+sport.key+": API returned "+leagueEvents.length+" events; upcoming="+next.length+(next.length?", next="+next[0].commence_time+", last="+next[next.length-1].commence_time:""));
+ }
  const upcoming=events.filter(event=>Date.parse(event.commence_time)>now&&Date.parse(event.commence_time)<=horizon&&event.home_team&&event.away_team).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
+ console.log("Fixture window: next "+lookaheadDays+" days; upcoming fixtures with odds="+upcoming.length+"; total events returned="+events.length);
  // Additional soccer markets are fetched per event by The Odds API. Limit these calls to control daily credit use.
  for(const event of upcoming.slice(0,extraEventLimit)){
   const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
@@ -259,10 +265,10 @@ async function main(){
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[date]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[date]);
  const events=await getFootballEvents();
- if(!events.length)throw new Error("No upcoming football fixtures with available odds. Existing results were left untouched.");
+ if(!events.length)throw new Error("No upcoming football fixtures with available odds were returned inside the configured "+Math.max(3,Math.min(14,Number(env.ODDS_LOOKAHEAD_DAYS||7)))+"-day window. See the per-league fixture discovery logs above. Existing results were left untouched.");
  const candidates=buildCandidates(events);
  if(candidates.length<24)throw new Error("Not enough valid 1.20-1.90 football market prices to research and build three diverse accumulators.");
- console.log("Collected "+events.length+" upcoming fixtures and "+candidates.length+" priced market candidates in the 1.20-1.90 range across configured leagues.");
+ console.log("Collected "+events.length+" upcoming fixtures and "+candidates.length+" priced market candidates in the 1.20-1.90 range across "+new Set(events.map(event=>event.sport_key)).size+" leagues.");
  const response=await askGemini(candidates);
  const validated=validateAccas(response,candidates);
  await saveAccas(validated,date);
