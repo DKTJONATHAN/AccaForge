@@ -127,11 +127,12 @@ function validateAccas(result,candidates){
 }
 async function saveAccas(accas,publishDate){
  const createdAt=new Date().toISOString();
+ const runId=makeId(publishDate+"|"+createdAt);
+ const newIds=[];
  for(const acca of accas){
-  const accaId=publishDate+"-"+acca.target;
-  await d1("DELETE FROM selections WHERE acca_id=?",[accaId]);
-  await d1("DELETE FROM accas WHERE id=?",[accaId]);
-  await d1("INSERT INTO accas (id,target_odds,actual_odds,status,headline,analysis_note,publish_date,created_at) VALUES (?,?,?,?,?,?,?,?)",[accaId,acca.target,acca.actual,"published",acca.headline,acca.analysis_note,publishDate,createdAt]);
+  const accaId=publishDate+"-"+acca.target+"-"+runId;
+  newIds.push(accaId);
+  await d1("INSERT INTO accas (id,target_odds,actual_odds,status,headline,analysis_note,publish_date,created_at) VALUES (?,?,?,?,?,?,?,?)",[accaId,acca.target,acca.actual,"building",acca.headline,acca.analysis_note,publishDate,createdAt]);
   for(let index=0;index<acca.selections.length;index++){
    const item=acca.selections[index];
    await d1("INSERT INTO selections (id,acca_id,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,bookmaker,note,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",[
@@ -139,9 +140,12 @@ async function saveAccas(accas,publishDate){
    ]);
   }
  }
+ await d1("UPDATE accas SET status='published' WHERE id IN (?,?,?)",newIds);
+ await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND id NOT IN (?,?,?))",[publishDate,...newIds]);
+ await d1("DELETE FROM accas WHERE publish_date=? AND id NOT IN (?,?,?)",[publishDate,...newIds]);
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[publishDate]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[publishDate]);
- console.log("Published "+accas.length+" accumulators for "+publishDate+"; retained the latest three calendar days.");
+ console.log("Published all three accumulators for "+publishDate+"; retained the latest three calendar days.");
 }
 async function main(){
  const date=kenyaDate();
