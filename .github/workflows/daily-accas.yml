@@ -2,7 +2,7 @@ name: AccaForge Daily Accumulators
 
 on:
   schedule:
-    - cron: "0 2 * * *"
+    - cron: "0 9 * * *"
       timezone: "Africa/Nairobi"
   workflow_dispatch:
 
