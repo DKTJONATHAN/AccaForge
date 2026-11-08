@@ -383,6 +383,10 @@ async function main(){
  const date=kenyaDate();
  console.log("AccaForge daily generation starting for "+date+" (Africa/Nairobi).");
  await ensureSchema();
+ if(String(env.MIGRATE_ONLY||"").toLowerCase()==="true"){
+  console.log("D1 schema migration completed. MIGRATE_ONLY is enabled; no Groq or Odds API requests were made.");
+  return;
+ }
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[date]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[date]);
  await verifyGroqAccess();
