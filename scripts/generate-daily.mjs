@@ -304,7 +304,8 @@ async function askGroq(candidates){
   model,
   messages:[{role:"user",content:selectionPrompt}],
   response_format:{type:"json_schema",json_schema:{name:"accaforge_daily_accumulators",strict:false,schema}},
-  max_completion_tokens:10000,
+  // Keep prompt + reserved completion comfortably below the Groq free-tier TPM ceiling.
+  max_completion_tokens:3000,
   temperature:0.2
  },"structured selection");
  const text=result.choices?.[0]?.message?.content||"";
