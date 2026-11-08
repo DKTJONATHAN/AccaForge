@@ -123,7 +123,7 @@ function buildCandidates(events){
 async function askGemini(candidates){
  const schema={type:"OBJECT",properties:{accas:{type:"ARRAY",minItems:3,maxItems:3,items:{
   type:"OBJECT",properties:{
-   target:{type:"NUMBER",enum:[10,15,20]},headline:{type:"STRING"},analysis_note:{type:"STRING"},
+   target:{type:"STRING",enum:["10","15","20"]},headline:{type:"STRING"},analysis_note:{type:"STRING"},
    selections:{type:"ARRAY",minItems:3,maxItems:9,items:{type:"OBJECT",properties:{candidate_id:{type:"STRING"},note:{type:"STRING"}},required:["candidate_id","note"]}}
   },required:["target","headline","analysis_note","selections"]
  }}},required:["accas"]};
