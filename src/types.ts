@@ -1,4 +1,4 @@
-export type ProductType = "safe_picks" | "super_5" | "all_matches";
+export type ProductType = "safe_picks" | "super_5" | "super_10" | "all_matches";
 export interface Selection {
  id:string; acca_id:string; event_id:string; sport_key:string; commence_time:string;
  home_team:string; away_team:string; market_key:string; market_name:string;
