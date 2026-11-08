@@ -231,3 +231,19 @@ main{max-width:1320px;width:100%;margin:0 auto;padding:0 34px}
  .age-modal{padding:23px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Evidence-led product board */
+.product-tabs .target-label{font-size:12px}
+.selection-pass{background:#fbf8f1}
+.selection-pass .selection-main p{color:#8b5b2b}
+.pass-label{display:inline-block;padding:5px 9px;border:1px solid #d8c8ae;border-radius:4px;color:#805629!important;font-size:11px!important;letter-spacing:.08em}
+.probability-line{color:#526b5c!important;font-size:10px!important;font-weight:600;margin-top:7px!important}
+.selection-price .pass-label{font:700 11px "DM Sans",Arial,sans-serif}
+@media(max-width:620px){
+ .product-tabs .target-tab{padding:12px 9px;gap:4px}
+ .product-tabs .target-label{font-size:10px}
+ .product-tabs .target-tab strong{font-size:21px}
+ .product-tabs .target-caption{font-size:8px;line-height:1.35}
+ .probability-line{font-size:9px!important}
+}
