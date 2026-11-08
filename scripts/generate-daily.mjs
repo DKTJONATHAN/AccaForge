@@ -201,7 +201,7 @@ function buildCandidates(events){
    for(const market of bookmaker.markets||[]){
     for(const outcome of market.outcomes||[]){
      const price=Number(outcome.price);
-     if(!Number.isFinite(price)||price<=1.01)continue;
+     if(!Number.isFinite(price)||price<1.01)continue;
      const key=market.key+"|"+cleanText(outcome.name,80)+"|"+(outcome.point??"");
      const old=best.get(key);
      if(!old||price>old.odds)best.set(key,{
@@ -215,7 +215,7 @@ function buildCandidates(events){
     }
    }
   }
-  const values=[...best.values()].filter(item=>item.odds>1.01);
+  const values=[...best.values()].filter(item=>item.odds>=1.01);
   // Preserve market breadth for every fixture while keeping the free-tier AI payload compact:
   // one shortest-priced representative per market, plus the fixture's longest price and best remaining options.
   const marketRepresentatives=new Map();
