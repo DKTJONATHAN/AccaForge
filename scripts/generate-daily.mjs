@@ -3,9 +3,9 @@ import { createHash } from "node:crypto";
 const required=["ODDS_API_KEY","GEMINI_API_KEY","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ACCOUNT_ID","D1_DATABASE_ID"];
 for(const name of required) if(!process.env[name]) throw new Error("Missing required environment variable: "+name);
 const env=process.env;
-const regions=env.ODDS_REGIONS||"uk,eu";
+const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance";
-const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||10)));
+const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||8)));
 const model=env.GEMINI_MODEL||"gemini-2.5-flash";
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
@@ -13,7 +13,7 @@ function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Na
 function cleanText(value,max=180){return String(value??"").replace(/[<>\u0000-\u001f]/g,"").replace(/\s+/g," ").trim().slice(0,max);}
 function makeId(value){return createHash("sha256").update(value).digest("hex").slice(0,24);}
 async function d1(sql,params=[]){
- const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+env.CLOUDFLARE_API_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({sql,params})});
+ const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+env.CLOUDFLARE_API_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({sql,params:params.map(value=>String(value))})});
  const body=await response.json();
  if(!response.ok||!body.success)throw new Error("D1 query failed: "+JSON.stringify(body.errors||body));
  return body.result?.[0]?.results||[];
@@ -151,6 +151,8 @@ async function main(){
  const date=kenyaDate();
  console.log("AccaForge daily generation starting for "+date+" (Africa/Nairobi).");
  await ensureSchema();
+ await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[date]);
+ await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[date]);
  const events=await getFootballEvents();
  if(!events.length)throw new Error("No upcoming football fixtures with available odds. Existing results were left untouched.");
  const candidates=buildCandidates(events);
