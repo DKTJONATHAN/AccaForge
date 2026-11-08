@@ -1,6 +1,6 @@
 import {useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Moon,ShieldCheck,Sun,Target,Trophy,X} from "lucide-react";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Menu,Moon,ShieldCheck,Sun,Target,Trophy,X} from "lucide-react";
 import type {Acca,AccasResponse} from "./types";
 
 const targets=[10,15,20];
@@ -19,6 +19,7 @@ export default function App(){
  const [archiveDate,setArchiveDate]=useState("all");
  const [ageOk,setAgeOk]=useState(()=>localStorage.getItem("accaforge-18plus")==="yes");
  const [notice,setNotice]=useState(false);
+ const [mobileMenuOpen,setMobileMenuOpen]=useState(false);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas});
  const accas=data?.accas||[];
  const dates=useMemo(()=>Array.from(new Set(accas.map(item=>item.publish_date))),[accas]);
@@ -29,7 +30,8 @@ export default function App(){
   <header className="site-header">
    <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={19}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
    <nav className="desktop-nav" aria-label="Main navigation"><a className="nav-active" href="#daily">Daily accas</a><a href="#archive">Recent editions</a><a href="#responsible">Responsible play</a></nav>
-   <div className="header-actions"><span className="live-label"><i/> Daily edition</span><button className="icon-button" onClick={()=>setTheme(theme==="dark"?"light":"dark")} aria-label="Toggle colour theme">{theme==="dark"?<Sun size={17}/>:<Moon size={17}/>}</button></div>
+   <div className="header-actions"><span className="live-label"><i/> Daily edition</span><button className="icon-button mobile-menu-button" onClick={()=>setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle navigation menu" aria-expanded={mobileMenuOpen}><Menu size={17}/></button><button className="icon-button" onClick={()=>setTheme(theme==="dark"?"light":"dark")} aria-label="Toggle colour theme">{theme==="dark"?<Sun size={17}/>:<Moon size={17}/>}</button></div>
+   {mobileMenuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation"><a href="#daily" onClick={()=>setMobileMenuOpen(false)}>Daily accas</a><a href="#archive" onClick={()=>setMobileMenuOpen(false)}>Recent editions</a><a href="#responsible" onClick={()=>setMobileMenuOpen(false)}>Responsible play</a></nav>}
   </header>
   <main>
    <section className="intro" id="daily">
@@ -43,7 +45,7 @@ export default function App(){
    </section>
    <section className="archive-section" id="archive">
     <div className="section-heading"><div><p className="section-kicker">Rolling three-day archive</p><h2>Recent editions</h2></div><label className="archive-select"><CalendarDays size={15}/><select value={archiveDate} onChange={event=>setArchiveDate(event.target.value)}><option value="all">All recent editions</option>{dates.map(date=><option key={date} value={date}>{dateLabel(date)}</option>)}</select><ChevronDown size={14}/></label></div>
-    {visible.length?<div className="archive-list">{visible.map(item=><button key={item.id} className="archive-row" onClick={()=>{setTarget(item.target_odds);setExpanded(expanded===item.id?null:item.id);}}><span className="archive-date">{dateLabel(item.publish_date)}</span><span className="archive-target">{item.target_odds} Odds Acca</span><span className="archive-legs">{item.selections.length} selections</span><strong className="archive-price">{item.actual_odds.toFixed(2)}</strong><span className="archive-open">View <ArrowUpRight size={14}/></span></button>)}</div>:<p className="archive-empty">No recent editions available.</p>}
+    {visible.length?<div className="archive-list">{visible.map(item=><button key={item.id} className="archive-row" onClick={()=>{setArchiveDate(item.publish_date);setTarget(item.target_odds);setExpanded(expanded===item.id?null:item.id);}}><span className="archive-date">{dateLabel(item.publish_date)}</span><span className="archive-target">{item.target_odds} Odds Acca</span><span className="archive-legs">{item.selections.length} selections</span><strong className="archive-price">{item.actual_odds.toFixed(2)}</strong><span className="archive-open">View <ArrowUpRight size={14}/></span></button>)}</div>:<p className="archive-empty">No recent editions available.</p>}
    </section>
    <section className="responsible-section" id="responsible"><div className="responsible-icon"><ShieldCheck size={22}/></div><div><h2>Football is unpredictable</h2><p>AccaForge is for information and entertainment only. Accumulators carry a high risk of losing your entire stake. Odds can change, and no selection or return is guaranteed. Only adults aged 18 and over may use this service. Please gamble responsibly.</p></div><button className="text-button" onClick={()=>setNotice(true)}>Full notice <ArrowUpRight size={14}/></button></section>
   </main>
