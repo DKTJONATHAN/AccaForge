@@ -10,7 +10,7 @@ const markets=env.ODDS_MARKETS||"h2h,totals";
 const extraMarkets=env.ODDS_EXTRA_MARKETS||"btts,double_chance";
 const extraEventLimit=Math.max(0,Math.min(30,Number(env.ODDS_EXTRA_EVENT_LIMIT||8)));
 const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||8)));
-const model=env.GEMINI_MODEL||"gemini-2.5-flash";
+const model=env.GEMINI_MODEL||"gemini-3.8-flash";
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
