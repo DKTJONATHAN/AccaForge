@@ -14,9 +14,9 @@ export const onRequestGet = async ({request,env}: {request:Request;env:Env}) => 
   if(!schema.some(column=>column.name==="product_type")){
    return Response.json({accas:[],updatedAt:null,migrationPending:true},{headers:{"Cache-Control":"no-store"}});
   }
-  const rows=(await env.DB.prepare("SELECT * FROM accas WHERE status='published' AND product_type IN ('safe_picks','super_5','all_matches') AND publish_date >= ? ORDER BY publish_date DESC,CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 ELSE 3 END").bind(cutoffDate).all<AccaRow>()).results||[];
+  const rows=(await env.DB.prepare("SELECT * FROM accas WHERE status='published' AND product_type IN ('safe_picks','super_5','super_10','all_matches') AND publish_date >= ? ORDER BY publish_date DESC,CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END").bind(cutoffDate).all<AccaRow>()).results||[];
   if(!rows.length) return Response.json({accas:[],updatedAt:null});
-  const selections=(await env.DB.prepare("SELECT s.* FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.product_type IN ('safe_picks','super_5','all_matches') AND a.publish_date >= ? ORDER BY a.publish_date DESC,CASE a.product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 ELSE 3 END,s.sort_order ASC").bind(cutoffDate).all<SelectionRow>()).results||[];
+  const selections=(await env.DB.prepare("SELECT s.* FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.product_type IN ('safe_picks','super_5','super_10','all_matches') AND a.publish_date >= ? ORDER BY a.publish_date DESC,CASE a.product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END,s.sort_order ASC").bind(cutoffDate).all<SelectionRow>()).results||[];
   const grouped=new Map<string,SelectionRow[]>();
   for(const item of selections){const list=grouped.get(item.acca_id)||[];list.push(item);grouped.set(item.acca_id,list);}
   const accas=rows.map(row=>({...row,selections:grouped.get(row.id)||[]}));
