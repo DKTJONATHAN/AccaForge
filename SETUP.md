@@ -36,8 +36,6 @@ Optional Actions variables:
 - `GROQ_MODEL` (default `openai/gpt-oss-120b`; supports Groq built-in browser search and structured JSON output)
 - `ODDS_REGIONS` (default `uk`)
 - `ODDS_MARKETS` (default `h2h,totals`)
-- `ODDS_EXTRA_MARKETS` (default `btts,double_chance`, fetched on a capped set of individual fixtures)
-- `ODDS_EXTRA_EVENT_LIMIT` (default `8`, maximum 30)
 - `ODDS_FALLBACK_MARKETS` (default `btts,double_chance,draw_no_bet,team_totals`; checked across every fixture when the primary markets do not provide enough eligible prices)
 
 The daily generator discovers every active soccer competition exposed by your Odds API account. It first lists all fixtures on the requested Africa/Nairobi calendar date using the quota-free `/events` endpoint, then fetches odds for those exact event IDs. It does not impose a rolling-hour or multi-day lookahead and does not restrict discovery to a hand-picked league list. The Odds API can only return competitions and fixtures included in your subscription tier and current feed.
@@ -58,11 +56,12 @@ The only workflow, `.github/workflows/daily-accas.yml`, runs at **09:00 Africa/N
 ## Data safeguards
 - Football fixtures are restricted to the complete Africa/Nairobi calendar date being generated (00:00 inclusive to the next midnight exclusive), across every active soccer competition exposed by the Odds API account. Per-competition fixture counts are logged.
 - If primary markets do not yield at least 24 eligible prices, the generator automatically scans configured fallback markets across every fixture on that date before deciding whether there is enough evidence to publish.
-- Gemini uses Google Search grounding to research recent form, home/away performance, relevant head-to-head history, league context, injuries, suspensions, likely line-ups, rest/travel, tactical matchups and credible current team news. Unverified social-media gossip is not treated as fact.
-- Gemini can select only candidate IDs supplied by the server-side collector; the collector only supplies individual prices from 1.20 to 1.90.
+- Groq browser search researches recent form, home/away performance, relevant head-to-head history, league context, injuries, suspensions, likely line-ups, rest/travel, tactical matchups and credible current team news. Unverified social-media gossip is not treated as fact.
+- Groq can select only candidate IDs supplied by the server-side collector; the collector only supplies individual prices from 1.20 to 1.90 and retains up to 400 eligible candidate prices.
 - Each accumulator must contain 4-10 different fixtures across at least 3 leagues.
-- A fixture or club/team cannot appear in more than one of the 10, 15 and 20 odds accumulators.
-- The workflow rejects invented candidate IDs, duplicate fixtures/teams, out-of-range prices and invalid leg counts.
+- The model first tries to keep fixtures distinct across all three accumulators. Only as a last resort, the same exact fixture may appear in different accumulators when each appearance uses a different market key. The same fixture cannot appear twice inside one accumulator, and the same fixture+market combination can never repeat.
+- A team cannot appear in two different fixtures. Team repetition is permitted only when it is the same exact fixture reused under the different-market fallback.
+- The workflow rejects invented candidate IDs, repeated fixture/market combinations, team conflicts, out-of-range prices and invalid leg counts.
 - Combined decimal odds are recalculated from the individual verified prices.
 - Each accumulator must land within 5% of its target to be published.
 - If generation or validation fails, existing published results are not replaced.
