@@ -4,8 +4,8 @@
 A football analysis desk after the evening team-sheet drop: quiet, exact, editorial and instrument-like. The interface should feel closer to a well-made match programme and a pricing terminal than a generic betting template.
 
 ## Visual direction
-- Background: deep green-black (#07110f), with restrained lifted surfaces (#0d1916 and #11211c).
-- Light theme: neutral paper-white (#f4f7f4) with dark ink (#122019).
+- Background: deep navy (#07111f), with restrained lifted surfaces (#0d1b2a and #13263a).
+- Light theme: neutral white (#f5f7fa) with dark ink (#152231).
 - Accent: emerald (#63d69d dark theme; #087b4a light theme). Use it for selected states, one key figure and meaningful status only.
 - Borders: quiet neutral hairlines. Avoid coloured glow, hue gradients, glass effects and ornamental blobs.
 - Typography: Barlow Condensed for large football/editorial headings, DM Sans for interface text, IBM Plex Mono for odds and numeric values.
