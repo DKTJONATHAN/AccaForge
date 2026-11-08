@@ -39,7 +39,7 @@ export default function App(){
  const visible=archiveDate==="all"?accas:accas.filter(item=>item.publish_date===archiveDate);
  const current=visible.find(item=>item.target_odds===target);
  const confirmAge=()=>{localStorage.setItem("accaforge-18plus","yes");setAgeOk(true);};
- return <div className={"app "+(theme==="dark"?"theme-dark":"theme-light")}>
+ return <div className="app theme-light">
   <header className="site-header">
    <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={19}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
    <nav className="desktop-nav" aria-label="Main navigation"><a className="nav-active" href="#daily">Daily tips</a><a href="#archive">Recent editions</a><a href="/football-betting-tips">Football tips</a><a href="/accumulator-tips">Accumulators</a><a href="/about">About</a><a href="/contact">Contact</a></nav>
