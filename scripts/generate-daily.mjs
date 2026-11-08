@@ -201,7 +201,7 @@ function buildCandidates(events){
    for(const market of bookmaker.markets||[]){
     for(const outcome of market.outcomes||[]){
      const price=Number(outcome.price);
-     if(!Number.isFinite(price)||price<=1.01||price>100)continue;
+     if(!Number.isFinite(price)||price<=1.01)continue;
      const key=market.key+"|"+cleanText(outcome.name,80)+"|"+(outcome.point??"");
      const old=best.get(key);
      if(!old||price>old.odds)best.set(key,{
@@ -215,7 +215,7 @@ function buildCandidates(events){
     }
    }
   }
-  const values=[...best.values()].filter(item=>item.odds>=1.01&&item.odds<=100);
+  const values=[...best.values()].filter(item=>item.odds>1.01);
   // Preserve market breadth for every fixture while keeping the free-tier AI payload compact:
   // one shortest-priced representative per market, plus the fixture's longest price and best remaining options.
   const marketRepresentatives=new Map();
@@ -319,7 +319,7 @@ async function askGroq(candidates,events){
 }
 function validateProducts(result,candidates,events){
  const lookup=new Map(candidates.map(item=>[item.candidate_id,item]));
- const validateSelection=(entry,allowedMin=1.01,allowedMax=100)=>{
+ const validateSelection=(entry,allowedMin=1.01,allowedMax=Number.POSITIVE_INFINITY)=>{
   const candidate=lookup.get(entry?.candidate_id);
   if(!candidate)throw new Error("Unknown candidate ID in product selection.");
   if(candidate.odds<allowedMin||candidate.odds>allowedMax)throw new Error("A selection is outside its product's permitted odds range.");
@@ -335,7 +335,7 @@ function validateProducts(result,candidates,events){
   products.push({product_type:"safe_picks",target:1,actual:Number(selected.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Ten evidence-led selections, each priced from 1.01 to 1.50.",selections:selected});
  }else console.warn("Safe Picks withheld: "+cleanText(result.safe_picks_reason,260));
  if(!result.super_5||!Array.isArray(result.super_5.selections)||result.super_5.selections.length!==5)throw new Error("Super 5 must contain exactly five selections.");
- const super5=result.super_5.selections.map(entry=>validateSelection(entry,1.01,100));
+ const super5=result.super_5.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
  if(new Set(super5.map(item=>item.event_id)).size!==5)throw new Error("Super 5 must use five different fixtures.");
  products.push({product_type:"super_5",target:2,actual:Number(super5.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.super_5.headline,100)||"Super 5",analysis_note:cleanText(result.super_5.analysis_note,400)||"Five evidence-led selections with no fixed combined-odds target.",selections:super5});
  if(!result.all_matches||!Array.isArray(result.all_matches.fixtures))throw new Error("All-Matches Challenge fixture list is missing.");
