@@ -301,9 +301,8 @@ async function askGroq(candidates){
  const result=await groqRequest({
   model,
   messages:[{role:"user",content:selectionPrompt}],
-  // JSON mode avoids Groq best-effort schema-validation 400s; validate every field and business rule locally below.
-  response_format:{type:"json_object"},
-  // Separate GPT-OSS reasoning from the final JSON content.
+  // Request ordinary text: Groq JSON mode can reject GPT-OSS generations server-side.
+  // The response is parsed and fully validated locally before any database write.
   reasoning_format:"parsed",
   reasoning_effort:"low",
   // The research request is given time to clear the rolling free-tier TPM window.
@@ -311,9 +310,31 @@ async function askGroq(candidates){
   temperature:0.2
  },"structured selection");
  const text=result.choices?.[0]?.message?.content||"";
- if(!text.trim())throw new Error("Groq returned no structured accumulator content.");
+ if(!text.trim())throw new Error("Groq returned no accumulator content.");
+ // Extract the first complete JSON object from the model response. This tolerates
+ // harmless prose while keeping all trust in the local structural/business validation.
+ const extractJsonObject=source=>{
+  const start=source.indexOf("{");
+  if(start<0)return null;
+  let depth=0,inString=false,escaped=false;
+  for(let i=start;i<source.length;i++){
+   const ch=source[i];
+   if(inString){
+    if(escaped)escaped=false;
+    else if(ch==="\\\\")escaped=true;
+    else if(ch==='"')inString=false;
+    continue;
+   }
+   if(ch==='"'){inString=true;continue;}
+   if(ch==="{")depth++;
+   else if(ch==="}"&&--depth===0)return source.slice(start,i+1);
+  }
+  return null;
+ };
+ const jsonText=extractJsonObject(text);
+ if(!jsonText)throw new Error("Groq did not return a complete JSON object. Refusing to publish.");
  let parsed;
- try{parsed=JSON.parse(text);}catch{throw new Error("Groq structured selection did not return valid JSON. Refusing to publish.");}
+ try{parsed=JSON.parse(jsonText);}catch{throw new Error("Groq accumulator response contained malformed JSON. Refusing to publish.");}
  if(parsed.publishable!==true)throw new Error("Groq declined to publish because evidence or diversity requirements were not met: "+cleanText(parsed.reason,300));
  return parsed;
 }
