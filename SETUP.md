@@ -21,14 +21,17 @@ In GitHub → AccaForge → Settings → Secrets and variables → Actions, add:
 
 | Secret | Value |
 |---|---|
-| `ODDS_API_KEY` | Your The Odds API key |
+| `ODDS_API_KEY` | Your existing/current The Odds API key (keep this configured) |
+| `ODDSAPI_KEY1` | Additional Odds API key 1 |
+| `ODDSAPI_KEY2` | Additional Odds API key 2 |
+| `ODDSAPI_KEY3` | Additional Odds API key 3 |
 | `GEMINI_API_KEY` | Your Google Gemini API key |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Account D1 Edit permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 | `D1_DATABASE_ID` | The ID of the accaforge D1 database |
 
 Optional Actions variables:
-- `GEMINI_MODEL` (default `gemini-2.5-flash`)
+- `GEMINI_MODEL` (default `gemini-3.8-flash`; supports Google Search grounding)
 - `ODDS_REGIONS` (default `uk`)
 - `ODDS_MARKETS` (default `h2h,totals`)
 - `ODDS_EXTRA_MARKETS` (default `btts,double_chance`, fetched on a capped set of individual fixtures)
@@ -36,7 +39,7 @@ Optional Actions variables:
 - `ODDS_MAX_SPORTS` (default `8`, maximum 20)
 - `ODDS_SPORT_KEYS` (optional comma-separated sport keys to limit API usage)
 
-At the defaults, the featured markets use roughly 16 market credits per run (8 leagues × 2 markets × 1 region). Additional markets use up to another 16 (8 fixtures × 2 markets × 1 region), so budget for approximately 32 market credits per daily run. The actual amount depends on which markets are available and the leagues returned. The Odds API documents the market-by-region credit calculation in its [v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+At the defaults, the featured markets use roughly 16 market credits per run (8 leagues × 2 markets × 1 region). Additional markets use up to another 16 (8 fixtures × 2 markets × 1 region), so budget for approximately 32 market credits per daily run. The actual amount depends on which markets are available and the leagues returned. Gemini Google Search grounding may also incur separate Gemini search-grounding charges, depending on the number of searches it performs. The Odds API documents the market-by-region credit calculation in its [v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
 
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
@@ -51,10 +54,13 @@ The only workflow, `.github/workflows/daily-accas.yml`, runs at **02:00 Africa/N
 
 ## Data safeguards
 - Only football fixtures scheduled within the next 72 hours are collected.
-- Gemini can select only candidate IDs supplied by the server-side collector.
-- The workflow rejects invented candidate IDs, duplicate fixtures and invalid leg counts.
+- Gemini uses Google Search grounding to research recent form, home/away performance, relevant head-to-head history, league context, injuries, suspensions, likely line-ups, rest/travel, tactical matchups and credible current team news. Unverified social-media gossip is not treated as fact.
+- Gemini can select only candidate IDs supplied by the server-side collector; the collector only supplies individual prices from 1.20 to 1.90.
+- Each accumulator must contain 4-10 different fixtures across at least 3 leagues.
+- A fixture or club/team cannot appear in more than one of the 10, 15 and 20 odds accumulators.
+- The workflow rejects invented candidate IDs, duplicate fixtures/teams, out-of-range prices and invalid leg counts.
 - Combined decimal odds are recalculated from the individual verified prices.
-- Each accumulator must land within 8% of its target to be published.
+- Each accumulator must land within 5% of its target to be published.
 - If generation or validation fails, existing published results are not replaced.
 - On a successful run, records older than the latest three Kenyan calendar days are deleted.
 
