@@ -208,7 +208,7 @@ function buildCandidates(events){
   candidates.push(...best.values());
  }
  // Restrict the model to realistic short-priced markets; no long-shot legs are considered.
- return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,160);
+ return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,400);
 }
 async function groqRequest(body,label){
  let lastError;
@@ -289,8 +289,10 @@ async function askGroq(candidates){
   "RESEARCH RULE: Base each selection note on the dossier. Prefer current verifiable evidence. If team news or statistics are unavailable, lower confidence and do not claim they are confirmed. Do not invent facts or citations.",
   "DECISION METHOD: Assess each market independently. Weigh recent form, home/away split, matchup, availability, motivation, schedule and credible news. Consider whether the price is reasonable relative to the evidence. Prefer explainable, lower-variance markets. Do not force picks when evidence is mixed.",
   "PRICE RULE: Every selection MUST use a supplied candidate ID and its exact decimal price from 1.20 through 1.90. Never alter prices or invent markets. At most one selection per fixture.",
-  "DIVERSITY RULE: Each accumulator must contain 4 to 10 different matches from at least 3 leagues. Across all three accumulators NO fixture and NO club/team may appear more than once. No duplicate event IDs or teams.",
-  "TARGET RULE: Return exactly one accumulator for each combined decimal-odds target 10, 15 and 20. Multiply the supplied leg prices; aim within 5% of target. Never add a weak leg just to reach a target. If evidence, candidate pool, or global non-overlap rules cannot responsibly support all three, return publishable=false, a clear reason, and accas=[].",
+  "DIVERSITY RULE - FIRST PASS: Build all three accumulators using distinct fixtures wherever possible. Each accumulator must contain 4 to 10 different matches from at least 3 leagues. Avoid reusing any fixture across the three accumulators if three valid targets can be built without doing so.",
+  "DIVERSITY RULE - LAST-RESORT FALLBACK: If and ONLY if the available distinct fixtures/markets cannot responsibly produce all three target accumulators, you may reuse an exact same fixture across DIFFERENT accumulators. Every repeated fixture MUST use a DIFFERENT market_key from the other accumulator(s). Never repeat the same fixture twice inside one accumulator. Never repeat the same fixture+market_key combination anywhere across the three accumulators. A different selection/outcome in the same market does NOT count as a different market.",
+  "TEAM RULE: A club/team may appear more than once ONLY when it is the same exact event_id/fixture being reused under the different-market fallback. Never reuse either team in a different fixture. Each accumulator must still have at least 3 leagues.",
+  "TARGET RULE: Return exactly one accumulator for each combined decimal-odds target 10, 15 and 20. Multiply the supplied leg prices; aim within 5% of target. Prefer the distinct-fixture solution; use the different-market repetition fallback only when necessary. Never add a weak leg just to reach a target. If evidence, candidate pool, or these rules cannot responsibly support all three, return publishable=false, a clear reason, and accas=[].",
   "NOTES: Each leg needs a concise, specific evidence-based explanation of why its exact market is suitable. Explain uncertainties. Do not promise wins or certainty. Do not expose hidden chain-of-thought.",
   "Research dossier:",
   dossier.slice(0,4800),
@@ -318,8 +320,8 @@ async function askGroq(candidates){
 function validateAccas(result,candidates){
  const lookup=new Map(candidates.map(item=>[item.candidate_id,item]));
  if(!Array.isArray(result.accas)||result.accas.length!==3)throw new Error("Gemini did not return exactly three accumulators.");
- const globallyUsedEvents=new Set();
- const globallyUsedTeams=new Set();
+ const globallyUsedEventMarkets=new Map();
+ const globallyUsedTeams=new Map();
  return [10,15,20].map(target=>{
   const proposed=result.accas.find(item=>Number(item.target)===target);
   if(!proposed||!Array.isArray(proposed.selections))throw new Error("Missing the "+target+"-odds accumulator.");
@@ -330,8 +332,13 @@ function validateAccas(result,candidates){
    if(!candidate)throw new Error("Unknown candidate ID in "+target+"-odds accumulator.");
    const home=cleanText(candidate.home_team,90).toLowerCase();
    const away=cleanText(candidate.away_team,90).toLowerCase();
-   if(usedEvents.has(candidate.event_id)||globallyUsedEvents.has(candidate.event_id))throw new Error("Duplicate fixture across accumulator targets: "+candidate.home_team+" vs "+candidate.away_team+".");
-   if(usedTeams.has(home)||usedTeams.has(away)||globallyUsedTeams.has(home)||globallyUsedTeams.has(away))throw new Error("A team appears more than once across the 10, 15 and 20 odds tips: "+candidate.home_team+" / "+candidate.away_team+".");
+   if(usedEvents.has(candidate.event_id))throw new Error("The same fixture cannot appear twice inside one accumulator: "+candidate.home_team+" vs "+candidate.away_team+".");
+   const priorMarkets=globallyUsedEventMarkets.get(candidate.event_id)||new Set();
+   if(priorMarkets.has(candidate.market_key))throw new Error("A repeated fixture must use a different market_key across accumulators: "+candidate.home_team+" vs "+candidate.away_team+" ("+candidate.market_name+").");
+   for(const team of [home,away]){
+    const priorEvent=globallyUsedTeams.get(team);
+    if(priorEvent&&priorEvent!==candidate.event_id)throw new Error("A team may only repeat when it is the same exact fixture reused with a different market: "+candidate.home_team+" / "+candidate.away_team+".");
+   }
    if(candidate.odds<1.2||candidate.odds>1.9)throw new Error("Selection price is outside the allowed 1.20-1.90 range.");
    usedEvents.add(candidate.event_id);usedTeams.add(home);usedTeams.add(away);
    return {...candidate,note:cleanText(entry.note,220)};
@@ -341,8 +348,12 @@ function validateAccas(result,candidates){
   if(leagues.size<3)throw new Error("The "+target+" odds accumulator must include matches from at least three different leagues.");
   const actual=Number(selected.reduce((total,item)=>total*item.odds,1).toFixed(4));
   if(Math.abs(actual-target)/target>0.05)throw new Error("The "+target+" odds accumulator is outside the 5% target range (calculated "+actual+"). Nothing was published.");
-  for(const eventId of usedEvents)globallyUsedEvents.add(eventId);
-  for(const team of usedTeams)globallyUsedTeams.add(team);
+  for(const item of selected){
+   if(!globallyUsedEventMarkets.has(item.event_id))globallyUsedEventMarkets.set(item.event_id,new Set());
+   globallyUsedEventMarkets.get(item.event_id).add(item.market_key);
+   globallyUsedTeams.set(item.home_team.toLowerCase(),item.event_id);
+   globallyUsedTeams.set(item.away_team.toLowerCase(),item.event_id);
+  }
   return {target,actual,headline:cleanText(proposed.headline,100)||target+" odds football accumulator",analysis_note:cleanText(proposed.analysis_note,320)||"Evidence-led selections from multiple leagues; see individual match notes.",selections:selected};
  });
 }
