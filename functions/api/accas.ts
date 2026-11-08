@@ -10,9 +10,9 @@ export const onRequestGet: PagesFunction<Env> = async ({request,env}) => {
   const cutoff = new Date(new Intl.DateTimeFormat("en-CA", {timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())+"T12:00:00Z");
   cutoff.setUTCDate(cutoff.getUTCDate()-(days-1));
   const cutoffDate=cutoff.toISOString().slice(0,10);
-  const rows=(await env.DB.prepare("SELECT * FROM accas WHERE publish_date >= ? ORDER BY publish_date DESC,target_odds ASC").bind(cutoffDate).all<AccaRow>()).results||[];
+  const rows=(await env.DB.prepare("SELECT * FROM accas WHERE status='published' AND publish_date >= ? ORDER BY publish_date DESC,target_odds ASC").bind(cutoffDate).all<AccaRow>()).results||[];
   if(!rows.length) return Response.json({accas:[],updatedAt:null});
-  const selections=(await env.DB.prepare("SELECT s.* FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date >= ? ORDER BY a.publish_date DESC,a.target_odds ASC,s.sort_order ASC").bind(cutoffDate).all<SelectionRow>()).results||[];
+  const selections=(await env.DB.prepare("SELECT s.* FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date >= ? ORDER BY a.publish_date DESC,a.target_odds ASC,s.sort_order ASC").bind(cutoffDate).all<SelectionRow>()).results||[];
   const grouped=new Map<string,SelectionRow[]>();
   for(const item of selections){const list=grouped.get(item.acca_id)||[];list.push(item);grouped.set(item.acca_id,list);}
   const accas=rows.map(row=>({...row,selections:grouped.get(row.id)||[]}));
