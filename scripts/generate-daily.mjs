@@ -111,6 +111,7 @@ async function getFootballEvents(publishDate){
  }
  const fixtureById=new Map(uniqueFixtures.map(event=>[event.id,event]));
  const oddsById=new Map();
+ let additionalMarketsNeeded=false;
  // First pass: fetch the common football markets for every fixture on the requested date.
  for(const [sportKey,leagueEvents] of bySport){
   for(let offset=0;offset<leagueEvents.length;offset+=40){
@@ -123,6 +124,7 @@ async function getFootballEvents(publishDate){
    url.searchParams.set("eventIds",batch.map(event=>event.id).join(","));
    let response=await oddsFetch(url);
    if(response.status===422&&markets!=="h2h"){
+    additionalMarketsNeeded=true;
     console.warn("Combined market request was unsupported; retrying primary h2h before additional-market discovery.");
     url.searchParams.set("markets","h2h");
     response=await oddsFetch(url);
@@ -144,7 +146,7 @@ async function getFootballEvents(publishDate){
  console.log("Primary market scan: "+primaryCandidates.length+" candidate prices across "+new Set(primaryCandidates.map(item=>item.event_id)).size+" distinct fixtures in the 1.20-1.90 range.");
  // Fallback: if the normal markets do not yield enough viable prices, inspect additional markets
  // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
- if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12||markets!=="h2h"){
+ if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12||additionalMarketsNeeded){
   const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals,spreads,alternate_totals,alternate_spreads").split(",").map(value=>value.trim()).filter(Boolean);
   console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
   for(const event of uniqueFixtures){
