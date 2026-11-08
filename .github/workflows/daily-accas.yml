@@ -1,0 +1,40 @@
+name: AccaForge Daily Accumulators
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+      timezone: "Africa/Nairobi"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-daily-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Generate and publish daily football accumulators
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate, validate and store today's accumulators
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
+          ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
+          ODDS_MAX_SPORTS: ${{ vars.ODDS_MAX_SPORTS }}
+          ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: node scripts/generate-daily.mjs
