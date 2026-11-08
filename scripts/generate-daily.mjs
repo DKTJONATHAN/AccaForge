@@ -60,7 +60,8 @@ function nairobiDayBounds(date){
  // Africa/Nairobi is UTC+03:00; these are exact UTC instants for the local calendar day.
  const from=new Date(Date.UTC(year,month-1,day)-3*60*60*1000);
  const to=new Date(Date.UTC(year,month-1,day+1)-3*60*60*1000);
- return {from:from.toISOString(),to:to.toISOString()};
+ const oddsApiTimestamp=value=>value.toISOString().replace(/\.\d{3}Z$/,"Z");
+ return {from:oddsApiTimestamp(from),to:oddsApiTimestamp(to)};
 }
 async function getFootballEvents(publishDate){
  const {from,to}=nairobiDayBounds(publishDate);
