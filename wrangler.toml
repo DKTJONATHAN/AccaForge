@@ -6,5 +6,5 @@ pages_build_output_dir = "./dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "accaforge"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
