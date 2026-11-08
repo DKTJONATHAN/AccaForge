@@ -52,7 +52,7 @@ export default function App(){
     <div className="intro-copy">
      <p className="eyebrow"><span className="eyebrow-line"/> THE DAILY FOOTBALL DESK</p>
      <h1>Read the game.<br/><em>Know the fixtures.</em></h1>
-     <p className="intro-text">Football betting tips, match analysis and daily accumulator selections — presented with the fixtures, markets and odds in plain view. No guaranteed wins. Just the information behind each pick.</p>
+     <p className="intro-text">Daily football research across Safe Picks, Super 5 and the All-Matches Challenge — with fixtures, markets, estimated probabilities and bookmaker odds in plain view. No guaranteed wins. Just the reasoning behind each pick.</p>
      <div className="intro-meta"><span><CalendarDays size={14}/>{new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"})}</span><span><ShieldCheck size={14}/>Adults 18+ only</span></div>
      <a className="hero-primary-link" href="#board">See today’s football tips <ArrowUpRight size={16}/></a>
     </div>
