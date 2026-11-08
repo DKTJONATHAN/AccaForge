@@ -36,6 +36,8 @@ Optional Actions variables:
 - `ODDS_MAX_SPORTS` (default `8`, maximum 20)
 - `ODDS_SPORT_KEYS` (optional comma-separated sport keys to limit API usage)
 
+At the defaults, the featured markets use roughly 16 market credits per run (8 leagues × 2 markets × 1 region). Additional markets use up to another 16 (8 fixtures × 2 markets × 1 region), so budget for approximately 32 market credits per daily run. The actual amount depends on which markets are available and the leagues returned. The Odds API documents the market-by-region credit calculation in its [v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
 ## Schedule
