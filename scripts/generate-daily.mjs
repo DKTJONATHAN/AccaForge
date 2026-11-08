@@ -302,7 +302,7 @@ async function askGroq(candidates,events){
   "SUPER 5: Exactly five different fixtures, one selection per fixture. No combined-odds target and no arbitrary individual-odds ceiling. Odds may exceed 2.00 only where research supports the estimated probability. Choose the best overall evidence/probability combination; do not force a long shot.",
   "SUPER 10: Build a combination with calculated combined decimal odds from 9.50 through 10.50 inclusive, targeting 10.00. Use 2 or more selections from across the supplied fixtures and markets. Repeated fixtures ARE allowed, including different markets from the same fixture, but never repeat the exact same candidate/outcome. Select only outcomes supported by the dossier; do not pad. Return null if no defensible combination in the range exists.",
   "ALL-MATCHES CHALLENGE: Return exactly one entry for EVERY fixture in the supplied fixture list. For each, choose the single best fitting available market with the strongest evidence-backed probability, using any available price. If no defensible pick exists, return status PASS with candidate_id=null, probability=0, and a concise reason. No fixture may be omitted. A club/team must not appear in more than one picked fixture in this list; if fixtures conflict, PASS the weaker/less defensible one. Never duplicate a fixture.",
-  "Output JSON only: {\\"safe_picks\\":{\\"headline\\":\\"...\\",\\"analysis_note\\":\\"...\\",\\"selections\\":[{\\"candidate_id\\":\\"...\\",\\"probability\\":0,\\"note\\":\\"...\\"}]} or null, \\"safe_picks_reason\\":\\"...\\", \\"super_5\\":{\\"headline\\":\\"...\\",\\"analysis_note\\":\\"...\\",\\"selections\\":[...]}, \\"super_10\\":{\\"headline\\":\\"...\\",\\"analysis_note\\":\\"...\\",\\"selections\\":[{\\"candidate_id\\":\\"...\\",\\"probability\\":0,\\"note\\":\\"...\\"}]} or null, \\"all_matches\\":{\\"headline\\":\\"...\\",\\"analysis_note\\":\\"...\\",\\"fixtures\\":[{\\"event_id\\":\\"...\\",\\"status\\":\\"PICK\\" or \\"PASS\\",\\"candidate_id\\":\\"...\\" or null,\\"probability\\":0,\\"note\\":\\"...\\"}]}}. Each PICK requires a candidate_id and probability 0-100. PASS requires null candidate_id. Omit any unavailable product rather than failing the other products.";
+  "Output JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\", \"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[...]}, \"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}. Each PICK requires a candidate_id and probability 0-100. PASS requires null candidate_id. Omit any unavailable product rather than failing the other products.",
   "Research dossier:",dossier.slice(0,5200),
   "Research citation metadata:",JSON.stringify(citations.slice(0,12)),
   "Candidate rows: id=candidate_id; e=event_id; l=league; m=fixture; k=market; p=selection; o=decimal odds.",
@@ -387,9 +387,11 @@ async function saveAccas(products,publishDate){
   }
  }
  await d1("UPDATE accas SET status='published' WHERE id IN ("+newIds.map(()=>"?").join(",")+")",newIds);
- await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND id NOT IN ("+newIds.map(()=>"?").join(",")+"))",[publishDate,...newIds]);
- await d1("DELETE FROM accas WHERE publish_date=? AND id NOT IN ("+newIds.map(()=>"?").join(",")+")",[publishDate,...newIds]);
- await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[publishDate]);
+ const productTypes=products.map(item=>item.product_type);
+ const typePlaceholders=productTypes.map(()=>"?").join(",");
+ const idPlaceholders=newIds.map(()=>"?").join(",");
+ await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND product_type IN ("+typePlaceholders+") AND id NOT IN ("+idPlaceholders+"))",[publishDate,...productTypes,...newIds]);
+ await d1("DELETE FROM accas WHERE publish_date=? AND product_type IN ("+typePlaceholders+") AND id NOT IN ("+idPlaceholders+")",[publishDate,...productTypes,...newIds]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[publishDate]);
  console.log("Published "+products.map(item=>item.product_type).join(", ")+ " for "+publishDate+"; retained the latest three calendar days.");
 }
