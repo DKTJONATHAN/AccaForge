@@ -32,7 +32,7 @@ const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+
 if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals";
-const model=env.GEMINI_MODEL||"gemini-3.6-flash";
+const model=env.GEMINI_MODEL||"gemini-3.5-flash-lite";
 console.log("Gemini model selected: "+model);
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
@@ -260,6 +260,8 @@ async function askGemini(candidates){
    if(response.ok){geminiSucceeded=true;break;}
    const detail=JSON.stringify(payload).slice(0,800);
    if([401,403,429].includes(response.status)){
+    const apiMessage=cleanText(payload?.error?.message||payload?.message||detail,500);
+    console.warn("Gemini key slot "+(keyIndex+1)+" API error details: "+apiMessage);
     unavailableKeys.push({slot:keyIndex+1,status:response.status});
     console.warn("Gemini key slot "+(keyIndex+1)+" unavailable or quota-limited; rotating to the next configured key.");
     break;
