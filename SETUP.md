@@ -4,7 +4,7 @@
 1. Open Cloudflare Dashboard → Storage & databases → D1 SQL Database.
 2. Create a database named **accaforge** and copy its database ID.
 3. In Cloudflare Pages → AccaForge → Settings → Functions → D1 database bindings, add variable name **DB** and select this database.
-4. Replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `wrangler.toml` with the real ID.
+4. Replace the placeholder database UUID `00000000-0000-0000-0000-000000000000` in `wrangler.toml` with the real D1 database ID.
 5. Redeploy the Pages project after saving the binding.
 
 The daily workflow creates the required tables and indexes if missing. The matching migration is checked in at `migrations/0001_initial_schema.sql`.
