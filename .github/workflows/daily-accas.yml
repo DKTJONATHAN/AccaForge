@@ -27,7 +27,7 @@ jobs:
           node-version: "22"
       - name: Generate, validate and store today's accumulators
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDSAPI_KEY || secrets.ODDS_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
