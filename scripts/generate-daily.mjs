@@ -33,7 +33,7 @@ if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
-console.log("Groq model selected: "+model+" (two-stage web research + structured selection).");
+console.log("Groq model selected: "+model+" (shared research + four independent product stages).");
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
