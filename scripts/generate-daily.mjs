@@ -58,68 +58,129 @@ async function ensureSchema(){
  ];
  for(const statement of statements)await d1(statement);
 }
-async function getFootballEvents(){
+function nairobiDayBounds(date){
+ const [year,month,day]=date.split("-").map(Number);
+ // Africa/Nairobi is UTC+03:00; these are exact UTC instants for the local calendar day.
+ const from=new Date(Date.UTC(year,month-1,day)-3*60*60*1000);
+ const to=new Date(Date.UTC(year,month-1,day+1)-3*60*60*1000);
+ return {from:from.toISOString(),to:to.toISOString()};
+}
+async function getFootballEvents(publishDate){
+ const {from,to}=nairobiDayBounds(publishDate);
+ console.log("Fixture date scope: "+publishDate+" Africa/Nairobi ("+from+" through "+to+").");
  const sportsUrl=new URL("https://api.the-odds-api.com/v4/sports/");
  const sportsResponse=await oddsFetch(sportsUrl);
  if(!sportsResponse.ok)throw new Error("Odds API sports request failed: "+sportsResponse.status+" "+(await sportsResponse.text()).slice(0,500));
  const sports=await sportsResponse.json();
+ // Discover every active soccer competition returned by the account, not a hard-coded league shortlist.
  const football=sports.filter(sport=>sport.active&&String(sport.group||"").toLowerCase().includes("soccer"));
- const requested=(env.ODDS_SPORT_KEYS||"").split(",").map(value=>value.trim()).filter(Boolean);
- const preferred=["soccer_epl","soccer_uefa_champs_league","soccer_uefa_europa_league","soccer_spain_la_liga","soccer_germany_bundesliga","soccer_italy_serie_a","soccer_france_ligue_one","soccer_netherlands_eredivisie","soccer_portugal_primeira_liga","soccer_usa_mls"];
- const ordered=[...football].sort((a,b)=>{
-  const ai=preferred.indexOf(a.key),bi=preferred.indexOf(b.key);
-  return (ai<0?999:ai)-(bi<0?999:bi);
- });
- const selected=(requested.length?football.filter(sport=>requested.includes(sport.key)):ordered).slice(0,maxSports);
- if(!selected.length)throw new Error("No active football leagues were returned by The Odds API.");
- const events=[];
- for(const sport of selected){
-  const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(sport.key)+"/odds/");
-  url.searchParams.set("regions",regions);
-  url.searchParams.set("markets",markets);
-  url.searchParams.set("oddsFormat","decimal");
+ if(!football.length)throw new Error("No active football competitions were returned by The Odds API.");
+ const fixtures=[];
+ for(const sport of football){
+  const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(sport.key)+"/events/");
   url.searchParams.set("dateFormat","iso");
-  let response=await oddsFetch(url);
-  if(response.status===422&&markets!=="h2h"){
-   url.searchParams.set("markets","h2h");
-   response=await oddsFetch(url);
-  }
-  if(!response.ok){const detail=await response.text();if(response.status===404)continue;throw new Error("Odds request failed for "+sport.key+": "+response.status+" "+detail.slice(0,400));}
-  console.log("Odds API "+sport.key+": used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
-  for(const event of await response.json())events.push({...event,sport_key:sport.key});
- }
- const now=Date.now();
- const lookaheadDays=Math.max(3,Math.min(14,Number(env.ODDS_LOOKAHEAD_DAYS||7)));
- const horizon=now+lookaheadDays*24*60*60*1000;
- for(const sport of selected){
-  const leagueEvents=events.filter(event=>event.sport_key===sport.key);
-  const next=leagueEvents.filter(event=>Date.parse(event.commence_time)>now).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
-  console.log("Fixture discovery "+sport.key+": API returned "+leagueEvents.length+" events; upcoming="+next.length+(next.length?", next="+next[0].commence_time+", last="+next[next.length-1].commence_time:""));
- }
- const upcoming=events.filter(event=>Date.parse(event.commence_time)>now&&Date.parse(event.commence_time)<=horizon&&event.home_team&&event.away_team).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
- console.log("Fixture window: next "+lookaheadDays+" days; upcoming fixtures with odds="+upcoming.length+"; total events returned="+events.length);
- // Additional soccer markets are fetched per event by The Odds API. Limit these calls to control daily credit use.
- for(const event of upcoming.slice(0,extraEventLimit)){
-  const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
-  url.searchParams.set("regions",regions);
-  url.searchParams.set("markets",extraMarkets);
-  url.searchParams.set("oddsFormat","decimal");
-  url.searchParams.set("dateFormat","iso");
+  url.searchParams.set("commenceTimeFrom",from);
+  url.searchParams.set("commenceTimeTo",to);
   const response=await oddsFetch(url);
-  if(response.status===404||response.status===422)continue;
-  if(!response.ok)throw new Error("Additional market request failed for event "+event.id+": "+response.status+" "+(await response.text()).slice(0,400));
-  console.log("Extra market request: used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
-  const extra=await response.json();
-  event.bookmakers=event.bookmakers||[];
-  const books=new Map(event.bookmakers.map(book=>[book.key,book]));
-  for(const extraBook of extra.bookmakers||[]){
-   const existing=books.get(extraBook.key);
-   if(!existing){event.bookmakers.push(extraBook);books.set(extraBook.key,extraBook);continue;}
-   const marketKeys=new Set((existing.markets||[]).map(market=>market.key));
-   for(const market of extraBook.markets||[])if(!marketKeys.has(market.key))existing.markets.push(market);
+  if(!response.ok){
+   if(response.status===404)continue;
+   throw new Error("Fixture-list request failed for "+sport.key+": "+response.status+" "+(await response.text()).slice(0,350));
+  }
+  const dayEvents=(await response.json()).filter(event=>{
+   const kickoff=Date.parse(event.commence_time);
+   return Number.isFinite(kickoff)&&kickoff>=Date.parse(from)&&kickoff<Date.parse(to)&&event.home_team&&event.away_team;
+  });
+  console.log("Date fixtures "+sport.key+": "+dayEvents.length+" matches on "+publishDate+".");
+  for(const event of dayEvents)fixtures.push({...event,sport_key:sport.key});
+ }
+ const uniqueFixtures=[...new Map(fixtures.map(event=>[event.id,event])).values()];
+ console.log("All-competition fixture discovery: "+uniqueFixtures.length+" matches across "+new Set(uniqueFixtures.map(event=>event.sport_key)).size+" competitions on "+publishDate+".");
+ if(!uniqueFixtures.length)return [];
+ const bySport=new Map();
+ for(const event of uniqueFixtures){
+  if(!bySport.has(event.sport_key))bySport.set(event.sport_key,[]);
+  bySport.get(event.sport_key).push(event);
+ }
+ const fixtureById=new Map(uniqueFixtures.map(event=>[event.id,event]));
+ const oddsById=new Map();
+ // First pass: fetch the common football markets for every fixture on the requested date.
+ for(const [sportKey,leagueEvents] of bySport){
+  for(let offset=0;offset<leagueEvents.length;offset+=40){
+   const batch=leagueEvents.slice(offset,offset+40);
+   const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(sportKey)+"/odds/");
+   url.searchParams.set("regions",regions);
+   url.searchParams.set("markets",markets);
+   url.searchParams.set("oddsFormat","decimal");
+   url.searchParams.set("dateFormat","iso");
+   url.searchParams.set("eventIds",batch.map(event=>event.id).join(","));
+   let response=await oddsFetch(url);
+   if(response.status===422&&markets!=="h2h"){
+    url.searchParams.set("markets","h2h");
+    response=await oddsFetch(url);
+   }
+   if(!response.ok){
+    if(response.status===404)continue;
+    throw new Error("Odds request failed for "+sportKey+": "+response.status+" "+(await response.text()).slice(0,350));
+   }
+   console.log("Primary markets "+sportKey+": used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
+   for(const pricedEvent of await response.json()){
+    const base=fixtureById.get(pricedEvent.id);
+    if(!base)continue;
+    oddsById.set(pricedEvent.id,{...base,...pricedEvent,sport_key:sportKey});
+   }
   }
  }
- return upcoming;
+ let events=uniqueFixtures.map(event=>oddsById.get(event.id)||event);
+ let primaryCandidates=buildCandidates(events);
+ console.log("Primary market scan: "+primaryCandidates.length+" candidate prices in the 1.20-1.90 range from "+events.filter(event=>(event.bookmakers||[]).length).length+" fixtures.");
+ // Fallback: if the normal markets do not yield enough viable prices, inspect additional markets
+ // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
+ if(primaryCandidates.length<24){
+  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals").split(",").map(value=>value.trim()).filter(Boolean);
+  console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
+  for(const event of uniqueFixtures){
+   const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
+   url.searchParams.set("regions",regions);
+   url.searchParams.set("markets",fallbackMarkets.join(","));
+   url.searchParams.set("oddsFormat","decimal");
+   url.searchParams.set("dateFormat","iso");
+   let response=await oddsFetch(url);
+   let extraBooks=[];
+   if(response.status===422){
+    // One unsupported market must not prevent the other available markets from being checked.
+    for(const marketKey of fallbackMarkets){
+     const singleUrl=new URL(url);
+     singleUrl.searchParams.set("markets",marketKey);
+     const singleResponse=await oddsFetch(singleUrl);
+     if(singleResponse.status===404||singleResponse.status===422)continue;
+     if(!singleResponse.ok)throw new Error("Fallback market "+marketKey+" failed for "+event.home_team+" vs "+event.away_team+": "+singleResponse.status);
+     const singlePayload=await singleResponse.json();
+     extraBooks=mergeBookmakers(extraBooks,singlePayload.bookmakers||[]);
+    }
+   }else if(response.status!==404){
+    if(!response.ok)throw new Error("Fallback markets failed for "+event.home_team+" vs "+event.away_team+": "+response.status+" "+(await response.text()).slice(0,300));
+    const extraPayload=await response.json();
+    extraBooks=extraPayload.bookmakers||[];
+   }
+   if(extraBooks.length){
+    const current=events.find(item=>item.id===event.id);
+    current.bookmakers=mergeBookmakers(current.bookmakers||[],extraBooks);
+   }
+  }
+  events=events.filter(event=>Date.parse(event.commence_time)>=Date.parse(from)&&Date.parse(event.commence_time)<Date.parse(to));
+  console.log("Fallback market scan complete: "+buildCandidates(events).length+" eligible price candidates across "+events.filter(event=>(event.bookmakers||[]).length).length+" fixtures.");
+ }
+ return events;
+}
+function mergeBookmakers(existingBooks,incomingBooks){
+ const merged=new Map((existingBooks||[]).map(book=>[book.key,{...book,markets:[...(book.markets||[])]}]));
+ for(const incoming of incomingBooks||[]){
+  const current=merged.get(incoming.key);
+  if(!current){merged.set(incoming.key,{...incoming,markets:[...(incoming.markets||[])]});continue;}
+  const keys=new Set((current.markets||[]).map(market=>market.key));
+  for(const market of incoming.markets||[])if(!keys.has(market.key)){current.markets.push(market);keys.add(market.key);}
+ }
+ return [...merged.values()];
 }
 function buildCandidates(events){
  const candidates=[];
@@ -146,7 +207,7 @@ function buildCandidates(events){
   candidates.push(...best.values());
  }
  // Restrict the model to realistic short-priced markets; no long-shot legs are considered.
- return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,100);
+ return candidates.filter(item=>item.odds>=1.2&&item.odds<=1.9).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,160);
 }
 async function askGemini(candidates){
  const schema={type:"OBJECT",properties:{publishable:{type:"BOOLEAN"},reason:{type:"STRING"},accas:{type:"ARRAY",minItems:0,maxItems:3,items:{
@@ -264,11 +325,11 @@ async function main(){
  await ensureSchema();
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[date]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[date]);
- const events=await getFootballEvents();
- if(!events.length)throw new Error("No upcoming football fixtures with available odds were returned inside the configured "+Math.max(3,Math.min(14,Number(env.ODDS_LOOKAHEAD_DAYS||7)))+"-day window. See the per-league fixture discovery logs above. Existing results were left untouched.");
+ const events=await getFootballEvents(date);
+ if(!events.length)throw new Error("No football fixtures were listed for "+date+" (Africa/Nairobi) by The Odds API. Existing results were left untouched.");
  const candidates=buildCandidates(events);
- if(candidates.length<24)throw new Error("Not enough valid 1.20-1.90 football market prices to research and build three diverse accumulators.");
- console.log("Collected "+events.length+" upcoming fixtures and "+candidates.length+" priced market candidates in the 1.20-1.90 range across "+new Set(events.map(event=>event.sport_key)).size+" leagues.");
+ if(candidates.length<24)throw new Error("The full "+date+" football slate was checked across the primary and fallback markets, but only "+candidates.length+" valid 1.20-1.90 prices were available. No weak or out-of-range selections were forced; existing results were left untouched.");
+ console.log("Collected "+events.length+" fixtures on "+date+" and "+candidates.length+" eligible market prices across "+new Set(events.map(event=>event.sport_key)).size+" football competitions.");
  const response=await askGemini(candidates);
  const validated=validateAccas(response,candidates);
  await saveAccas(validated,date);
