@@ -30,7 +30,9 @@ In GitHub → AccaForge → Settings → Secrets and variables → Actions, add:
 Optional Actions variables:
 - `GEMINI_MODEL` (default `gemini-2.5-flash`)
 - `ODDS_REGIONS` (default `uk`)
-- `ODDS_MARKETS` (default `h2h,totals,btts,double_chance`)
+- `ODDS_MARKETS` (default `h2h,totals`)
+- `ODDS_EXTRA_MARKETS` (default `btts,double_chance`, fetched on a capped set of individual fixtures)
+- `ODDS_EXTRA_EVENT_LIMIT` (default `8`, maximum 30)
 - `ODDS_MAX_SPORTS` (default `8`, maximum 20)
 - `ODDS_SPORT_KEYS` (optional comma-separated sport keys to limit API usage)
 
