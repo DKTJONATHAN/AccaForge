@@ -5,6 +5,12 @@ on:
     - cron: "0 9 * * *"
       timezone: "Africa/Nairobi"
   workflow_dispatch:
+    inputs:
+      migrate_only:
+        description: "Apply D1 schema updates only; do not call Groq or The Odds API."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -69,4 +75,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          MIGRATE_ONLY: ${{ inputs.migrate_only || false }}
         run: node scripts/generate-daily.mjs
