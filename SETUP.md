@@ -36,11 +36,11 @@ Optional Actions variables:
 - `ODDS_MARKETS` (default `h2h,totals`)
 - `ODDS_EXTRA_MARKETS` (default `btts,double_chance`, fetched on a capped set of individual fixtures)
 - `ODDS_EXTRA_EVENT_LIMIT` (default `8`, maximum 30)
-- `ODDS_MAX_SPORTS` (default `12`, maximum 20)
-- `ODDS_LOOKAHEAD_DAYS` (default `7`, range 3–14 days)
-- `ODDS_SPORT_KEYS` (optional comma-separated sport keys to limit API usage)
+- `ODDS_FALLBACK_MARKETS` (default `btts,double_chance,draw_no_bet,team_totals`; checked across every fixture when the primary markets do not provide enough eligible prices)
 
-At the defaults, the featured markets use roughly 24 market credits per run (12 leagues × 2 markets × 1 region). Additional markets use up to another 16 (8 fixtures × 2 markets × 1 region), so budget for approximately 40 market credits per daily run. The actual amount depends on which markets are available and the leagues returned. Gemini Google Search grounding may also incur separate Gemini search-grounding charges, depending on the number of searches it performs. The Odds API documents the market-by-region credit calculation in its [v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+The daily generator discovers every active soccer competition exposed by your Odds API account. It first lists all fixtures on the requested Africa/Nairobi calendar date using the quota-free `/events` endpoint, then fetches odds for those exact event IDs. It does not impose a rolling-hour or multi-day lookahead and does not restrict discovery to a hand-picked league list. The Odds API can only return competitions and fixtures included in your subscription tier and current feed.
+
+Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if fewer than 24 eligible prices are found, the fallback scan checks additional markets on each fixture and can consume substantially more credits. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Gemini Google Search grounding may also incur separate Gemini search-grounding charges. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
 
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
@@ -54,7 +54,8 @@ The only workflow, `.github/workflows/daily-accas.yml`, runs at **02:00 Africa/N
 - Check `/api/accas?days=3` for the latest stored editions.
 
 ## Data safeguards
-- Football fixtures are collected from the next 7 days by default (configurable from 3 to 14 days); per-league event counts and kickoff windows are logged for diagnosis.
+- Football fixtures are restricted to the complete Africa/Nairobi calendar date being generated (00:00 inclusive to the next midnight exclusive), across every active soccer competition exposed by the Odds API account. Per-competition fixture counts are logged.
+- If primary markets do not yield at least 24 eligible prices, the generator automatically scans configured fallback markets across every fixture on that date before deciding whether there is enough evidence to publish.
 - Gemini uses Google Search grounding to research recent form, home/away performance, relevant head-to-head history, league context, injuries, suspensions, likely line-ups, rest/travel, tactical matchups and credible current team news. Unverified social-media gossip is not treated as fact.
 - Gemini can select only candidate IDs supplied by the server-side collector; the collector only supplies individual prices from 1.20 to 1.90.
 - Each accumulator must contain 4-10 different fixtures across at least 3 leagues.
