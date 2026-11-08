@@ -30,9 +30,6 @@ const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+
 if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals";
-const extraMarkets=env.ODDS_EXTRA_MARKETS||"btts,double_chance";
-const extraEventLimit=Math.max(0,Math.min(30,Number(env.ODDS_EXTRA_EVENT_LIMIT||8)));
-const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||12)));
 const model=env.GEMINI_MODEL||"gemini-3.8-flash";
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
@@ -132,10 +129,10 @@ async function getFootballEvents(publishDate){
  }
  let events=uniqueFixtures.map(event=>oddsById.get(event.id)||event);
  let primaryCandidates=buildCandidates(events);
- console.log("Primary market scan: "+primaryCandidates.length+" candidate prices in the 1.20-1.90 range from "+events.filter(event=>(event.bookmakers||[]).length).length+" fixtures.");
+ console.log("Primary market scan: "+primaryCandidates.length+" candidate prices across "+new Set(primaryCandidates.map(item=>item.event_id)).size+" distinct fixtures in the 1.20-1.90 range.");
  // Fallback: if the normal markets do not yield enough viable prices, inspect additional markets
  // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
- if(primaryCandidates.length<24){
+ if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12){
   const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals").split(",").map(value=>value.trim()).filter(Boolean);
   console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
   for(const event of uniqueFixtures){
