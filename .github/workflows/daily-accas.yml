@@ -32,7 +32,12 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
           node --input-type=module <<'NODE'
-          const headers = { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
+          let token = (process.env.CLOUDFLARE_API_TOKEN || "").trim();
+          const hadBearerPrefix = /^Bearer\\s+/i.test(token);
+          token = token.replace(/^Bearer\\s+/i, "").replace(/^["']|["']$/g, "");
+          console.log(JSON.stringify({ tokenLength: token.length, hadBearerPrefix, hasWhitespace: /\\s/.test(token), hasOuterQuotes: /^["']|["']$/.test(process.env.CLOUDFLARE_API_TOKEN || "") }));
+          if (!token || /\\s/.test(token)) throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
+          const headers = { Authorization: `Bearer ${token}` };
           const checks = [
             ["Token verification", "https://api.cloudflare.com/client/v4/user/tokens/verify"],
             ["D1 database access", `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/d1/database/${process.env.D1_DATABASE_ID}`]
