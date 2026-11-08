@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const output = join(process.cwd(), "public", "media");
-const headers = {"User-Agent":"AccaForge/1.0 (football editorial website; attribution at /image-credits)"};
+const headers = {"User-Agent":"AccaForge/1.0 (https://accaforge.jonathanmwaniki07.workers.dev; info@jonathanmwaniki.co.ke)"};
 const logos = {
  "arsenal.svg":"logos/england/Arsenal.svg",
  "chelsea.svg":"logos/england/Chelsea.svg",
