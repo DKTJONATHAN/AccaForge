@@ -237,35 +237,44 @@ async function askGemini(candidates){
  let response;
  let payload;
  let geminiSucceeded=false;
+ const unavailableKeys=[];
  for(let keyIndex=0;keyIndex<geminiKeys.length&&!geminiSucceeded;keyIndex++){
   const key=geminiKeys[keyIndex];
   const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(key);
   for(let attempt=1;attempt<=3;attempt++){
+   let responseText;
    try{
     response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:requestBody,signal:AbortSignal.timeout(180000)});
-    const responseText=await response.text();
-    try{payload=JSON.parse(responseText);}catch{throw new Error("Gemini returned a non-JSON response: "+responseText.slice(0,500));}
-    console.log("Gemini key slot "+(keyIndex+1)+": HTTP "+response.status);
-    if(response.ok){geminiSucceeded=true;break;}
-    const detail=JSON.stringify(payload).slice(0,800);
-    if([401,403,429].includes(response.status)&&keyIndex<geminiKeys.length-1){
-     console.warn("Gemini key slot "+(keyIndex+1)+" unavailable or quota-limited; rotating to the next configured key.");
-     break;
-    }
-    if((response.status===408||response.status>=500)&&attempt<3){
-     console.warn("Gemini temporarily returned HTTP "+response.status+"; retrying key slot "+(keyIndex+1)+" ("+attempt+"/3).");
-     await new Promise(resolve=>setTimeout(resolve,attempt*7000));
-     continue;
-    }
-    throw new Error("Gemini request failed: "+response.status+" "+detail);
+    responseText=await response.text();
    }catch(error){
-    if(attempt>=3)throw new Error("Gemini request failed after retries for key slot "+(keyIndex+1)+": "+(error?.cause?.code||error?.name||"network error")+" "+error.message);
-    console.warn("Gemini connection attempt "+attempt+" failed for key slot "+(keyIndex+1)+": "+(error?.cause?.code||error?.name||"network error")+". Retrying.");
+    if(attempt>=3)throw new Error("Gemini network request failed after retries for key slot "+(keyIndex+1)+": "+(error?.cause?.code||error?.name||"network error")+" "+error.message);
+    console.warn("Gemini network attempt "+attempt+" failed for key slot "+(keyIndex+1)+"; retrying.");
     await new Promise(resolve=>setTimeout(resolve,attempt*7000));
+    continue;
    }
+   try{payload=JSON.parse(responseText);}catch{
+    throw new Error("Gemini returned a non-JSON response for key slot "+(keyIndex+1)+": "+responseText.slice(0,500));
+   }
+   console.log("Gemini key slot "+(keyIndex+1)+": HTTP "+response.status);
+   if(response.ok){geminiSucceeded=true;break;}
+   const detail=JSON.stringify(payload).slice(0,800);
+   if([401,403,429].includes(response.status)){
+    unavailableKeys.push({slot:keyIndex+1,status:response.status});
+    console.warn("Gemini key slot "+(keyIndex+1)+" unavailable or quota-limited; rotating to the next configured key.");
+    break;
+   }
+   if((response.status===408||response.status>=500)&&attempt<3){
+    console.warn("Gemini temporarily returned HTTP "+response.status+"; retrying key slot "+(keyIndex+1)+" ("+attempt+"/3).");
+    await new Promise(resolve=>setTimeout(resolve,attempt*7000));
+    continue;
+   }
+   throw new Error("Gemini request failed for key slot "+(keyIndex+1)+": HTTP "+response.status+" "+detail);
   }
  }
- if(!geminiSucceeded)throw new Error("All configured Gemini API keys were unavailable or quota-limited.");
+ if(!geminiSucceeded){
+  const summary=unavailableKeys.map(item=>"slot "+item.slot+" HTTP "+item.status).join(", ");
+  throw new Error("No configured Gemini API key has available quota or valid access. Checked "+geminiKeys.length+" key(s)"+(summary?": "+summary:"")+". Check each key's project billing, model access and per-minute/daily quota.");
+ }
  const text=payload.candidates?.[0]?.content?.parts?.map(part=>part.text||"").join("");
  if(!text)throw new Error("Gemini returned no structured prediction content.");
  const grounding=payload.candidates?.[0]?.groundingMetadata;
