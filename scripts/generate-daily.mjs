@@ -50,7 +50,8 @@ async function getFootballEvents(){
   for(const event of await response.json())events.push({...event,sport_key:sport.key});
  }
  const now=Date.now();
- return events.filter(event=>Date.parse(event.commence_time)>now&&event.home_team&&event.away_team);
+ const horizon=now+72*60*60*1000;
+ return events.filter(event=>Date.parse(event.commence_time)>now&&Date.parse(event.commence_time)<=horizon&&event.home_team&&event.away_team);
 }
 function buildCandidates(events){
  const candidates=[];
@@ -76,7 +77,7 @@ function buildCandidates(events){
   }
   candidates.push(...best.values());
  }
- return candidates.filter(item=>item.odds>=1.15&&item.odds<=5.5);
+ return candidates.filter(item=>item.odds>=1.15&&item.odds<=5.5).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,220);
 }
 async function askGemini(candidates){
  const schema={type:"OBJECT",properties:{accas:{type:"ARRAY",minItems:3,maxItems:3,items:{
