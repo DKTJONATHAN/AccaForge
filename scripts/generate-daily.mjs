@@ -300,7 +300,7 @@ async function askGroq(candidates,events){
   "Evaluate every available market, not just 1X2, BTTS or totals. Use any supplied market if it is a better evidence-backed fit. A candidate must be selected exactly as supplied; never invent a market, selection or price. Notes must explain why the market fits and mention important uncertainty.",
   "SAFE PICKS: Return exactly 10 selections if and only if 10 defensible candidates exist. Each must be a different fixture, one market per match, decimal odds 1.01 through 1.50 inclusive. Choose the strongest evidence-backed high-probability outcomes. If fewer than 10 qualify, set safe_picks=null and explain why; do not pad.",
   "SUPER 5: Exactly five different fixtures, one selection per fixture. No combined-odds target and no arbitrary individual-odds ceiling. Odds may exceed 2.00 only where research supports the estimated probability. Choose the best overall evidence/probability combination; do not force a long shot.",
-  "ALL-MATCHES CHALLENGE: Return exactly one entry for EVERY fixture in the supplied fixture list. For each, choose the single best fitting available market with the strongest evidence-backed probability, using any available price. If no defensible pick exists, return status PASS with candidate_id=null, probability=0, and a concise reason. No fixture may be omitted. A club/team must not appear in more than one picked fixture in this list; if fixtures conflict, PASS the weaker/less defensible one. Never duplicate a fixture.",
+  "SUPER 10: Build a combination with calculated combined decimal odds from 9.50 through 10.50 inclusive, targeting 10.00. Use 2 or more selections from across the supplied fixtures and markets. Repeated fixtures ARE allowed, including different markets from the same fixture, but never repeat the exact same candidate/outcome. Select only outcomes supported by the dossier; do not pad. Return null if no defensible combination in the range exists.",\n  "ALL-MATCHES CHALLENGE: Return exactly one entry for EVERY fixture in the supplied fixture list. For each, choose the single best fitting available market with the strongest evidence-backed probability, using any available price. If no defensible pick exists, return status PASS with candidate_id=null, probability=0, and a concise reason. No fixture may be omitted. A club/team must not appear in more than one picked fixture in this list; if fixtures conflict, PASS the weaker/less defensible one. Never duplicate a fixture.",
   "Output JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\",\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[...]}, \"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}. Each PICK requires a candidate_id and probability 0-100. PASS requires null candidate_id. Do not add keys.",
   "Do not expose hidden chain-of-thought. Include exactly 5 Super 5 selections. Do not return combined odds or targets; the application calculates combined odds.",
   "Research dossier:",dossier.slice(0,5200),
@@ -308,7 +308,7 @@ async function askGroq(candidates,events){
   "Candidate rows: id=candidate_id; e=event_id; l=league; m=fixture; k=market; p=selection; o=decimal odds.",
   JSON.stringify(candidates.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds})=>({id:candidate_id,e:event_id,l:sport_key,m:home_team+" vs "+away_team,k:market_name,p:selection_name,o:odds})))
  ].join("\n\n");
- console.log("Groq stage 2/2: creating Safe Picks, Super 5 and All-Matches Challenge.");
+ console.log("Groq stage 2/2: creating Safe Picks, Super 5, Super 10 and All-Matches Challenge.");
  const result=await groqRequest({model,messages:[{role:"user",content:selectionPrompt}],reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:4096,temperature:0.2},"structured selection");
  const content=result.choices?.[0]?.message?.content||"";
  const extractJsonObject=source=>{const start=source.indexOf("{");if(start<0)return null;let depth=0,inString=false,escaped=false;for(let i=start;i<source.length;i++){const ch=source[i];if(inString){if(escaped)escaped=false;else if(ch==="\\")escaped=true;else if(ch==='"')inString=false;continue;}if(ch==='"'){inString=true;continue;}if(ch==="{")depth++;else if(ch==="}"&&--depth===0)return source.slice(start,i+1);}return null;};
@@ -319,42 +319,56 @@ async function askGroq(candidates,events){
 }
 function validateProducts(result,candidates,events){
  const lookup=new Map(candidates.map(item=>[item.candidate_id,item]));
+ const products=[];
  const validateSelection=(entry,allowedMin=1.01,allowedMax=Number.POSITIVE_INFINITY)=>{
   const candidate=lookup.get(entry?.candidate_id);
   if(!candidate)throw new Error("Unknown candidate ID in product selection.");
   if(candidate.odds<allowedMin||candidate.odds>allowedMax)throw new Error("A selection is outside its product's permitted odds range.");
   const probability=Number(entry.probability);
-  if(!Number.isFinite(probability)||probability<=0||probability>=100)throw new Error("Every PICK needs a credible model-estimated probability between 0 and 100.");
+  if(!Number.isFinite(probability)||probability<=0||probability>=100)throw new Error("Every PICK needs a model-estimated probability between 0 and 100.");
   return {...candidate,probability,note:cleanText(entry.note,260),selection_status:"PICK",implied_probability:Number((100/candidate.odds).toFixed(2))};
  };
- const products=[];
- if(Array.isArray(result.safe_picks?.selections)){
+ const attempt=(name,build)=>{try{const product=build();if(product)products.push(product);}catch(error){console.warn(name+" withheld; other valid products can still publish: "+cleanText(error?.message||error,260));}};
+ attempt("Safe Picks",()=>{
+  if(!Array.isArray(result.safe_picks?.selections))return null;
   if(result.safe_picks.selections.length!==10)throw new Error("Safe Picks must contain exactly 10 selections.");
   const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,1.01,1.50));
   if(new Set(selected.map(item=>item.event_id)).size!==10)throw new Error("Safe Picks must use 10 different fixtures.");
-  products.push({product_type:"safe_picks",target:1,actual:Number(selected.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Ten evidence-led selections, each priced from 1.01 to 1.50.",selections:selected});
- }else console.warn("Safe Picks withheld: "+cleanText(result.safe_picks_reason,260));
- if(!result.super_5||!Array.isArray(result.super_5.selections)||result.super_5.selections.length!==5)throw new Error("Super 5 must contain exactly five selections.");
- const super5=result.super_5.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
- if(new Set(super5.map(item=>item.event_id)).size!==5)throw new Error("Super 5 must use five different fixtures.");
- products.push({product_type:"super_5",target:2,actual:Number(super5.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.super_5.headline,100)||"Super 5",analysis_note:cleanText(result.super_5.analysis_note,400)||"Five evidence-led selections with no fixed combined-odds target.",selections:super5});
- if(!result.all_matches||!Array.isArray(result.all_matches.fixtures))throw new Error("All-Matches Challenge fixture list is missing.");
- const fixtureMap=new Map(events.map(event=>[event.id,event]));
- const byEvent=new Map(result.all_matches.fixtures.map(item=>[item.event_id,item]));
- if(byEvent.size!==events.length||events.some(event=>!byEvent.has(event.id)))throw new Error("All-Matches Challenge must include every eligible fixture exactly once.");
- const usedTeams=new Set();
- const allSelections=events.map((event,index)=>{
-  const entry=byEvent.get(event.id);
-  if(entry.status==="PASS")return {event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:event.home_team,away_team:event.away_team,market_key:"pass",market_name:"No qualifying market",selection_name:"PASS",odds:1,bookmaker:"—",probability:0,implied_probability:0,note:cleanText(entry.note,260)||"No sufficiently defensible market.",selection_status:"PASS"};
-  if(entry.status!=="PICK")throw new Error("All-Matches fixture must be PICK or PASS.");
-  const picked=validateSelection(entry,1.01,100);
-  if(picked.event_id!==event.id)throw new Error("All-Matches candidate does not match its fixture.");
-  const home=event.home_team.toLowerCase(),away=event.away_team.toLowerCase();
-  if(usedTeams.has(home)||usedTeams.has(away))return {event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:event.home_team,away_team:event.away_team,market_key:"pass",market_name:"Team already represented",selection_name:"PASS",odds:1,bookmaker:"—",probability:0,implied_probability:0,note:"Passed to avoid featuring a club more than once in the challenge.",selection_status:"PASS"};
-  usedTeams.add(home);usedTeams.add(away);
-  return {...picked,selection_status:"PICK"};
+  return {product_type:"safe_picks",target:1,actual:Number(selected.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Ten evidence-led selections, each priced from 1.01 to 1.50.",selections:selected};
  });
- products.push({product_type:"all_matches",target:3,actual:1,headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Every eligible fixture is listed; PASS means no defensible market was found.",selections:allSelections});
+ attempt("Super 5",()=>{
+  if(!Array.isArray(result.super_5?.selections)||result.super_5.selections.length!==5)throw new Error("Super 5 must contain exactly five selections.");
+  const selected=result.super_5.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
+  if(new Set(selected.map(item=>item.event_id)).size!==5)throw new Error("Super 5 must use five different fixtures.");
+  return {product_type:"super_5",target:2,actual:Number(selected.reduce((v,item)=>v*item.odds,1).toFixed(4)),headline:cleanText(result.super_5.headline,100)||"Super 5",analysis_note:cleanText(result.super_5.analysis_note,400)||"Five evidence-led selections with no fixed combined-odds target.",selections:selected};
+ });
+ attempt("Super 10",()=>{
+  if(!Array.isArray(result.super_10?.selections)||result.super_10.selections.length<2)throw new Error("Super 10 needs at least two selections.");
+  const selected=result.super_10.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
+  if(new Set(selected.map(item=>item.candidate_id)).size!==selected.length)throw new Error("Super 10 cannot repeat the exact same market outcome.");
+  const combined=selected.reduce((v,item)=>v*item.odds,1);
+  if(combined<9.5||combined>10.5)throw new Error("Super 10 combined odds must be between 9.50 and 10.50; received "+combined.toFixed(2)+".");
+  return {product_type:"super_10",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.super_10.headline,100)||"Super 10",analysis_note:cleanText(result.super_10.analysis_note,400)||"A researched combination targeting combined odds of 10.00, with a 9.50–10.50 tolerance. Fixtures and markets may repeat only when the exact market outcome differs.",selections:selected};
+ });
+ attempt("All-Matches Challenge",()=>{
+  if(!Array.isArray(result.all_matches?.fixtures))throw new Error("All-Matches Challenge fixture list is missing.");
+  const byEvent=new Map(result.all_matches.fixtures.map(item=>[item.event_id,item]));
+  if(byEvent.size!==events.length||events.some(event=>!byEvent.has(event.id)))throw new Error("All-Matches Challenge must include every eligible fixture exactly once.");
+  const usedTeams=new Set();
+  const allSelections=events.map(event=>{
+   const entry=byEvent.get(event.id);
+   const pass=()=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:event.home_team,away_team:event.away_team,market_key:"pass",market_name:"No qualifying market",selection_name:"PASS",odds:1,bookmaker:"—",probability:0,implied_probability:0,note:cleanText(entry.note,260)||"No sufficiently defensible market.",selection_status:"PASS"});
+   if(entry.status==="PASS")return pass();
+   if(entry.status!=="PICK")throw new Error("Every All-Matches fixture must be PICK or PASS.");
+   const picked=validateSelection(entry,1.01,100);
+   if(picked.event_id!==event.id)throw new Error("All-Matches candidate does not match its fixture.");
+   const home=event.home_team.toLowerCase(),away=event.away_team.toLowerCase();
+   if(usedTeams.has(home)||usedTeams.has(away))return {...pass(),market_name:"Team already represented",note:"Passed to avoid featuring a club more than once in the challenge."};
+   usedTeams.add(home);usedTeams.add(away);
+   return picked;
+  });
+  return {product_type:"all_matches",target:3,actual:1,headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Every eligible fixture is listed; PASS means no defensible market was found.",selections:allSelections};
+ });
  return products;
 }
 async function saveAccas(products,publishDate){
