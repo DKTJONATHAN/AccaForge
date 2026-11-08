@@ -31,7 +31,7 @@ Optional Actions variables:
 - `GEMINI_MODEL` (default `gemini-2.5-flash`)
 - `ODDS_REGIONS` (default `uk`)
 - `ODDS_MARKETS` (default `h2h,totals,btts,double_chance`)
-- `ODDS_MAX_SPORTS` (default `10`, maximum 20)
+- `ODDS_MAX_SPORTS` (default `8`, maximum 20)
 - `ODDS_SPORT_KEYS` (optional comma-separated sport keys to limit API usage)
 
 Never use `VITE_` prefixes for secrets and never commit API keys.
