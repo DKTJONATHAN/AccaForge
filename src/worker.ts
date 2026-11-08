@@ -5,29 +5,167 @@ interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
 }
+interface AccaRow {
+  id:string; target_odds:number; actual_odds:number; status:string;
+  headline:string; analysis_note:string; publish_date:string; created_at:string;
+}
+interface SelectionRow {
+  id:string; acca_id:string; event_id:string; sport_key:string; commence_time:string;
+  home_team:string; away_team:string; market_key:string; market_name:string;
+  selection_name:string; odds:number; bookmaker:string; note:string; sort_order:number;
+}
+interface MatchRow extends SelectionRow {
+  edition_id:string; target_odds:number; actual_odds:number;
+  publish_date:string; headline:string;
+}
+
+const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[char] || char));
+const escapeXml = (value:string) => value.replace(/[<>&'"]/g, char => ({
+  "<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"
+}[char] || char));
+const safeJson = (value:unknown) => JSON.stringify(value).replace(/</g,"\\u003c");
+const competitionName = (key:string) => ({
+  soccer_epl:"English Premier League",
+  soccer_uefa_champs_league:"UEFA Champions League",
+  soccer_uefa_europa_league:"UEFA Europa League",
+  soccer_spain_la_liga:"Spanish La Liga",
+  soccer_germany_bundesliga:"German Bundesliga",
+  soccer_italy_serie_a:"Italian Serie A",
+  soccer_france_ligue_one:"French Ligue 1",
+  soccer_netherlands_eredivisie:"Dutch Eredivisie",
+  soccer_portugal_primeira_liga:"Portuguese Primeira Liga",
+  soccer_usa_mls:"Major League Soccer"
+} as Record<string,string>)[key] || "Football";
+const dateTime = (value:string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"})+" EAT";
+};
+const siteStyles = [
+  ":root{color-scheme:dark;--bg:#07111f;--surface:#0d1b2a;--line:#26394b;--text:#f1f5f9;--muted:#b4c0cc;--accent:#63d69d;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
+  "*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--text);line-height:1.65}",
+  "a{color:var(--accent);text-underline-offset:3px}a:hover{color:#9ce8c3}",
+  ".shell{max-width:1040px;margin:0 auto;padding:0 24px}.top{border-bottom:1px solid var(--line);background:#091625}.topin{min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:25px;font-weight:800;letter-spacing:-1px;color:var(--text);text-decoration:none}.brand span{color:var(--accent)}nav{display:flex;gap:18px;flex-wrap:wrap}nav a{font-size:13px;color:var(--muted);text-decoration:none}",
+  "main{padding-top:48px;padding-bottom:64px} .crumb{font-size:12px;color:var(--muted);margin-bottom:24px}.eyebrow{font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(34px,6vw,54px);line-height:1.08;letter-spacing:-1.4px;margin:0 0 16px}h2{font-size:24px;line-height:1.2;margin:34px 0 10px}h3{font-size:18px;margin:0 0 8px}p,li{color:var(--muted);font-size:15px}p{max-width:76ch}ul{padding-left:22px}.lead{font-size:18px;max-width:72ch}.panel{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:20px;margin:22px 0}.facts{display:flex;gap:22px;flex-wrap:wrap;color:var(--muted);font-size:13px}.facts strong{color:var(--text)}.list{padding:0;list-style:none}.list li{padding:15px 0;border-top:1px solid var(--line)}.list li:first-child{border-top:0}.list a{display:block;text-decoration:none;color:var(--text);font-weight:650}.list small{display:block;color:var(--muted);font-size:13px;margin-top:4px}.price{float:right;color:var(--accent);font-variant-numeric:tabular-nums;font-weight:700}.button{display:inline-block;background:var(--accent);color:#07111f;padding:10px 15px;border-radius:6px;text-decoration:none;font-weight:700}.notice{border:1px solid var(--line);background:var(--surface);padding:16px;border-radius:8px}.footer{border-top:1px solid var(--line);padding:22px 0 32px;color:var(--muted);font-size:12px}.footer nav{margin:10px 0}.footer nav a{font-size:12px}",
+  "@media(max-width:640px){.shell{padding-left:16px;padding-right:16px}.topin{align-items:flex-start;flex-direction:column;padding-top:14px;padding-bottom:14px}nav{gap:12px}main{padding-top:32px}.facts{gap:12px}p,li{font-size:14px}}"
+].join("");
+
+const staticPages:Record<string,{title:string;description:string;body:string}> = {
+  "/about":{
+    title:"About AccaForge | Football Accumulator Analysis",
+    description:"Learn about AccaForge, its owner Jonathan Mwaniki and the Za Ndani Tipsters football editorial team.",
+    body:"<h1>About AccaForge</h1><p class='lead'>AccaForge is a football analysis and accumulator information website built to make daily selections, fixtures and decimal odds easier to review.</p><h2>Who is behind AccaForge?</h2><p>AccaForge is owned by <strong>Jonathan Mwaniki</strong>. Football tips and editorial selections are published by <strong>Za Ndani Tipsters</strong>, the tipster team from the owners of <a href='https://zandani.co.ke/' rel='noopener'>Za Ndani (zandani.co.ke)</a>.</p><h2>What the website publishes</h2><p>The daily board presents three football accumulator odds targets: 10.00, 15.00 and 20.00. Each published edition shows its fixtures, selected markets, individual decimal prices and calculated combined odds. Recent editions are available for a limited archive period.</p><h2>What AccaForge is not</h2><p>AccaForge is an information and entertainment publication. It is not a bookmaker, betting exchange, gambling operator or payment service. It does not accept stakes, place bets or guarantee match outcomes or returns.</p><p>For questions about the website or its published material, visit the <a href='/contact'>contact page</a>.</p>"
+  },
+  "/contact":{
+    title:"Contact AccaForge | Jonathan Mwaniki and Za Ndani Tipsters",
+    description:"Contact AccaForge owner Jonathan Mwaniki and the Za Ndani Tipsters editorial team.",
+    body:"<h1>Contact AccaForge</h1><p class='lead'>For website enquiries, corrections, editorial feedback or privacy requests, contact the AccaForge team by email.</p><div class='panel'><h2>Website owner</h2><p><strong>Jonathan Mwaniki</strong></p><h2>Football tipster team</h2><p><strong>Za Ndani Tipsters</strong> — from the owners of <a href='https://zandani.co.ke/' rel='noopener'>zandani.co.ke</a>.</p><h2>Email</h2><p><a class='button' href='mailto:info@jonathanmwaniki.co.ke'>Email info@jonathanmwaniki.co.ke</a></p><p>When reporting a fixture or published selection, include the page URL and the edition date so the team can identify the item.</p></div><p>AccaForge does not provide betting account support, accept deposits or process withdrawals.</p>"
+  },
+  "/terms":{
+    title:"Terms of Service and Conditions | AccaForge",
+    description:"Read the AccaForge terms of service, website conditions, information disclaimer and user responsibilities.",
+    body:"<h1>Terms of Service and Conditions</h1><p><strong>Effective date: 8 November 2026</strong></p><p class='lead'>These terms govern your access to AccaForge. By using this website, you agree to these terms. If you do not agree, please stop using the website.</p><h2>1. Information and entertainment only</h2><p>AccaForge publishes football fixture information, market selections and accumulator calculations for general information and entertainment. Nothing on this website is financial advice, investment advice, a personal recommendation or a promise of profit.</p><h2>2. No betting service</h2><p>AccaForge is not a bookmaker, betting exchange, gambling operator or intermediary. We do not accept wagers, stakes, deposits or withdrawals, and we do not open or manage betting accounts. Any decision to use an independently operated betting service is yours and is subject to that service's terms and the laws that apply to you.</p><h2>3. Odds and match information</h2><p>Fixtures, markets and odds are displayed as information available when an edition is prepared. Prices, markets, fixture times and availability can change, differ between providers or become unavailable. Always verify current information independently. Accumulator odds are calculated from the individual prices displayed; actual returns, where applicable through a separate provider, may differ.</p><h2>4. No guarantees</h2><p>Football is uncertain. Every selection can lose, and an accumulator can lose in full if one or more selections fail. Past selections do not predict future outcomes. We make no guarantee about accuracy, availability, winning probability or financial results.</p><h2>5. Age and lawful use</h2><p>This website is intended only for people aged 18 or older. Do not use gambling-related information if you are under the legal age in your location. You are responsible for understanding and complying with laws that apply where you live. Do not use the website where doing so would be unlawful.</p><h2>6. Responsible use</h2><p>Never gamble with money needed for essentials, never borrow to gamble and never chase losses. You can read our <a href='/responsible-gambling'>responsible gambling guidance</a> for further information.</p><h2>7. Intellectual property and permitted use</h2><p>Website text, design and original editorial material belong to their respective owners or licensors. You may link to public pages for personal, non-commercial reference. Do not copy, republish, scrape or commercially exploit substantial website content without permission, except where the law permits.</p><h2>8. Availability and third-party services</h2><p>We may update, suspend or remove content or website features. Third-party websites and services are independent; links do not mean that AccaForge endorses or controls them. We are not responsible for their content, odds, services or privacy practices.</p><h2>9. Liability</h2><p>To the extent permitted by applicable law, AccaForge and its owner are not liable for losses arising from reliance on displayed odds, selections, fixture information, third-party services or temporary website interruptions. Nothing in these terms excludes liability that cannot lawfully be excluded.</p><h2>10. Changes and governing law</h2><p>These terms may be updated by publishing a revised version on this page. The laws of Kenya govern these terms, subject to any mandatory consumer protections or laws that apply to you.</p><h2>11. Contact</h2><p>Questions about these terms can be sent to <a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a>.</p>"
+  },
+  "/privacy":{
+    title:"Privacy Policy | AccaForge",
+    description:"Learn what information AccaForge processes, how browser storage and hosting logs are used, and how to contact the website owner.",
+    body:"<h1>Privacy Policy</h1><p><strong>Effective date: 8 November 2026</strong></p><p class='lead'>This policy explains how AccaForge handles information when you visit the website or contact the team.</p><h2>Information you provide</h2><p>AccaForge does not currently require account registration and does not ask visitors to submit payment details. If you email us, we receive the information you choose to include in your message, such as your email address and enquiry.</p><h2>Information processed when you visit</h2><p>The website is delivered through Cloudflare infrastructure. Like most websites, the hosting and security provider may process technical request information such as IP address, browser and device details, requested pages, timestamps and security events to deliver, protect and troubleshoot the service.</p><h2>Browser storage</h2><p>AccaForge uses browser local storage to remember that a visitor has confirmed the 18+ notice. This is stored on your device and is not an account profile. You can clear it through your browser settings; doing so may cause the age notice to appear again.</p><h2>Cookies and analytics</h2><p>The current AccaForge website code does not set advertising or analytics cookies. Hosting and security infrastructure may use strictly necessary technologies for delivery and protection. See our <a href='/cookies'>Cookie Policy</a> for more detail.</p><h2>How information is used</h2><p>Information is used to operate and secure the website, respond to enquiries, investigate technical issues and meet applicable legal obligations. We do not sell personal information.</p><h2>Sharing</h2><p>Technical information may be processed by our hosting and infrastructure providers to deliver the website. Email providers process messages when you contact us. We do not give personal information to advertisers for their own marketing.</p><h2>Retention and security</h2><p>Enquiries are retained only as long as reasonably needed to respond, keep relevant records or meet legal requirements. Technical logs are handled under the hosting provider's retention practices. We use reasonable safeguards, but no internet transmission or storage system can be guaranteed completely secure.</p><h2>Your choices and requests</h2><p>You can clear local storage in your browser and contact us to ask about personal information contained in an email you sent. Applicable rights depend on the law that applies to your request.</p><h2>Children</h2><p>AccaForge is intended for adults aged 18 and older and is not designed for children.</p><h2>Contact</h2><p>For privacy questions or requests, email <a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a>.</p>"
+  },
+  "/cookies":{
+    title:"Cookie Policy | AccaForge",
+    description:"Understand cookies and local browser storage used by AccaForge, including the 18+ confirmation preference.",
+    body:"<h1>Cookie Policy</h1><p><strong>Effective date: 8 November 2026</strong></p><p class='lead'>This page explains the browser technologies currently used by AccaForge.</p><h2>Cookies</h2><p>The current AccaForge website code does not set advertising, profiling or analytics cookies. Cloudflare, as the website delivery and security provider, may use strictly necessary technical mechanisms to protect or deliver the service. Those technologies are controlled by the relevant provider and are not used by AccaForge for behavioural advertising.</p><h2>Local storage for the age notice</h2><p>AccaForge stores an 18+ confirmation in your browser's local storage so that the age notice does not need to be shown on every visit. Local storage is not a cookie. It stays in your browser until it is cleared or removed by the browser.</p><h2>Your choices</h2><p>You can clear website data or local storage through your browser settings. If you clear it, the age confirmation may be requested again. Blocking essential browser technologies or security controls may affect how the website works.</p><h2>Changes</h2><p>If AccaForge adds analytics, advertising or other optional tracking technologies, this policy will be updated to describe them before or when they are introduced.</p><h2>Contact</h2><p>Questions can be sent to <a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a>.</p>"
+  },
+  "/responsible-gambling":{
+    title:"Responsible Gambling | AccaForge 18+",
+    description:"AccaForge is an 18+ football information website. Read the risks of accumulators and practical responsible gambling guidance.",
+    body:"<h1>Responsible gambling</h1><p class='lead'>AccaForge is for adults aged 18 and older. Football accumulators are high-risk: one unsuccessful selection can cause the entire accumulator to lose.</p><div class='notice'><strong>18+ only. No selection is guaranteed. Never gamble with money you cannot afford to lose.</strong></div><h2>Keep gambling in perspective</h2><ul><li>Set a strict limit before you start and do not exceed it.</li><li>Do not borrow money or use funds intended for rent, food, bills or family needs.</li><li>Do not chase losses or increase stakes to recover money.</li><li>Take breaks and stop if gambling affects your mood, relationships or finances.</li><li>Do not gamble while distressed, under pressure or impaired by alcohol or drugs.</li></ul><h2>Understand accumulator risk</h2><p>An accumulator combines multiple selections. Even if individual events appear plausible, the chance that every selection succeeds is lower than the chance of each one succeeding on its own. Displayed odds are not a promise or a forecast of certain returns.</p><h2>Get support</h2><p>If gambling is causing harm, stop and seek help from a qualified local support service or health professional. Use blocking tools and self-exclusion options offered by any gambling operator you use. If you are under 18, do not use betting services.</p><h2>Our position</h2><p>AccaForge does not accept bets, deposits or withdrawals and does not encourage anyone to gamble. Our football content is published for information and entertainment only.</p><p>Questions about this notice: <a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a>.</p>"
+  },
+  "/editorial-policy":{
+    title:"Editorial Policy | Za Ndani Tipsters on AccaForge",
+    description:"Read how Za Ndani Tipsters present football accumulator selections, odds, corrections and uncertainty on AccaForge.",
+    body:"<h1>Editorial policy</h1><p class='lead'>AccaForge aims to present football accumulator information in a clear, consistent and responsible format.</p><h2>Editorial responsibility</h2><p>AccaForge is owned by Jonathan Mwaniki. Football selections and tipster commentary are published by Za Ndani Tipsters, from the owners of <a href='https://zandani.co.ke/' rel='noopener'>zandani.co.ke</a>.</p><h2>What is published</h2><p>Daily editions display upcoming football fixtures, the selected market and outcome, the individual decimal odds, the bookmaker label supplied with the price and the calculated combined odds. The site may retain a short rolling archive of recent editions.</p><h2>Accuracy and updates</h2><p>Selections and prices are based on information available when an edition is prepared. Markets, odds and kick-off times can change. The published page should be treated as a time-stamped information snapshot, not a live bookmaker quote. Visitors should independently verify current details.</p><h2>Independence and conflicts</h2><p>Where editorial relationships or commercial arrangements materially affect a published recommendation, they should be disclosed on the relevant page. AccaForge does not claim that a bookmaker endorses its selections.</p><h2>Corrections</h2><p>If you identify an incorrect team name, fixture time, market label or other factual detail, email the page URL and a description of the issue to <a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a>. Verified corrections may be made to the page.</p><h2>No certainty or guaranteed returns</h2><p>Football outcomes are uncertain. AccaForge does not promise winning tips, guaranteed odds or profits. Content is intended for adults aged 18 and older and for information and entertainment only.</p>"
+  }
+};
+
+function renderPage(input:{title:string;description:string;path:string;body:string;schema?:unknown;robots?:string},origin:string,status=200){
+  const canonical=new URL(input.path,origin).toString();
+  const schema=input.schema || {
+    "@context":"https://schema.org",
+    "@type":"Organization",
+    "name":"AccaForge",
+    "url":origin,
+    "founder":{"@type":"Person","name":"Jonathan Mwaniki"},
+    "email":"info@jonathanmwaniki.co.ke"
+  };
+  const footer="<footer class='footer'><strong>AccaForge</strong> · Owned by Jonathan Mwaniki · Football tipsters: Za Ndani Tipsters<nav><a href='/about'>About</a><a href='/contact'>Contact</a><a href='/terms'>Terms</a><a href='/privacy'>Privacy</a><a href='/cookies'>Cookies</a><a href='/editorial-policy'>Editorial policy</a><a href='/responsible-gambling'>Responsible play</a></nav><a href='mailto:info@jonathanmwaniki.co.ke'>info@jonathanmwaniki.co.ke</a><p>18+ only · Information and entertainment only · No guaranteed outcomes</p></footer>";
+  const html="<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='theme-color' content='#07111f'><meta name='description' content='"+escapeHtml(input.description)+"'><meta name='robots' content='"+escapeHtml(input.robots||"index,follow")+"'><link rel='canonical' href='"+escapeHtml(canonical)+"'><link rel='icon' type='image/svg+xml' href='/favicon.svg'><meta property='og:type' content='website'><meta property='og:site_name' content='AccaForge'><meta property='og:title' content='"+escapeHtml(input.title)+"'><meta property='og:description' content='"+escapeHtml(input.description)+"'><meta property='og:url' content='"+escapeHtml(canonical)+"'><meta name='twitter:card' content='summary'><title>"+escapeHtml(input.title)+"</title><script type='application/ld+json'>"+safeJson(schema)+"</script><style>"+siteStyles+"</style></head><body><header class='top'><div class='shell topin'><a class='brand' href='/'>Acca<span>Forge</span></a><nav aria-label='Main navigation'><a href='/'>Daily football tips</a><a href='/about'>About</a><a href='/contact'>Contact</a></nav></div></header><main class='shell'><div class='crumb'><a href='/'>Home</a> / "+escapeHtml(input.title.split("|")[0].trim())+"</div>"+input.body+"</main><div class='shell'>"+footer+"</div></body></html>";
+  return new Response(html,{status,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":status===200?"public, max-age=0, s-maxage=120, stale-while-revalidate=300":"public, max-age=60","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
+}
+
+async function sitemap(env:Env,origin:string){
+  const accas=(await env.DB.prepare("SELECT id,publish_date FROM accas WHERE status='published' ORDER BY publish_date DESC").all<{id:string;publish_date:string}>()).results||[];
+  const matches=(await env.DB.prepare("SELECT s.event_id,MAX(a.publish_date) AS lastmod FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' GROUP BY s.event_id ORDER BY lastmod DESC").all<{event_id:string;lastmod:string}>()).results||[];
+  const urls:Array<{path:string;lastmod?:string}>=[
+    {path:"/"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
+    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"}
+  ];
+  for(const item of accas)urls.push({path:"/accumulators/"+encodeURIComponent(item.id),lastmod:item.publish_date});
+  for(const item of matches)urls.push({path:"/matches/"+encodeURIComponent(item.event_id),lastmod:item.lastmod});
+  const xml='<?xml version="1.0" encoding="UTF-8"?>'+
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+
+    urls.map(item=>"<url><loc>"+escapeXml(new URL(item.path,origin).toString())+"</loc>"+(item.lastmod?"<lastmod>"+escapeXml(item.lastmod)+"</lastmod>":"")+"</url>").join("")+
+    "</urlset>";
+  return new Response(xml,{headers:{"Content-Type":"application/xml; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=300","X-Content-Type-Options":"nosniff"}});
+}
+
+async function accumulatorPage(id:string,env:Env,origin:string){
+  const acca=await env.DB.prepare("SELECT * FROM accas WHERE id=? AND status='published'").bind(id).first<AccaRow>();
+  if(!acca)return renderPage({title:"Accumulator edition not found | AccaForge",description:"This football accumulator edition is no longer available.",path:"/accumulators/"+encodeURIComponent(id),robots:"noindex,follow",body:"<h1>Edition not found</h1><p>This accumulator may have expired from the recent-editions archive. Visit the <a href='/'>AccaForge daily football tips page</a> for the latest published selections.</p>"},origin,404);
+  const selections=(await env.DB.prepare("SELECT * FROM selections WHERE acca_id=? ORDER BY sort_order ASC").bind(id).all<SelectionRow>()).results||[];
+  const legs=selections.map((item,index)=>"<li><a href='/matches/"+encodeURIComponent(item.event_id)+"'>"+escapeHtml(item.home_team)+" vs "+escapeHtml(item.away_team)+"</a><small>"+escapeHtml(dateTime(item.commence_time))+" · "+escapeHtml(competitionName(item.sport_key))+" · "+escapeHtml(item.market_name)+" · "+escapeHtml(item.selection_name)+" · "+escapeHtml(item.bookmaker)+" <span class='price'>"+Number(item.odds).toFixed(2)+"</span></small></li>").join("");
+  const body="<h1>"+escapeHtml(acca.headline)+"</h1><p class='lead'>Football accumulator analysis for "+escapeHtml(acca.publish_date)+". Review every fixture, market and listed decimal price below.</p><div class='panel'><div class='facts'><span>Target odds: <strong>"+Number(acca.target_odds).toFixed(2)+"</strong></span><span>Combined odds: <strong>"+Number(acca.actual_odds).toFixed(2)+"</strong></span><span>Selections: <strong>"+selections.length+"</strong></span><span>Published: <strong>"+escapeHtml(acca.publish_date)+"</strong></span></div><p>"+escapeHtml(acca.analysis_note)+"</p></div><h2>Fixture and market breakdown</h2><ul class='list'>"+(legs||"<li>No selections are available for this edition.</li>")+"</ul><p class='notice'>Information and entertainment only. Odds can change and every selection can lose. No outcome or return is guaranteed. 18+ only.</p><p><a class='button' href='/'>View the latest AccaForge football tips</a></p>";
+  const schema={"@context":"https://schema.org","@type":"WebPage","name":acca.headline,"description":"Football accumulator selections and combined odds for "+acca.publish_date,"url":new URL("/accumulators/"+encodeURIComponent(id),origin).toString(),"publisher":{"@type":"Organization","name":"AccaForge","url":origin}};
+  return renderPage({title:acca.headline+" | Football Accumulator "+Number(acca.target_odds).toFixed(2)+" Odds | AccaForge",description:"Review the "+Number(acca.target_odds).toFixed(2)+" target football accumulator published "+acca.publish_date+": "+selections.map(item=>item.home_team+" vs "+item.away_team).join(", ")+".",path:"/accumulators/"+encodeURIComponent(id),body,schema},origin);
+}
+
+async function matchPage(eventId:string,env:Env,origin:string){
+  const rows=(await env.DB.prepare("SELECT s.*,a.id AS edition_id,a.target_odds,a.actual_odds,a.publish_date,a.headline FROM selections s JOIN accas a ON a.id=s.acca_id WHERE s.event_id=? AND a.status='published' ORDER BY a.publish_date DESC,a.target_odds ASC").bind(eventId).all<MatchRow>()).results||[];
+  if(!rows.length)return renderPage({title:"Match page not found | AccaForge",description:"This match is not available in the current AccaForge published editions.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body:"<h1>Match page not found</h1><p>This fixture may have left the recent-editions archive. Visit the <a href='/'>latest AccaForge football tips</a> to explore current selections.</p>"},origin,404);
+  const first=rows[0];
+  const name=first.home_team+" vs "+first.away_team;
+  const competition=competitionName(first.sport_key);
+  const editionLinks=rows.map(item=>"<li><a href='/accumulators/"+encodeURIComponent(item.edition_id)+"'>"+escapeHtml(item.headline)+"</a><small>"+escapeHtml(item.publish_date)+" · "+Number(item.target_odds).toFixed(2)+" target · "+Number(item.actual_odds).toFixed(2)+" combined odds · "+escapeHtml(item.market_name)+": "+escapeHtml(item.selection_name)+"</small></li>").join("");
+  const body="<h1>"+escapeHtml(name)+"</h1><p class='lead'>Football match information and published accumulator selections for "+escapeHtml(name)+", listed in the "+escapeHtml(competition)+".</p><div class='panel'><div class='facts'><span>Competition: <strong>"+escapeHtml(competition)+"</strong></span><span>Kick-off: <strong>"+escapeHtml(dateTime(first.commence_time))+"</strong></span></div></div><h2>AccaForge selections featuring this fixture</h2><ul class='list'>"+editionLinks+"</ul><p class='notice'>These are editorial market selections, not a live score or a guaranteed prediction. Match details and odds may change. 18+ only; information and entertainment only.</p><p><a class='button' href='/'>Explore daily football accumulators</a></p>";
+  const schema={"@context":"https://schema.org","@type":"SportsEvent","name":name,"startDate":first.commence_time,"sport":"Soccer","homeTeam":{"@type":"SportsTeam","name":first.home_team},"awayTeam":{"@type":"SportsTeam","name":first.away_team},"url":new URL("/matches/"+encodeURIComponent(eventId),origin).toString(),"organizer":{"@type":"Organization","name":"AccaForge","url":origin}};
+  return renderPage({title:name+" | "+competition+" Match Analysis and Accumulator Tips | AccaForge",description:"View "+name+" match information, kick-off time and published AccaForge football accumulator markets and odds.",path:"/matches/"+encodeURIComponent(eventId),body,schema},origin);
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-
     if (url.pathname === "/api/accas") {
-      if (request.method !== "GET") {
-        return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
-      }
+      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
     }
-
     if (url.pathname === "/api/health") {
-      if (request.method !== "GET") {
-        return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
-      }
+      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getHealth({ request, env });
     }
-
-    if (url.pathname.startsWith("/api/")) {
-      return Response.json({ error: "Not found." }, { status: 404 });
+    if (url.pathname.startsWith("/api/")) return Response.json({ error: "Not found." }, { status: 404 });
+    if (url.pathname === "/sitemap.xml") return sitemap(env,url.origin);
+    if (url.pathname === "/robots.txt") {
+      const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+url.origin+"/sitemap.xml\n";
+      return new Response(body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"public, max-age=300"}});
     }
-
+    const staticPage=staticPages[url.pathname.replace(/\/$/,"") || "/"];
+    if (staticPage) return renderPage({...staticPage,path:url.pathname.replace(/\/$/,"")},url.origin);
+    const accumulatorMatch=url.pathname.match(/^\/accumulators\/([^/]+)\/?$/);
+    if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin);
+    const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
+    if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
