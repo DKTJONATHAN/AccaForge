@@ -215,10 +215,25 @@ function buildCandidates(events){
     }
    }
   }
-  candidates.push(...best.values());
+  const values=[...best.values()].filter(item=>item.odds>=1.01&&item.odds<=100);
+  // Preserve market breadth for every fixture while keeping the free-tier AI payload compact:
+  // one shortest-priced representative per market, plus the fixture's longest price and best remaining options.
+  const marketRepresentatives=new Map();
+  for(const item of values){
+   const current=marketRepresentatives.get(item.market_key);
+   if(!current||item.odds<current.odds)marketRepresentatives.set(item.market_key,item);
+  }
+  const chosen=[...marketRepresentatives.values()];
+  const highest=values.slice().sort((a,b)=>b.odds-a.odds)[0];
+  if(highest&&!chosen.some(item=>item.candidate_id===highest.candidate_id))chosen.push(highest);
+  for(const item of values.slice().sort((a,b)=>a.odds-b.odds)){
+   if(chosen.length>=8)break;
+   if(!chosen.some(existing=>existing.candidate_id===item.candidate_id))chosen.push(item);
+  }
+  candidates.push(...chosen.slice(0,8));
  }
- // Keep the full supplied price spectrum. Each product applies its own price rules later.
- return candidates.filter(item=>item.odds>=1.01&&item.odds<=100).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,650);
+ // Keep the full supplied price spectrum while retaining coverage across the daily fixture slate.
+ return candidates.sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,450);
 }
 async function groqRequest(body,label){
  let lastError;
