@@ -4,7 +4,9 @@ const required=["ODDS_API_KEY","GEMINI_API_KEY","CLOUDFLARE_API_TOKEN","CLOUDFLA
 for(const name of required) if(!process.env[name]) throw new Error("Missing required environment variable: "+name);
 const env=process.env;
 const regions=env.ODDS_REGIONS||"uk";
-const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance";
+const markets=env.ODDS_MARKETS||"h2h,totals";
+const extraMarkets=env.ODDS_EXTRA_MARKETS||"btts,double_chance";
+const extraEventLimit=Math.max(0,Math.min(30,Number(env.ODDS_EXTRA_EVENT_LIMIT||8)));
 const maxSports=Math.max(1,Math.min(20,Number(env.ODDS_MAX_SPORTS||8)));
 const model=env.GEMINI_MODEL||"gemini-2.5-flash";
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
@@ -47,11 +49,34 @@ async function getFootballEvents(){
   url.searchParams.set("dateFormat","iso");
   const response=await fetch(url);
   if(!response.ok){const detail=await response.text();if(response.status===404)continue;throw new Error("Odds request failed for "+sport.key+": "+response.status+" "+detail.slice(0,400));}
+  console.log("Odds API "+sport.key+": used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
   for(const event of await response.json())events.push({...event,sport_key:sport.key});
  }
  const now=Date.now();
  const horizon=now+72*60*60*1000;
- return events.filter(event=>Date.parse(event.commence_time)>now&&Date.parse(event.commence_time)<=horizon&&event.home_team&&event.away_team);
+ const upcoming=events.filter(event=>Date.parse(event.commence_time)>now&&Date.parse(event.commence_time)<=horizon&&event.home_team&&event.away_team).sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
+ // Additional soccer markets are fetched per event by The Odds API. Limit these calls to control daily credit use.
+ for(const event of upcoming.slice(0,extraEventLimit)){
+  const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
+  url.searchParams.set("apiKey",env.ODDS_API_KEY);
+  url.searchParams.set("regions",regions);
+  url.searchParams.set("markets",extraMarkets);
+  url.searchParams.set("oddsFormat","decimal");
+  url.searchParams.set("dateFormat","iso");
+  const response=await fetch(url);
+  if(response.status===404||response.status===422)continue;
+  if(!response.ok)throw new Error("Additional market request failed for event "+event.id+": "+response.status+" "+(await response.text()).slice(0,400));
+  console.log("Extra market request: used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
+  const extra=await response.json();
+  const books=new Map((event.bookmakers||[]).map(book=>[book.key,book]));
+  for(const extraBook of extra.bookmakers||[]){
+   const existing=books.get(extraBook.key);
+   if(!existing){event.bookmakers.push(extraBook);books.set(extraBook.key,extraBook);continue;}
+   const marketKeys=new Set((existing.markets||[]).map(market=>market.key));
+   for(const market of extraBook.markets||[])if(!marketKeys.has(market.key))existing.markets.push(market);
+  }
+ }
+ return upcoming;
 }
 function buildCandidates(events){
  const candidates=[];
