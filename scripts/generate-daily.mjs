@@ -293,6 +293,7 @@ async function askGroq(candidates){
   "DIVERSITY RULE - LAST-RESORT FALLBACK: If and ONLY if the available distinct fixtures/markets cannot responsibly produce all three target accumulators, you may reuse an exact same fixture across DIFFERENT accumulators. Every repeated fixture MUST use a DIFFERENT market_key from the other accumulator(s). Never repeat the same fixture twice inside one accumulator. Never repeat the same fixture+market_key combination anywhere across the three accumulators. A different selection/outcome in the same market does NOT count as a different market.",
   "TEAM RULE: A club/team may appear more than once ONLY when it is the same exact event_id/fixture being reused under the different-market fallback. Never reuse either team in a different fixture. Each accumulator must still have at least 3 leagues.",
   "TARGET RULE: Return exactly one accumulator for each combined decimal-odds target 10, 15 and 20. Multiply the supplied leg prices; aim within 5% of target. Prefer the distinct-fixture solution; use the different-market repetition fallback only when necessary. Never add a weak leg just to reach a target. If evidence, candidate pool, or these rules cannot responsibly support all three, return publishable=false, a clear reason, and accas=[].",
+  "OUTPUT FORMAT: Return ONLY one valid JSON object, with no Markdown or surrounding text, using exactly this shape: {\"publishable\":true,\"reason\":\"brief reason\",\"accas\":[{\"target\":\"10\",\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"exact supplied id\",\"note\":\"...\ same fixture market rationale\"}]}]}. Include exactly three accas with targets 10, 15 and 20 when publishable is true. If the rules cannot be met, return {\"publishable\":false,\"reason\":\"specific reason\",\"accas\":[]}. Do not add any other keys.",
   "NOTES: Each leg needs a concise, specific evidence-based explanation of why its exact market is suitable. Explain uncertainties. Do not promise wins or certainty. Do not expose hidden chain-of-thought.",
   "Research dossier:",
   dossier.slice(0,4800),
@@ -305,7 +306,8 @@ async function askGroq(candidates){
  const result=await groqRequest({
   model,
   messages:[{role:"user",content:selectionPrompt}],
-  response_format:{type:"json_schema",json_schema:{name:"accaforge_daily_accumulators",strict:false,schema}},
+  // JSON mode avoids Groq best-effort schema-validation 400s; validate every field and business rule locally below.
+  response_format:{type:"json_object},
   // Keep prompt + reserved completion comfortably below the Groq free-tier TPM ceiling.
   max_completion_tokens:2000,
   temperature:0.2
