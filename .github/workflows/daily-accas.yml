@@ -25,6 +25,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Verify Cloudflare token and D1 access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const headers = { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
+          const checks = [
+            ["Token verification", "https://api.cloudflare.com/client/v4/user/tokens/verify"],
+            ["D1 database access", `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/d1/database/${process.env.D1_DATABASE_ID}`]
+          ];
+          for (const [label, url] of checks) {
+            const response = await fetch(url, { headers });
+            const body = await response.json();
+            console.log(`${label}: HTTP ${response.status}`);
+            console.log(JSON.stringify({ success: body.success, result: body.result, errors: body.errors }));
+            if (!response.ok || !body.success) process.exitCode = 1;
+          }
+          NODE
       - name: Generate, validate and store today's accumulators
         env:
           ODDS_API_KEY: ${{ secrets.ODDSAPI_KEY || secrets.ODDS_API_KEY }}
