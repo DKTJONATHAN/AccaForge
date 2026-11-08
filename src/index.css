@@ -99,3 +99,30 @@ img{max-width:100%}
  .league-strip-list{grid-template-columns:repeat(2,minmax(0,1fr))}
  .target-tab strong{font-size:20px}
 }
+
+
+/* Football spotlight and discovery sections */
+.spotlight-section{padding:34px 0 42px;border-bottom:1px solid var(--line)}
+.spotlight-heading{margin-bottom:18px}
+.spotlight-heading .eyebrow{font-size:10px;letter-spacing:.14em;color:var(--accent);font-weight:700}
+.spotlight-heading h2,.keyword-hub h2{font:600 clamp(25px,4vw,34px) "Barlow Condensed",sans-serif;margin:7px 0}
+.spotlight-heading p{font-size:12px;color:var(--muted);margin:0;max-width:650px;line-height:1.7}
+.spotlight-grid{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:12px}
+.player-feature{position:relative;isolation:isolate;min-height:245px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#162c3e,#091522);display:flex;flex-direction:column;justify-content:flex-end;padding:18px;color:#fff;text-decoration:none}
+.player-feature:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(3,10,18,.97),rgba(3,10,18,.08) 75%)}
+.player-feature img{position:absolute;z-index:-2;right:0;bottom:0;height:100%;width:78%;object-fit:contain;object-position:right bottom;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))}
+.player-feature:hover{border-color:var(--accent);transform:translateY(-2px)}
+.spotlight-label{font-size:9px;letter-spacing:.13em;font-weight:700;color:var(--accent)}
+.player-feature strong{font:700 27px "Barlow Condensed",sans-serif;margin-top:5px;text-shadow:0 2px 8px #000}
+.player-feature small{font-size:10px;color:#d2dbe3}
+.club-feature{border:1px solid var(--line);border-radius:9px;padding:17px;background:var(--surface);min-width:0}
+.club-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}
+.club-grid a{display:flex;align-items:center;gap:9px;padding:9px;border:1px solid var(--line);border-radius:7px;color:var(--text);font-size:11px;font-weight:600;text-decoration:none;min-width:0}
+.club-grid a:hover{border-color:var(--accent);color:var(--accent)}
+.club-grid img{width:36px;height:36px;object-fit:contain;flex:0 0 36px}
+.keyword-hub{padding:30px 0 34px;border-bottom:1px solid var(--line)}
+.keyword-hub h2{margin:0 0 8px}
+.keyword-hub p{max-width:950px;color:var(--muted);font-size:12px;line-height:1.8;margin:0}
+.keyword-hub a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+@media(max-width:760px){.spotlight-section{padding:25px 0 30px}.spotlight-grid{grid-template-columns:1fr 1fr;gap:8px}.player-feature{min-height:205px;padding:12px}.player-feature strong{font-size:23px}.club-feature{grid-column:1/-1}.club-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.club-grid a{flex-direction:column;text-align:center;gap:5px;padding:8px 4px;font-size:10px}.club-grid img{width:30px;height:30px;flex-basis:30px}}
+@media(max-width:390px){.spotlight-grid{grid-template-columns:1fr 1fr}.player-feature{min-height:180px}.player-feature img{width:95%}.club-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
