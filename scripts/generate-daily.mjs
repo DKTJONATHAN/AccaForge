@@ -31,7 +31,7 @@ const env=process.env;
 const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+/i,"").replace(/^["']|["']$/g,"");
 if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
 const regions=env.ODDS_REGIONS||"uk";
-const markets=env.ODDS_MARKETS||"h2h,totals";
+const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
 console.log("Groq model selected: "+model+" (two-stage web research + structured selection).");
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
@@ -63,6 +63,7 @@ async function ensureSchema(){
  if(!selectionColumns.some(column=>column.name==="selection_status"))await d1("ALTER TABLE selections ADD COLUMN selection_status TEXT NOT NULL DEFAULT 'PICK'");
  if(!selectionColumns.some(column=>column.name==="probability"))await d1("ALTER TABLE selections ADD COLUMN probability REAL NOT NULL DEFAULT 0");
  if(!selectionColumns.some(column=>column.name==="implied_probability"))await d1("ALTER TABLE selections ADD COLUMN implied_probability REAL NOT NULL DEFAULT 0");
+ await d1("UPDATE accas SET product_type='legacy' WHERE product_type='safe_picks' AND target_odds IN (10,15,20)");
 }
 function nairobiDayBounds(date){
  const [year,month,day]=date.split("-").map(Number);
@@ -122,6 +123,7 @@ async function getFootballEvents(publishDate){
    url.searchParams.set("eventIds",batch.map(event=>event.id).join(","));
    let response=await oddsFetch(url);
    if(response.status===422&&markets!=="h2h"){
+    console.warn("Combined market request was unsupported; retrying primary h2h before additional-market discovery.");
     url.searchParams.set("markets","h2h");
     response=await oddsFetch(url);
    }
@@ -142,8 +144,8 @@ async function getFootballEvents(publishDate){
  console.log("Primary market scan: "+primaryCandidates.length+" candidate prices across "+new Set(primaryCandidates.map(item=>item.event_id)).size+" distinct fixtures in the 1.20-1.90 range.");
  // Fallback: if the normal markets do not yield enough viable prices, inspect additional markets
  // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
- if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12){
-  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals").split(",").map(value=>value.trim()).filter(Boolean);
+ if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12||markets!=="h2h"){
+  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals,spreads,alternate_totals,alternate_spreads").split(",").map(value=>value.trim()).filter(Boolean);
   console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
   for(const event of uniqueFixtures){
    const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
