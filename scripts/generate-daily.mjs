@@ -382,7 +382,7 @@ async function saveAccas(products,publishDate){
   for(let index=0;index<product.selections.length;index++){
    const item=product.selections[index];
    await d1("INSERT INTO selections (id,acca_id,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,bookmaker,note,sort_order,selection_status,probability,implied_probability) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",[
-    makeId(accaId+"|"+(item.event_id||item.candidate_id)),accaId,item.event_id,item.sport_key,item.commence_time,item.home_team,item.away_team,item.market_key,item.market_name,item.selection_name,item.odds,item.bookmaker,item.note,index,item.selection_status||"PICK",item.probability||0,item.implied_probability||0
+    makeId(accaId+"|"+item.event_id+"|"+item.market_key+"|"+item.selection_name+"|"+index),accaId,item.event_id,item.sport_key,item.commence_time,item.home_team,item.away_team,item.market_key,item.market_name,item.selection_name,item.odds,item.bookmaker,item.note,index,item.selection_status||"PICK",item.probability||0,item.implied_probability||0
    ]);
   }
  }
