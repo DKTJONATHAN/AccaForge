@@ -228,7 +228,7 @@ async function groqRequest(body,label){
    try{payload=JSON.parse(responseText);}catch{throw new Error("Groq returned a non-JSON API response during "+label+": "+responseText.slice(0,500));}
    console.log("Groq "+label+" key slot "+(keyIndex+1)+": HTTP "+response.status);
    if(response.ok)return payload;
-   const detail=cleanText(payload?.error?.message||JSON.stringify(payload),700);
+   const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1200);
    if([401,403,429].includes(response.status)){
     console.warn("Groq key slot "+(keyIndex+1)+" unavailable during "+label+": "+detail);
     lastError=new Error("Groq "+label+" rejected key slot "+(keyIndex+1)+" with HTTP "+response.status+": "+detail);
@@ -264,9 +264,9 @@ async function askGroq(candidates){
  const fixtureRows=[...new Map(candidates.map(item=>[item.event_id,{event_id:item.event_id,sport_key:item.sport_key,commence_time:item.commence_time,home_team:item.home_team,away_team:item.away_team}])).values()];
  const researchPrompt=[
   "You are AccaForge's football research analyst. Research EVERY fixture in the supplied fixture list using current web sources. This is stage 1 of a two-stage workflow: DO NOT choose bets, construct accumulators, estimate bookmaker odds, or output JSON.",
-  "For each fixture investigate: each team's recent 5-10 competitive matches and trend; home/away form; relevant recent head-to-head; current table/competition context and motivation; injuries, suspensions, likely line-ups and rotation; rest, travel and fixture congestion; tactical matchup and scoring/conceding patterns; and credible recent team news.",
-  "Prefer official club/league sources and established sports reporting. Distinguish confirmed information from uncertainty. Never invent statistics, injuries, quotes, lineups or news. If evidence is unavailable, explicitly say not verified. Include the publication dates and source URLs/names where available.",
-  "Return a concise, clearly separated research dossier for every fixture. Research all fixtures, not just the most famous leagues.",
+  "Research each listed fixture using current web sources. For each match, find recent form, home/away performance, table context, credible team news (injuries/suspensions/likely rotation), rest and schedule, and relevant matchup trends.",
+  "Use official club/league sources and established sports reporting where possible. Do not invent facts. Mark unavailable or unconfirmed information as not verified. Include source names, URLs and dates when available.",
+  "Return a compact dossier with a separate heading for each fixture. Cover every fixture; do not make betting selections.",
   "Fixtures to research (Nairobi local date "+kenyaDate()+"):",
   JSON.stringify(fixtureRows)
  ].join("\n\n");
@@ -276,8 +276,9 @@ async function askGroq(candidates){
   messages:[{role:"user",content:researchPrompt}],
   tools:[{type:"browser_search"}],
   tool_choice:"required",
-  max_completion_tokens:12000,
-  temperature:0.2
+  max_completion_tokens:4096,
+  temperature:1,
+  reasoning_effort:"low"
  },"web research");
  const dossier=research.choices?.[0]?.message?.content||"";
  if(!dossier.trim())throw new Error("Groq browser research returned no evidence dossier. Refusing to generate picks.");
