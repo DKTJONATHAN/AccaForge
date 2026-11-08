@@ -32,7 +32,8 @@ const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+
 if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals";
-const model=env.GEMINI_MODEL||"gemini-3.8-flash";
+const model=env.GEMINI_MODEL||"gemini-3.6-flash";
+console.log("Gemini model selected: "+model);
 const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
