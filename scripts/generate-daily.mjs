@@ -37,7 +37,12 @@ async function getFootballEvents(){
  const sports=await sportsResponse.json();
  const football=sports.filter(sport=>sport.active&&String(sport.group||"").toLowerCase().includes("soccer"));
  const requested=(env.ODDS_SPORT_KEYS||"").split(",").map(value=>value.trim()).filter(Boolean);
- const selected=(requested.length?football.filter(sport=>requested.includes(sport.key)):football).slice(0,maxSports);
+ const preferred=["soccer_epl","soccer_uefa_champs_league","soccer_uefa_europa_league","soccer_spain_la_liga","soccer_germany_bundesliga","soccer_italy_serie_a","soccer_france_ligue_one","soccer_netherlands_eredivisie","soccer_portugal_primeira_liga","soccer_usa_mls"];
+ const ordered=[...football].sort((a,b)=>{
+  const ai=preferred.indexOf(a.key),bi=preferred.indexOf(b.key);
+  return (ai<0?999:ai)-(bi<0?999:bi);
+ });
+ const selected=(requested.length?football.filter(sport=>requested.includes(sport.key)):ordered).slice(0,maxSports);
  if(!selected.length)throw new Error("No active football leagues were returned by The Odds API.");
  const events=[];
  for(const sport of selected){
