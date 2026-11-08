@@ -58,7 +58,7 @@ After deploying this version, open GitHub → Actions → **AccaForge Daily Accu
 
 ## Data safeguards
 - Fixtures are restricted to the complete Africa/Nairobi calendar date, across active soccer competitions exposed by your Odds API account.
-- The market collector keeps available prices from 1.01 to 100.00 so each product can apply its own odds rules. The default primary request includes match result, totals, BTTS, double chance, draw no bet, spreads and team totals; configured fallback markets can expand coverage if needed.
+- The market collector keeps every valid decimal price from 1.01 upward without imposing an odds ceiling, so Super 5 and All-Matches can consider any available price. The default primary request includes match result, totals, BTTS, double chance, draw no bet, spreads and team totals; configured fallback markets can expand coverage if needed.
 - Safe Picks requires exactly 10 different fixtures and odds from 1.01 to 1.50 per selection. If ten defensible selections cannot be found, Safe Picks is withheld.
 - Super 5 requires exactly five different fixtures and has no combined-odds target. Prices above 2.00 are allowed when the research supports the selection.
 - All-Matches Challenge includes every eligible fixture exactly once. Each fixture is a PICK or PASS. A club is not repeated across picked fixtures; conflicting fixtures are passed.
