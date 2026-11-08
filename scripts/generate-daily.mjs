@@ -102,7 +102,7 @@ function buildCandidates(events){
      if(!old||price>old.odds)best.set(key,{
       event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,
       home_team:cleanText(event.home_team,90),away_team:cleanText(event.away_team,90),
-      market_key:market.key,market_name:market.key.replaceAll("_"," ").replace(/\b\w/g,char=>char.toUpperCase()),
+      market_key:market.key,market_name:marketLabel(market.key),
       selection_name:cleanText(outcome.point==null?outcome.name:outcome.name+" "+outcome.point,100),
       odds:price,bookmaker:cleanText(bookmaker.title||bookmaker.key,60),
       candidate_id:makeId(event.id+"|"+market.key+"|"+outcome.name+"|"+(outcome.point??""))
