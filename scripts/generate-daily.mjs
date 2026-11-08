@@ -227,10 +227,10 @@ function buildCandidates(events){
   const highest=values.slice().sort((a,b)=>b.odds-a.odds)[0];
   if(highest&&!chosen.some(item=>item.candidate_id===highest.candidate_id))chosen.push(highest);
   for(const item of values.slice().sort((a,b)=>a.odds-b.odds)){
-   if(chosen.length>=8)break;
+   if(chosen.length>=6)break;
    if(!chosen.some(existing=>existing.candidate_id===item.candidate_id))chosen.push(item);
   }
-  candidates.push(...chosen.slice(0,8));
+  candidates.push(...chosen.slice(0,6));
  }
  // Keep the full supplied price spectrum while retaining coverage across the daily fixture slate.
  return candidates.sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,450);
@@ -303,13 +303,13 @@ async function askGroq(candidates,events){
   "SUPER 10: Build a combination with calculated combined decimal odds from 9.50 through 10.50 inclusive, targeting 10.00. Use 2 or more selections from across the supplied fixtures and markets. Repeated fixtures ARE allowed, including different markets from the same fixture, but never repeat the exact same candidate/outcome. Select only outcomes supported by the dossier; do not pad. Return null if no defensible combination in the range exists.",
   "ALL-MATCHES CHALLENGE: Return exactly one entry for EVERY fixture in the supplied fixture list. For each, choose the single best fitting available market with the strongest evidence-backed probability, using any available price. If no defensible pick exists, return status PASS with candidate_id=null, probability=0, and a concise reason. No fixture may be omitted. A club/team must not appear in more than one picked fixture in this list; if fixtures conflict, PASS the weaker/less defensible one. Never duplicate a fixture.",
   "Output JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\", \"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[...]}, \"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}. Each PICK requires a candidate_id and probability 0-100. PASS requires null candidate_id. Omit any unavailable product rather than failing the other products.",
-  "Research dossier:",dossier.slice(0,5200),
-  "Research citation metadata:",JSON.stringify(citations.slice(0,12)),
+  "Research dossier:",dossier.slice(0,3600),
+  "Research citation metadata:",JSON.stringify(citations.slice(0,5)),
   "Candidate rows: id=candidate_id; e=event_id; l=league; m=fixture; k=market; p=selection; o=decimal odds.",
-  JSON.stringify(candidates.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds})=>({id:candidate_id,e:event_id,l:sport_key,m:home_team+" vs "+away_team,k:market_name,p:selection_name,o:odds})))
+  JSON.stringify(candidates.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds})=>[candidate_id,event_id,sport_key,home_team+" vs "+away_team,market_name,selection_name,odds]))
  ].join("\n\n");
  console.log("Groq stage 2/2: creating Safe Picks, Super 5, Super 10 and All-Matches Challenge.");
- const result=await groqRequest({model,messages:[{role:"user",content:selectionPrompt}],reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:4096,temperature:0.2},"structured selection");
+ const result=await groqRequest({model,messages:[{role:"user",content:selectionPrompt}],reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:2500,temperature:0.2},"structured selection");
  const content=result.choices?.[0]?.message?.content||"";
  const extractJsonObject=source=>{const start=source.indexOf("{");if(start<0)return null;let depth=0,inString=false,escaped=false;for(let i=start;i<source.length;i++){const ch=source[i];if(inString){if(escaped)escaped=false;else if(ch==="\\")escaped=true;else if(ch==='"')inString=false;continue;}if(ch==='"'){inString=true;continue;}if(ch==="{")depth++;else if(ch==="}"&&--depth===0)return source.slice(start,i+1);}return null;};
  const jsonText=extractJsonObject(content);
