@@ -1,0 +1,10 @@
+name = "accaforge"
+compatibility_date = "2026-11-08"
+pages_build_output_dir = "./dist"
+
+# Create a Cloudflare D1 database named accaforge and replace the ID.
+[[d1_databases]]
+binding = "DB"
+database_name = "accaforge"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
