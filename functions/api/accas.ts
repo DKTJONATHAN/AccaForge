@@ -10,6 +10,10 @@ export const onRequestGet = async ({request,env}: {request:Request;env:Env}) => 
   const cutoff = new Date(new Intl.DateTimeFormat("en-CA", {timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())+"T12:00:00Z");
   cutoff.setUTCDate(cutoff.getUTCDate()-(days-1));
   const cutoffDate=cutoff.toISOString().slice(0,10);
+  const schema=(await env.DB.prepare("PRAGMA table_info(accas)").all<{name:string}>()).results||[];
+  if(!schema.some(column=>column.name==="product_type")){
+   return Response.json({accas:[],updatedAt:null,migrationPending:true},{headers:{"Cache-Control":"no-store"}});
+  }
   const rows=(await env.DB.prepare("SELECT * FROM accas WHERE status='published' AND product_type IN ('safe_picks','super_5','all_matches') AND publish_date >= ? ORDER BY publish_date DESC,CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 ELSE 3 END").bind(cutoffDate).all<AccaRow>()).results||[];
   if(!rows.length) return Response.json({accas:[],updatedAt:null});
   const selections=(await env.DB.prepare("SELECT s.* FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.product_type IN ('safe_picks','super_5','all_matches') AND a.publish_date >= ? ORDER BY a.publish_date DESC,CASE a.product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 ELSE 3 END,s.sort_order ASC").bind(cutoffDate).all<SelectionRow>()).results||[];
