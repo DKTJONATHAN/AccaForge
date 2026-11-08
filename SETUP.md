@@ -47,6 +47,9 @@ Never use `VITE_` prefixes for secrets and never commit API keys.
 ## Schedule
 The only workflow, `.github/workflows/daily-accas.yml`, runs at **09:00 Africa/Nairobi** every day. It can also be started manually from GitHub Actions. GitHub scheduled jobs are best-effort and can start a little later during high platform load.
 
+## Apply the product-board database update without using API credits
+After deploying this version, open GitHub → Actions → **AccaForge Daily Accumulators** → **Run workflow**. Set **migrate_only** to **true**, then start the workflow. This applies the D1 columns needed for product types, PASS rows and probability estimates, then exits before any Groq or Odds API request. The existing daily schedule continues to generate the actual editions normally.
+
 ## Verify
 - Open GitHub Actions and run **AccaForge Daily Accumulators** manually.
 - Confirm that the job completes successfully.
