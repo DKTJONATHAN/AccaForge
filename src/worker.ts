@@ -115,7 +115,7 @@ async function sitemap(env:Env,origin:string){
   const matches=(await env.DB.prepare("SELECT s.event_id,MAX(a.publish_date) AS lastmod FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' GROUP BY s.event_id ORDER BY lastmod DESC").all<{event_id:string;lastmod:string}>()).results||[];
   const urls:Array<{path:string;lastmod?:string}>=[
     {path:"/"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
-    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"}
+    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"},{path:"/teams/chelsea"},{path:"/teams/arsenal"},{path:"/teams/manchester-united"},{path:"/teams/liverpool"}
   ];
   for(const item of accas)urls.push({path:"/accumulators/"+encodeURIComponent(item.id),lastmod:item.publish_date});
   for(const item of matches)urls.push({path:"/matches/"+encodeURIComponent(item.event_id),lastmod:item.lastmod});
