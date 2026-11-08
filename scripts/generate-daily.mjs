@@ -139,9 +139,29 @@ async function askGemini(candidates){
   JSON.stringify(candidates.map(({candidate_id,event_id,commence_time,home_team,away_team,market_name,selection_name,odds,bookmaker})=>({candidate_id,event_id,commence_time,home_team,away_team,market_name,selection_name,odds,bookmaker})))
  ].join("\n\n");
  const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(env.GEMINI_API_KEY);
- const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,responseMimeType:"application/json",responseSchema:schema}})});
- const payload=await response.json();
- if(!response.ok)throw new Error("Gemini request failed: "+response.status+" "+JSON.stringify(payload).slice(0,800));
+ const requestBody=JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,responseMimeType:"application/json",responseSchema:schema}});
+ let response;
+ let payload;
+ for(let attempt=1;attempt<=3;attempt++){
+  try{
+   response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:requestBody,signal:AbortSignal.timeout(120000)});
+   const responseText=await response.text();
+   try{payload=JSON.parse(responseText);}catch{throw new Error("Gemini returned a non-JSON response: "+responseText.slice(0,500));}
+   if(response.ok)break;
+   const detail=JSON.stringify(payload).slice(0,800);
+   if(attempt<3&&(response.status===408||response.status===429||response.status>=500)){
+    console.warn("Gemini temporarily returned HTTP "+response.status+"; retrying ("+attempt+"/3).");
+    await new Promise(resolve=>setTimeout(resolve,attempt*5000));
+    continue;
+   }
+   throw new Error("Gemini request failed: "+response.status+" "+detail);
+  }catch(error){
+   if(attempt>=3)throw new Error("Gemini request failed after "+attempt+" attempts: "+(error?.cause?.code||error?.name||"network error")+" "+error.message);
+   console.warn("Gemini connection attempt "+attempt+" failed: "+(error?.cause?.code||error?.name||"network error")+". Retrying.");
+   await new Promise(resolve=>setTimeout(resolve,attempt*5000));
+  }
+ }
+ if(!response?.ok)throw new Error("Gemini request failed after retries.");
  const text=payload.candidates?.[0]?.content?.parts?.map(part=>part.text||"").join("");
  if(!text)throw new Error("Gemini returned no structured prediction content.");
  return JSON.parse(text);
