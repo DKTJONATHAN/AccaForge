@@ -68,7 +68,8 @@ async function getFootballEvents(){
   if(!response.ok)throw new Error("Additional market request failed for event "+event.id+": "+response.status+" "+(await response.text()).slice(0,400));
   console.log("Extra market request: used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
   const extra=await response.json();
-  const books=new Map((event.bookmakers||[]).map(book=>[book.key,book]));
+  event.bookmakers=event.bookmakers||[];
+  const books=new Map(event.bookmakers.map(book=>[book.key,book]));
   for(const extraBook of extra.bookmakers||[]){
    const existing=books.get(extraBook.key);
    if(!existing){event.bookmakers.push(extraBook);books.set(extraBook.key,extraBook);continue;}
