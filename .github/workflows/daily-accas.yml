@@ -62,9 +62,6 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
-          ODDS_EXTRA_MARKETS: ${{ vars.ODDS_EXTRA_MARKETS }}
-          ODDS_EXTRA_EVENT_LIMIT: ${{ vars.ODDS_EXTRA_EVENT_LIMIT }}
-          ODDS_MAX_SPORTS: ${{ vars.ODDS_MAX_SPORTS }}
           ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
