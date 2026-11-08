@@ -56,7 +56,11 @@ async function getFootballEvents(){
   url.searchParams.set("markets",markets);
   url.searchParams.set("oddsFormat","decimal");
   url.searchParams.set("dateFormat","iso");
-  const response=await fetch(url);
+  let response=await fetch(url);
+  if(response.status===422&&markets!=="h2h"){
+   url.searchParams.set("markets","h2h");
+   response=await fetch(url);
+  }
   if(!response.ok){const detail=await response.text();if(response.status===404)continue;throw new Error("Odds request failed for "+sport.key+": "+response.status+" "+detail.slice(0,400));}
   console.log("Odds API "+sport.key+": used="+(response.headers.get("x-requests-used")||"n/a")+", remaining="+(response.headers.get("x-requests-remaining")||"n/a"));
   for(const event of await response.json())events.push({...event,sport_key:sport.key});
