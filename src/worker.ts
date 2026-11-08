@@ -115,7 +115,7 @@ async function sitemap(env:Env,origin:string){
   const matches=(await env.DB.prepare("SELECT s.event_id,MAX(a.publish_date) AS lastmod FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' GROUP BY s.event_id ORDER BY lastmod DESC").all<{event_id:string;lastmod:string}>()).results||[];
   const urls:Array<{path:string;lastmod?:string}>=[
     {path:"/"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
-    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"},{path:"/teams/chelsea"},{path:"/teams/arsenal"},{path:"/teams/manchester-united"},{path:"/teams/liverpool"}
+    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"},{path:"/teams/chelsea"},{path:"/teams/arsenal"},{path:"/teams/manchester-united"},{path:"/teams/liverpool"},{path:"/leagues/soccer_epl"},{path:"/leagues/soccer_uefa_champs_league"},{path:"/leagues/soccer_uefa_europa_league"},{path:"/leagues/soccer_spain_la_liga"},{path:"/leagues/soccer_germany_bundesliga"},{path:"/leagues/soccer_italy_serie_a"},{path:"/leagues/soccer_france_ligue_one"},{path:"/leagues/soccer_netherlands_eredivisie"}
   ];
   for(const item of accas)urls.push({path:"/accumulators/"+encodeURIComponent(item.id),lastmod:item.publish_date});
   for(const item of matches)urls.push({path:"/matches/"+encodeURIComponent(item.event_id),lastmod:item.lastmod});
@@ -167,6 +167,24 @@ export default {
     }
     const staticPage=staticPages[url.pathname.replace(/\/$/,"") || "/"];
     if (staticPage) return renderPage({...staticPage,path:url.pathname.replace(/\/$/,"")},url.origin);
+    const leagueMatch=url.pathname.match(/^\/leagues\/(soccer_[a-z0-9_]+)\/?$/);
+    if(leagueMatch){
+      const competitions:Record<string,{name:string;crest:string}> = {
+        soccer_epl:{name:"English Premier League",crest:"PL.png"},
+        soccer_uefa_champs_league:{name:"UEFA Champions League",crest:"CL.png"},
+        soccer_uefa_europa_league:{name:"UEFA Europa League",crest:"EL.png"},
+        soccer_spain_la_liga:{name:"Spanish La Liga",crest:"PD.png"},
+        soccer_germany_bundesliga:{name:"German Bundesliga",crest:"BL1.png"},
+        soccer_italy_serie_a:{name:"Italian Serie A",crest:"SA.png"},
+        soccer_france_ligue_one:{name:"French Ligue 1",crest:"FL1.png"},
+        soccer_netherlands_eredivisie:{name:"Dutch Eredivisie",crest:"DED.png"}
+      };
+      const competition=competitions[leagueMatch[1]];
+      if(competition){
+        const body="<h1>"+escapeHtml(competition.name)+" Football Tips and Match Analysis</h1><div class='panel'><img src='https://crests.football-data.org/"+competition.crest+"' alt='"+escapeHtml(competition.name)+" logo' style='width:110px;height:110px;object-fit:contain;float:right;margin:0 0 12px 18px'><p class='lead'>Explore "+escapeHtml(competition.name)+" fixtures, football betting tips and accumulator selections when matches from this competition are included in an AccaForge daily edition.</p><p>Open the latest <a href='/'>daily football tips</a> to review published fixtures and markets. Individual match pages show the editions in which a fixture appears.</p><div style='clear:both'></div></div><h2>Related football predictions</h2><p><a href='/football-betting-tips'>Football betting tips</a> · <a href='/sure-tips'>Sure tips</a> · <a href='/accumulator-tips'>Accumulator tips</a></p><p class='notice'>Football predictions are not guarantees. 18+ only.</p>";
+        return renderPage({title:competition.name+" Tips Today | Football Predictions and Accumulators | AccaForge",description:"Find "+competition.name+" football tips, match predictions, fixtures and accumulator analysis on AccaForge.",path:url.pathname,body},url.origin);
+      }
+    }
     const teamMatch=url.pathname.match(/^\/teams\/(chelsea|arsenal|manchester-united|liverpool)\/?$/);
     if(teamMatch){
       const teams:Record<string,{name:string;crest:string}> = {chelsea:{name:"Chelsea FC",crest:"61"},arsenal:{name:"Arsenal FC",crest:"57"},"manchester-united":{name:"Manchester United FC",crest:"66"},liverpool:{name:"Liverpool FC",crest:"64"}};
