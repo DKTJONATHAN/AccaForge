@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 const required=["ODDS_API_KEY","GEMINI_API_KEY","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ACCOUNT_ID","D1_DATABASE_ID"];
 for(const name of required) if(!process.env[name]) throw new Error("Missing required environment variable: "+name);
 const env=process.env;
+const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+/i,"").replace(/^["']|["']$/g,"");
+if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals";
 const extraMarkets=env.ODDS_EXTRA_MARKETS||"btts,double_chance";
@@ -19,7 +21,7 @@ function marketLabel(key){
  return labels[key]||String(key).split("_").map(part=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
 }
 async function d1(sql,params=[]){
- const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+env.CLOUDFLARE_API_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({sql,params:params.map(value=>String(value))})});
+ const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+cloudflareToken,"Content-Type":"application/json"},body:JSON.stringify({sql,params:params.map(value=>String(value))})});
  const body=await response.json();
  if(!response.ok||!body.success)throw new Error("D1 query failed: "+JSON.stringify(body.errors||body));
  return body.result?.[0]?.results||[];
