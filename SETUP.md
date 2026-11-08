@@ -25,13 +25,15 @@ In GitHub → AccaForge → Settings → Secrets and variables → Actions, add:
 | `ODDSAPI_KEY1` | Additional Odds API key 1 |
 | `ODDSAPI_KEY2` | Additional Odds API key 2 |
 | `ODDSAPI_KEY3` | Additional Odds API key 3 |
-| `GEMINI_API_KEY` | Your Google Gemini API key |
+| `GEMINI_API_KEY` | Your Groq API key (legacy secret name; value must be a Groq key) |
+| `GEMINI_API_KEY1` | Optional second Groq API key (same legacy naming) |
+| `GEMINI_API_KEY2` | Optional third Groq API key (same legacy naming) |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Account D1 Edit permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 | `D1_DATABASE_ID` | The ID of the accaforge D1 database |
 
 Optional Actions variables:
-- `GEMINI_MODEL` (default `gemini-3.8-flash`; supports Google Search grounding)
+- `GROQ_MODEL` (default `openai/gpt-oss-120b`; supports Groq built-in browser search and structured JSON output)
 - `ODDS_REGIONS` (default `uk`)
 - `ODDS_MARKETS` (default `h2h,totals`)
 - `ODDS_EXTRA_MARKETS` (default `btts,double_chance`, fetched on a capped set of individual fixtures)
@@ -40,12 +42,12 @@ Optional Actions variables:
 
 The daily generator discovers every active soccer competition exposed by your Odds API account. It first lists all fixtures on the requested Africa/Nairobi calendar date using the quota-free `/events` endpoint, then fetches odds for those exact event IDs. It does not impose a rolling-hour or multi-day lookahead and does not restrict discovery to a hand-picked league list. The Odds API can only return competitions and fixtures included in your subscription tier and current feed.
 
-Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if fewer than 24 eligible prices or fewer than 12 distinct fixtures are found, the fallback scan checks additional markets on every fixture and can consume substantially more credits. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Gemini Google Search grounding may also incur separate Gemini search-grounding charges. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if fewer than 24 eligible prices or fewer than 12 distinct fixtures are found, the fallback scan checks additional markets on every fixture and can consume substantially more credits. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Groq browser search is performed in the AI research stage and is subject to Groq model/tool usage limits. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
 
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
 ## Schedule
-The only workflow, `.github/workflows/daily-accas.yml`, runs at **02:00 Africa/Nairobi** every day. It can also be started manually from GitHub Actions. GitHub scheduled jobs are best-effort and can start a little later during high platform load.
+The only workflow, `.github/workflows/daily-accas.yml`, runs at **09:00 Africa/Nairobi** every day. It can also be started manually from GitHub Actions. GitHub scheduled jobs are best-effort and can start a little later during high platform load.
 
 ## Verify
 - Open GitHub Actions and run **AccaForge Daily Accumulators** manually.
