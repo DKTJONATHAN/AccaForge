@@ -296,7 +296,7 @@ async function askGroq(candidates){
   dossier.slice(0,4800),
   "Research citation metadata (compact):",
   JSON.stringify(citations.slice(0,12)),
-  "Candidate prices (decimal; use only these exact IDs and prices):",
+  "Candidate rows use compact keys: id is the exact candidate_id to return as candidate_id; e is event_id; l is league key; m is the fixture; k is market; p is selection; o is the exact decimal price. Return the row's id unchanged as candidate_id.",
   JSON.stringify(candidates.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds})=>({id:candidate_id,e:event_id,l:sport_key,m:home_team+" vs "+away_team,k:market_name,p:selection_name,o:odds})))
  ].join("\n\n");
  console.log("Groq stage 2/2: generating strict-schema accumulator proposal from the research dossier.");
