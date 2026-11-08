@@ -333,6 +333,7 @@ function validateAccas(result,candidates){
    const home=cleanText(candidate.home_team,90).toLowerCase();
    const away=cleanText(candidate.away_team,90).toLowerCase();
    if(usedEvents.has(candidate.event_id))throw new Error("The same fixture cannot appear twice inside one accumulator: "+candidate.home_team+" vs "+candidate.away_team+".");
+   if(usedTeams.has(home)||usedTeams.has(away))throw new Error("A team cannot appear in two different fixtures inside the same accumulator: "+candidate.home_team+" / "+candidate.away_team+".");
    const priorMarkets=globallyUsedEventMarkets.get(candidate.event_id)||new Set();
    if(priorMarkets.has(candidate.market_key))throw new Error("A repeated fixture must use a different market_key across accumulators: "+candidate.home_team+" vs "+candidate.away_team+" ("+candidate.market_name+").");
    for(const team of [home,away]){
