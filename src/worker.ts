@@ -25,7 +25,7 @@ const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, ch
 const escapeXml = (value:string) => value.replace(/[<>&'"]/g, char => ({
   "<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"
 }[char] || char));
-const safeJson = (value:unknown) => JSON.stringify(value).replace(/</g,"\\u003c");
+const safeJson = (value:unknown) => JSON.stringify(value ?? null).replace(/</g,"\\u003c");
 const competitionName = (key:string) => ({
   soccer_epl:"English Premier League",
   soccer_uefa_champs_league:"UEFA Champions League",
@@ -166,6 +166,15 @@ export default {
     if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin);
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
-    return env.ASSETS.fetch(request);
+    if (url.pathname === "/" || url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
+      return env.ASSETS.fetch(request);
+    }
+    return renderPage({
+      title:"Page not found | AccaForge",
+      description:"The page you requested could not be found on AccaForge.",
+      path:url.pathname,
+      robots:"noindex,follow",
+      body:"<h1>Page not found</h1><p>This address may have changed or the page may no longer be available. Visit the <a href='/'>AccaForge daily football tips</a> homepage.</p>"
+    },url.origin,404);
   },
 } satisfies ExportedHandler<Env>;
