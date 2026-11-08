@@ -14,6 +14,10 @@ const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_AC
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
 function cleanText(value,max=180){return String(value??"").replace(/[<>\u0000-\u001f]/g,"").replace(/\s+/g," ").trim().slice(0,max);}
 function makeId(value){return createHash("sha256").update(value).digest("hex").slice(0,24);}
+function marketLabel(key){
+ const labels={h2h:"Match result (1X2)",h2h_3_way:"Match result (1X2)",totals:"Goals over/under",btts:"Both teams to score",double_chance:"Double chance",draw_no_bet:"Draw no bet",spreads:"Handicap"};
+ return labels[key]||String(key).replaceAll("_"," ").replace(/\\b\\w/g,char=>char.toUpperCase());
+}
 async function d1(sql,params=[]){
  const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+env.CLOUDFLARE_API_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({sql,params:params.map(value=>String(value))})});
  const body=await response.json();
