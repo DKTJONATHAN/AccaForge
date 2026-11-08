@@ -19,13 +19,11 @@ interface MatchRow extends SelectionRow {
   publish_date:string; headline:string;
 }
 
-const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({
-  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-}[char] || char));
-const escapeXml = (value:string) => value.replace(/[<>&'"]/g, char => ({
-  "<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"
-}[char] || char));
-const safeJson = (value:unknown) => JSON.stringify(value ?? null).replace(/</g,"\\u003c");
+const htmlEntities:Record<string,string> = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
+const xmlEntities:Record<string,string> = {"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"};
+const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => htmlEntities[char] || char);
+const escapeXml = (value:string) => value.replace(/[<>&'"]/g, char => xmlEntities[char] || char);
+const safeJson = (value:unknown) => String(JSON.stringify(value ?? null)).replace(/</g,"\\u003c");
 const competitionName = (key:string) => ({
   soccer_epl:"English Premier League",
   soccer_uefa_champs_league:"UEFA Champions League",
@@ -125,7 +123,7 @@ async function accumulatorPage(id:string,env:Env,origin:string){
   const acca=await env.DB.prepare("SELECT * FROM accas WHERE id=? AND status='published'").bind(id).first<AccaRow>();
   if(!acca)return renderPage({title:"Accumulator edition not found | AccaForge",description:"This football accumulator edition is no longer available.",path:"/accumulators/"+encodeURIComponent(id),robots:"noindex,follow",body:"<h1>Edition not found</h1><p>This accumulator may have expired from the recent-editions archive. Visit the <a href='/'>AccaForge daily football tips page</a> for the latest published selections.</p>"},origin,404);
   const selections=(await env.DB.prepare("SELECT * FROM selections WHERE acca_id=? ORDER BY sort_order ASC").bind(id).all<SelectionRow>()).results||[];
-  const legs=selections.map((item,index)=>"<li><a href='/matches/"+encodeURIComponent(item.event_id)+"'>"+escapeHtml(item.home_team)+" vs "+escapeHtml(item.away_team)+"</a><small>"+escapeHtml(dateTime(item.commence_time))+" · "+escapeHtml(competitionName(item.sport_key))+" · "+escapeHtml(item.market_name)+" · "+escapeHtml(item.selection_name)+" · "+escapeHtml(item.bookmaker)+" <span class='price'>"+Number(item.odds).toFixed(2)+"</span></small></li>").join("");
+  const legs=selections.map(item=>"<li><a href='/matches/"+encodeURIComponent(item.event_id)+"'>"+escapeHtml(item.home_team)+" vs "+escapeHtml(item.away_team)+"</a><small>"+escapeHtml(dateTime(item.commence_time))+" · "+escapeHtml(competitionName(item.sport_key))+" · "+escapeHtml(item.market_name)+" · "+escapeHtml(item.selection_name)+" · "+escapeHtml(item.bookmaker)+" <span class='price'>"+Number(item.odds).toFixed(2)+"</span></small></li>").join("");
   const body="<h1>"+escapeHtml(acca.headline)+"</h1><p class='lead'>Football accumulator analysis for "+escapeHtml(acca.publish_date)+". Review every fixture, market and listed decimal price below.</p><div class='panel'><div class='facts'><span>Target odds: <strong>"+Number(acca.target_odds).toFixed(2)+"</strong></span><span>Combined odds: <strong>"+Number(acca.actual_odds).toFixed(2)+"</strong></span><span>Selections: <strong>"+selections.length+"</strong></span><span>Published: <strong>"+escapeHtml(acca.publish_date)+"</strong></span></div><p>"+escapeHtml(acca.analysis_note)+"</p></div><h2>Fixture and market breakdown</h2><ul class='list'>"+(legs||"<li>No selections are available for this edition.</li>")+"</ul><p class='notice'>Information and entertainment only. Odds can change and every selection can lose. No outcome or return is guaranteed. 18+ only.</p><p><a class='button' href='/'>View the latest AccaForge football tips</a></p>";
   const schema={"@context":"https://schema.org","@type":"WebPage","name":acca.headline,"description":"Football accumulator selections and combined odds for "+acca.publish_date,"url":new URL("/accumulators/"+encodeURIComponent(id),origin).toString(),"publisher":{"@type":"Organization","name":"AccaForge","url":origin}};
   return renderPage({title:acca.headline+" | Football Accumulator "+Number(acca.target_odds).toFixed(2)+" Odds | AccaForge",description:"Review the "+Number(acca.target_odds).toFixed(2)+" target football accumulator published "+acca.publish_date+": "+selections.map(item=>item.home_team+" vs "+item.away_team).join(", ")+".",path:"/accumulators/"+encodeURIComponent(id),body,schema},origin);
