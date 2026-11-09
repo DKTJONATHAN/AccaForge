@@ -109,9 +109,11 @@ export default function App({initialData,initialContent,todayLabel,pathname="/"}
  void React;
  const [ageOk,setAgeOk]=useState(false);
  const [archiveDate,setArchiveDate]=useState("all");
- const [notice,setNotice]=useState(false);\n const [resultsMounted,setResultsMounted]=useState(false);
+ const [notice,setNotice]=useState(false);
+ const [resultsMounted,setResultsMounted]=useState(false);
  const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
- useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);\n useEffect(()=>{setResultsMounted(true);},[]);
+ useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
+ useEffect(()=>{setResultsMounted(true);},[]);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
  const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});
  const {data:resultsData,isLoading:resultsLoading,isError:resultsError,refetch:refetchResults}=useQuery({queryKey:["yesterday-results"],queryFn:loadResults,enabled:pathname==="/results" && resultsMounted,staleTime:60000,refetchOnWindowFocus:false});
