@@ -177,7 +177,7 @@ export async function enrichFootballLeague(env:SportsDataEnv,sportKey:string,dat
       const previous=await env.DB.prepare("SELECT image_key,source_url FROM team_badges WHERE team_name=?").bind(name).first<{image_key:string;source_url:string}>();
       let imageKey=previous?.source_url===team.logo?previous.image_key:"";
       if(!imageKey&&cachedFixtureLogos<6){imageKey=await cacheImage(env,team.logo,"teams");if(imageKey)cachedFixtureLogos++;}
-      await env.DB.prepare("INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name,image_key=CASE WHEN excluded.image_key<>'' THEN excluded.image_key ELSE team_badges.image_key END,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP")
+      await env.DB.prepare("INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name,image_key=CASE WHEN team_badges.source_url<>excluded.source_url THEN excluded.image_key WHEN excluded.image_key<>'' THEN excluded.image_key ELSE team_badges.image_key END,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP")
         .bind(name,normalized(name),imageKey,team.logo).run();
       matched++;
     }
@@ -187,9 +187,10 @@ export async function enrichFootballLeague(env:SportsDataEnv,sportKey:string,dat
     for(const row of standingsTeams){
       const team=teams.find(item=>item.id===Number(row.id))||{id:Number(row.id),name:clean(row.name),logo:String(row.logo||"")};
       if(!team.logo)continue;
-      const previous=await env.DB.prepare("SELECT image_key FROM team_badges WHERE team_name=?").bind(team.name).first<{image_key:string}>();
-      await env.DB.prepare("INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(team_name) DO UPDATE SET source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP")
-        .bind(team.name,normalized(team.name),previous?.image_key||"",team.logo).run();
+      const previous=await env.DB.prepare("SELECT image_key,source_url FROM team_badges WHERE team_name=?").bind(team.name).first<{image_key:string;source_url:string}>();
+      const imageKey=previous?.source_url===team.logo?(previous.image_key||""):"";
+      await env.DB.prepare("INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(team_name) DO UPDATE SET image_key=excluded.image_key,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP")
+        .bind(team.name,normalized(team.name),imageKey,team.logo).run();
     }
     return {sportKey,league:table.leagueName||league.name,teams:teams.length,matchedFixtures:matched,standings:table.rows.length,apiRequests:2+(existing?.last_attempt_date?0:1),logoCached:Boolean(leagueLogoKey)};
   }catch(error){
