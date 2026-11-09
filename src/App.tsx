@@ -25,6 +25,7 @@ async function loadAccas():Promise<AccasResponse>{
 }
 
 export default function App({initialData,todayLabel}:{initialData?:AccasResponse;todayLabel?:string}){
+ void React;
  const [product,setProduct]=useState<ProductType>("safe_picks");
  const [expanded,setExpanded]=useState<string|null>(null);
  const [archiveDate,setArchiveDate]=useState("all");
