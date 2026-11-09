@@ -125,6 +125,9 @@ export async function refreshDailyContent(env: ContentEnv) {
     await wait(2100);
   }
   await env.DB.prepare("DELETE FROM content_news WHERE published_at < datetime('now','-14 days')").run();
+  const expiredPhotos = await env.DB.prepare("SELECT key FROM content_media WHERE kind='photo' AND created_at < datetime('now','-14 days')").all<{key:string}>();
+  for (const photo of expiredPhotos.results || []) await env.MEDIA.delete(photo.key);
+  await env.DB.prepare("DELETE FROM content_media WHERE kind='photo' AND created_at < datetime('now','-14 days')").run();
   return { news: articles.length, photos: photos.length, teams_checked: checked, refreshed_at: now.toISOString() };
 }
 export async function getCachedContent(env: ContentEnv) {
