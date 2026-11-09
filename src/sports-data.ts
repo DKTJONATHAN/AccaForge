@@ -52,6 +52,7 @@ async function ensureSportsSchema(env:SportsDataEnv){
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sports_leagues (sport_key TEXT PRIMARY KEY,league_id INTEGER NOT NULL,season INTEGER NOT NULL,league_name TEXT NOT NULL,country TEXT NOT NULL DEFAULT '',logo_url TEXT NOT NULL DEFAULT '',logo_key TEXT NOT NULL DEFAULT '',standings_json TEXT NOT NULL DEFAULT '[]',last_attempt_date TEXT NOT NULL DEFAULT '',last_enriched_date TEXT NOT NULL DEFAULT '',last_error TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sports_api_usage (utc_date TEXT PRIMARY KEY,requests INTEGER NOT NULL DEFAULT 0)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS sports_api_rate_state (id INTEGER PRIMARY KEY CHECK(id=1),last_request_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sports_data_sync (publish_date TEXT PRIMARY KEY,status TEXT NOT NULL,competitions INTEGER NOT NULL DEFAULT 0,teams INTEGER NOT NULL DEFAULT 0,api_requests INTEGER NOT NULL DEFAULT 0,started_at TEXT NOT NULL,completed_at TEXT,error TEXT)")
   ]);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS team_badges (team_name TEXT PRIMARY KEY,normalized_name TEXT NOT NULL,image_key TEXT NOT NULL,source_url TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
@@ -159,10 +160,8 @@ export async function enrichFootballLeague(env:SportsDataEnv,sportKey:string,dat
   await env.DB.prepare("INSERT INTO sports_leagues (sport_key,league_id,season,league_name,last_attempt_date) VALUES (?,0,0,? ,?) ON CONFLICT(sport_key) DO UPDATE SET last_attempt_date=excluded.last_attempt_date,last_error=''").bind(sportKey,leagueSearch[sportKey]?.name||sportKey,date).run();
   try{
     const league=await resolveLeague(env,sportKey);
-    const [teamResult,tableResult]=await Promise.all([
-      footballApi(env,"teams",{league:String(league.id),season:String(league.season)}),
-      footballApi(env,"standings",{league:String(league.id),season:String(league.season)})
-    ]);
+    const teamResult=await footballApi(env,"teams",{league:String(league.id),season:String(league.season)});
+    const tableResult=await footballApi(env,"standings",{league:String(league.id),season:String(league.season)});
     const teams:TeamInfo[]=teamResult.items.map((item:any)=>({id:Number(item.team?.id),name:clean(item.team?.name),logo:String(item.team?.logo||"")})).filter(team=>team.id&&team.name);
     const table=normalizeTable(tableResult.items);
     const tableTeams=flattenStandings(tableResult.items[0]?.league?.standings||[]);
