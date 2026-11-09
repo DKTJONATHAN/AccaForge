@@ -454,7 +454,7 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .page-shell{width:100%;max-width:100%;padding-left:18px;padding-right:18px;overflow-x:clip}
  .home-hero{grid-template-columns:minmax(0,1fr);width:100%;gap:22px}
  .home-copy{width:100%;min-width:0}
- .home-copy h1{width:100%;max-width:18ch;font-size:clamp(32px,8.4vw,40px);line-height:1.04;letter-spacing:-.7px;overflow-wrap:normal}
+ .home-copy h1{width:100%;max-width:100%;font-size:clamp(32px,8vw,36px);line-height:1.04;letter-spacing:-.7px;overflow-wrap:normal}
  .home-copy>p{max-width:58ch;font-size:14px;line-height:1.65}
  .home-board-preview{width:100%;min-width:0}
  .page-heading{width:100%;align-items:flex-start}
