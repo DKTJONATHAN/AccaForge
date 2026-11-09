@@ -147,7 +147,7 @@ export async function getCachedContent(env: ContentEnv) {
   const [newsResult, mediaResult, badgesResult, sportsResult] = await Promise.all([
     env.DB.prepare("SELECT n.id,n.title,n.url,n.source,n.published_at,n.image_key,m.credit AS stored_credit,m.license AS stored_license,m.license_url AS stored_license_url,m.description_url AS stored_description_url FROM content_news n LEFT JOIN content_media m ON m.key=n.image_key ORDER BY n.published_at DESC LIMIT 12").all<any>(),
     env.DB.prepare("SELECT key,title,credit,license,license_url,description_url FROM content_media WHERE kind='photo' ORDER BY created_at DESC LIMIT 6").all<any>(),
-    env.DB.prepare("SELECT team_name,image_key FROM team_badges").all<any>(),
+    env.DB.prepare("SELECT team_name,image_key,source_url FROM team_badges").all<any>(),
     env.DB.prepare("SELECT sport_key,logo_key,standings_json,league_name,updated_at FROM sports_leagues WHERE last_enriched_date<>''").all<any>()
   ]);
   const photos = mediaResult.results || [];
@@ -160,7 +160,7 @@ export async function getCachedContent(env: ContentEnv) {
     image_source_url: item.stored_description_url || photos[index % Math.max(photos.length,1)]?.description_url || ""
   }));
   const teamBadges: Record<string,string> = {};
-  for (const badge of badgesResult.results || []) teamBadges[badge.team_name] = "/media-cache/" + encodeURIComponent(badge.image_key);
+  for (const badge of badgesResult.results || []) teamBadges[badge.team_name] = badge.image_key ? "/media-cache/" + encodeURIComponent(badge.image_key) : (badge.source_url || "");
   const sportsRows=sportsResult.results||[];
   const leagueBadges:Record<string,string>={};
   const leagueTables:Record<string,Array<{position:number;team:string;played:number;won:number;drawn:number;lost:number;goalsFor:number;goalsAgainst:number;goalDifference:number;points:number;form:string}>>={};
