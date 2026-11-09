@@ -165,7 +165,7 @@ export async function getCachedContent(env: ContentEnv) {
   const leagueBadges:Record<string,string>={};
   const leagueTables:Record<string,Array<{position:number;team:string;played:number;won:number;drawn:number;lost:number;goalsFor:number;goalsAgainst:number;goalDifference:number;points:number;form:string}>>={};
   for(const league of sportsRows){
-    if(league.logo_key)leagueBadges[league.sport_key]="/media-cache/"+encodeURIComponent(league.logo_key);
+    leagueBadges[league.sport_key]=league.logo_key?"/media-cache/"+encodeURIComponent(league.logo_key):(league.logo_url||"");
     try{leagueTables[league.sport_key]=JSON.parse(league.standings_json||"[]");}catch{leagueTables[league.sport_key]=[];}
   }
   const hero = photos[0] ? { image_url: "/media-cache/" + encodeURIComponent(photos[0].key), title: photos[0].title, credit: photos[0].credit, license: photos[0].license, license_url: photos[0].license_url, source_url: photos[0].description_url } : null;
