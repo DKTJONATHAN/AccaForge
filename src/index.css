@@ -304,3 +304,18 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .news-card-link>img{width:112px;height:100%;min-height:118px}
  .news-image-credit{padding:0 11px 10px}
 }
+
+.results-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:24px 0 34px}
+.results-summary>div{display:flex;flex-direction:column;gap:4px;padding:18px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.results-summary strong{font:600 30px/1 var(--display);color:var(--ink)}
+.results-summary span{font-size:12px;color:var(--muted)}
+.results-summary .result-won strong{color:#087b4a}.results-summary .result-lost strong{color:#bd3434}.results-summary .result-pending strong{color:#a16a10}
+.results-setup-notice{padding:14px 16px;border:1px solid #e5c987;background:#fff8e8;color:#76520b;border-radius:12px;font-size:13px;line-height:1.6}
+.results-group{margin:32px 0}.results-group .section-heading{margin-bottom:14px}.results-list{display:grid;gap:12px}
+.result-card{display:grid;grid-template-columns:minmax(230px,1.2fr) minmax(180px,1fr) auto;align-items:center;gap:18px;padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:15px}
+.result-fixture{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.result-fixture strong{font-size:14px}.result-score{font:600 16px var(--mono);padding:6px 9px;background:var(--surface-raised);border-radius:8px;white-space:nowrap}
+.result-pick{display:flex;flex-direction:column;gap:3px}.result-pick>span,.result-pick small,.result-note{font-size:11px;color:var(--muted)}.result-pick strong{font-size:13px;color:var(--ink)}
+.result-status{font:600 11px var(--mono);letter-spacing:.06em;padding:7px 10px;border-radius:999px;background:var(--surface-raised);color:var(--secondary);justify-self:end}
+.status-won{background:#e5f5ed;color:#087b4a}.status-lost{background:#fdeaea;color:#b42323}.status-pending{background:#fff4dc;color:#94620a}.status-void{background:#edf0f4;color:#465568}.status-pass{background:#edf0f4;color:#667487}
+.result-note{grid-column:1/-1;margin-top:-8px}
+@media(max-width:760px){.results-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 26px}.results-summary>div{padding:13px 11px}.results-summary strong{font-size:25px}.result-card{grid-template-columns:1fr auto;gap:12px;padding:15px}.result-fixture{grid-column:1/-1;justify-content:space-between}.result-pick{grid-column:1}.result-status{grid-column:2;grid-row:2}.result-note{grid-column:1/-1}.results-group{margin:25px 0}}
