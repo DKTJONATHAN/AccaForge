@@ -36,7 +36,7 @@ interface MatchRow extends SelectionRow {
   publish_date:string; headline:string;
 }
 
-const SITE_ORIGIN = "https://accaforge.zandani.co.ke";
+const SITE_ORIGIN = "https://accaforge.eu.cc";
 const htmlEntities:Record<string,string> = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
 const xmlEntities:Record<string,string> = {"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"};
 const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => htmlEntities[char] || char);
