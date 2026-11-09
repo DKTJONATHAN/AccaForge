@@ -17,7 +17,8 @@ export async function ensureContentTables(env: ContentEnv) {
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS content_news (id TEXT PRIMARY KEY,title TEXT NOT NULL,url TEXT NOT NULL UNIQUE,source TEXT NOT NULL,published_at TEXT NOT NULL,image_key TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS content_media (key TEXT PRIMARY KEY,kind TEXT NOT NULL,title TEXT NOT NULL,source_url TEXT NOT NULL,credit TEXT NOT NULL,license TEXT NOT NULL,license_url TEXT NOT NULL,description_url TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS team_badges (team_name TEXT PRIMARY KEY,normalized_name TEXT NOT NULL,image_key TEXT NOT NULL,source_url TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS team_badges (team_name TEXT PRIMARY KEY,normalized_name TEXT NOT NULL,image_key TEXT NOT NULL,source_url TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS sports_leagues (sport_key TEXT PRIMARY KEY,league_id INTEGER NOT NULL,season INTEGER NOT NULL,league_name TEXT NOT NULL,country TEXT NOT NULL DEFAULT '',logo_url TEXT NOT NULL DEFAULT '',logo_key TEXT NOT NULL DEFAULT '',standings_json TEXT NOT NULL DEFAULT '[]',last_attempt_date TEXT NOT NULL DEFAULT '',last_enriched_date TEXT NOT NULL DEFAULT '',last_error TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
   ]);
 }
 async function cacheCommonsPhoto(env: ContentEnv, term: string) {
@@ -146,7 +147,8 @@ export async function getCachedContent(env: ContentEnv) {
   const [newsResult, mediaResult, badgesResult] = await Promise.all([
     env.DB.prepare("SELECT n.id,n.title,n.url,n.source,n.published_at,n.image_key,m.credit AS stored_credit,m.license AS stored_license,m.license_url AS stored_license_url,m.description_url AS stored_description_url FROM content_news n LEFT JOIN content_media m ON m.key=n.image_key ORDER BY n.published_at DESC LIMIT 12").all<any>(),
     env.DB.prepare("SELECT key,title,credit,license,license_url,description_url FROM content_media WHERE kind='photo' ORDER BY created_at DESC LIMIT 6").all<any>(),
-    env.DB.prepare("SELECT team_name,image_key FROM team_badges").all<any>()
+    env.DB.prepare("SELECT team_name,image_key FROM team_badges").all<any>(),
+    env.DB.prepare("SELECT sport_key,logo_key,standings_json,league_name,updated_at FROM sports_leagues WHERE last_enriched_date<>''").all<any>()
   ]);
   const photos = mediaResult.results || [];
   const news = (newsResult.results || []).map((item: any, index: number) => ({
@@ -159,8 +161,15 @@ export async function getCachedContent(env: ContentEnv) {
   }));
   const teamBadges: Record<string,string> = {};
   for (const badge of badgesResult.results || []) teamBadges[badge.team_name] = "/media-cache/" + encodeURIComponent(badge.image_key);
+  const sportsResult=(await env.DB.prepare("SELECT sport_key,logo_key,standings_json,league_name,updated_at FROM sports_leagues WHERE last_enriched_date<>''").all<any>()).results||[];
+  const leagueBadges:Record<string,string>={};
+  const leagueTables:Record<string,Array<{position:number;team:string;played:number;won:number;drawn:number;lost:number;goalsFor:number;goalsAgainst:number;goalDifference:number;points:number;form:string}>>={};
+  for(const league of sportsResult){
+    if(league.logo_key)leagueBadges[league.sport_key]="/media-cache/"+encodeURIComponent(league.logo_key);
+    try{leagueTables[league.sport_key]=JSON.parse(league.standings_json||"[]");}catch{leagueTables[league.sport_key]=[];}
+  }
   const hero = photos[0] ? { image_url: "/media-cache/" + encodeURIComponent(photos[0].key), title: photos[0].title, credit: photos[0].credit, license: photos[0].license, license_url: photos[0].license_url, source_url: photos[0].description_url } : null;
-  return { news, photos: photos.map((photo: any) => ({ image_url: "/media-cache/" + encodeURIComponent(photo.key), title: photo.title, credit: photo.credit, license: photo.license, license_url: photo.license_url, source_url: photo.description_url })), teamBadges, hero, updatedAt: news[0]?.published_at || null };
+  return { news, photos: photos.map((photo: any) => ({ image_url: "/media-cache/" + encodeURIComponent(photo.key), title: photo.title, credit: photo.credit, license: photo.license, license_url: photo.license_url, source_url: photo.description_url })), teamBadges, leagueBadges, leagueTables, hero, updatedAt: news[0]?.published_at || null };
 }
 export async function serveCachedMedia(env: ContentEnv, key: string) {
   const object = await env.MEDIA.get(key);
@@ -173,5 +182,5 @@ export async function serveCachedMedia(env: ContentEnv, key: string) {
 }
 export async function cachedContentResponse(env: ContentEnv) {
   try { return Response.json(await getCachedContent(env), { headers: jsonHeaders }); }
-  catch (error) { console.error("AccaForge content cache read failed", error); return Response.json({ news: [], photos: [], teamBadges: {}, hero: null, updatedAt: null }, { headers: jsonHeaders }); }
+  catch (error) { console.error("AccaForge content cache read failed", error); return Response.json({ news: [], photos: [], teamBadges: {}, leagueBadges: {}, leagueTables: {}, hero: null, updatedAt: null }, { headers: jsonHeaders }); }
 }
