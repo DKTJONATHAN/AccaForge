@@ -1,0 +1,39 @@
+name: AccaForge Football Logos & Standings
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Run the logos and league standings sync for today's published picks"
+        required: true
+        type: choice
+        options:
+          - "yes"
+        default: "yes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-football-data-enrichment
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    name: Sync club crests, league badges and tables
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out AccaForge
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enrich today's already-published matches
+        env:
+          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
+          ACCAFORGE_WORKER_URL: https://accaforge.eu.cc
+        run: node scripts/enrich-football-data.mjs
