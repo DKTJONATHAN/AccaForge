@@ -289,3 +289,6 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .team-side b{font-size:12px}
  .fixture-title{gap:7px}
 }
+
+.hero-photo-wrap small{position:absolute;z-index:2;right:12px;bottom:9px;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.82);font-size:9px;text-align:right}
+.news-image-credit{font-size:9px;line-height:1.35;color:var(--muted);font-style:normal;overflow-wrap:anywhere}
