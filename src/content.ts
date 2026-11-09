@@ -113,7 +113,7 @@ export async function refreshDailyContent(env: ContentEnv) {
     await env.DB.prepare("INSERT INTO content_news (id,title,url,source,published_at,image_key) VALUES (?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET title=excluded.title,source=excluded.source,published_at=excluded.published_at,image_key=CASE WHEN excluded.image_key<>'' THEN excluded.image_key ELSE content_news.image_key END")
       .bind(id, clean(item.title).slice(0, 240), item.url, clean(item.domain || new URL(item.url).hostname), parsed, photo?.key || "").run();
   }
-  const rows = await env.DB.prepare("SELECT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND s.commence_time IS NOT NULL ORDER BY s.commence_time DESC LIMIT 60").all<{home_team:string;away_team:string}>();
+  const rows = await env.DB.prepare("SELECT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND s.commence_time >= datetime('now','-1 day') AND s.commence_time <= datetime('now','+30 days') ORDER BY s.commence_time ASC LIMIT 60").all<{home_team:string;away_team:string}>();
   const names = [...new Set((rows.results || []).flatMap(row => [row.home_team,row.away_team]).filter(Boolean))];
   let checked = 0;
   for (const team of names) {
