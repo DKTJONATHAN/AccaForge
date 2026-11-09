@@ -1,4 +1,4 @@
-export interface ResultsEnv { DB: D1Database; ODDS_API_KEY?: string }
+export interface ResultsEnv { DB: D1Database; ODDSAPI_KEY?: string; ODDSAPI_KEY1?: string; ODDSAPI_KEY2?: string; ODDSAPI_KEY3?: string; ODDS_API_KEY?: string }
 type PickRow={selection_id:string;acca_id:string;product_type:string;headline:string;publish_date:string;event_id:string;sport_key:string;commence_time:string;home_team:string;away_team:string;market_key:string;market_name:string;selection_name:string;odds:number;selection_status:string};
 type ScoreEvent={id:string;sport_key:string;home_team:string;away_team:string;completed:boolean;scores?:Array<{name:string;score:string|null}>};
 const resultSchema=[
@@ -7,6 +7,21 @@ const resultSchema=[
 "CREATE INDEX IF NOT EXISTS idx_result_selections_event ON result_selections(event_id)"
 ];
 async function ensureResultsSchema(env:ResultsEnv){for(const sql of resultSchema)await env.DB.prepare(sql).run();}
+function oddsApiKeys(env:ResultsEnv){return [...new Set([env.ODDSAPI_KEY,env.ODDSAPI_KEY1,env.ODDSAPI_KEY2,env.ODDSAPI_KEY3,env.ODDS_API_KEY].map(key=>key?.trim()).filter((key):key is string=>Boolean(key)))];}
+async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<ScoreEvent[]|null>{
+ const keys=oddsApiKeys(env);
+ for(let index=0;index<keys.length;index++){
+  const endpoint=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(sportKey)+"/scores");
+  endpoint.searchParams.set("daysFrom","3");endpoint.searchParams.set("dateFormat","iso");endpoint.searchParams.set("apiKey",keys[index]);
+  try{
+   const response=await fetch(endpoint,{headers:{"User-Agent":"AccaForge/1.0"}});
+   if(response.ok)return await response.json() as ScoreEvent[];
+   console.error("Results feed key slot",index+1,"failed for",sportKey,"with HTTP",response.status);
+   if(![401,403,429].includes(response.status))return null;
+  }catch(error){console.error("Results feed request failed for",sportKey,"on key slot",index+1,error);}
+ }
+ return null;
+}
 function yesterdayNairobi(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(parts+"T12:00:00Z");date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
 function scoreMap(event:ScoreEvent){const scores=event.scores||[];const home=Number(scores.find(item=>item.name===event.home_team)?.score);const away=Number(scores.find(item=>item.name===event.away_team)?.score);return Number.isFinite(home)&&Number.isFinite(away)?{home,away}:null;}
 function settle(row:PickRow,home:number,away:number){
@@ -51,14 +66,11 @@ export async function refreshYesterdayResults(env:ResultsEnv){
  const date=yesterdayNairobi();
  await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?").bind(date).run();
  const pending=(await env.DB.prepare("SELECT DISTINCT sport_key FROM result_selections WHERE publish_date >= date(?, '-2 days') AND outcome='PENDING'").bind(date).all<{sport_key:string}>()).results||[];
- if(!env.ODDS_API_KEY)return {date,fixtures:pending.length,settled:0,needsOddsApiSecret:true};
+ if(!oddsApiKeys(env).length)return {date,fixtures:pending.length,settled:0,needsOddsApiSecret:true};
  let settled=0;
  for(const item of pending){
-  const endpoint=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(item.sport_key)+"/scores");
-  endpoint.searchParams.set("daysFrom","3");endpoint.searchParams.set("dateFormat","iso");endpoint.searchParams.set("apiKey",env.ODDS_API_KEY);
-  const response=await fetch(endpoint,{headers:{"User-Agent":"AccaForge/1.0"}});
-  if(!response.ok){console.error("Results feed failed for",item.sport_key,response.status);continue;}
-  const events=await response.json() as ScoreEvent[];
+  const events=await fetchScoresWithRotation(env,item.sport_key);
+  if(!events)continue;
   for(const event of events||[]){
    if(!event.completed)continue;
    const score=scoreMap(event);if(!score)continue;
@@ -80,6 +92,6 @@ export async function getYesterdayResults(env:ResultsEnv){
  const rows=(await env.DB.prepare("SELECT * FROM result_selections WHERE publish_date=? ORDER BY CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END,commence_time,acca_id").bind(date).all<any>()).results||[];
  const summary={total:rows.length,won:rows.filter(row=>row.outcome==="WON").length,lost:rows.filter(row=>row.outcome==="LOST").length,pending:rows.filter(row=>row.outcome==="PENDING").length,void:rows.filter(row=>row.outcome==="VOID").length,pass:rows.filter(row=>row.outcome==="PASS").length};
  const accuracy=summary.won+summary.lost?Math.round(summary.won/(summary.won+summary.lost)*100):null;
- return {date,rows,summary,accuracy,needsOddsApiSecret:!env.ODDS_API_KEY};
+ return {date,rows,summary,accuracy,needsOddsApiSecret:!oddsApiKeys(env).length};
 }
 export async function resultsApi(env:ResultsEnv){try{return Response.json(await getYesterdayResults(env),{headers:{"Cache-Control":"public, max-age=60, s-maxage=180, stale-while-revalidate=600"}});}catch(error){console.error("AccaForge results read failed",error);return Response.json({error:"Results are temporarily unavailable."},{status:500});}}
