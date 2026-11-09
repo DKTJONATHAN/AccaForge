@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-const schedulerUrl=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.eu.cc").replace(/\/$/,"");
+const schedulerUrl=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.jonathanmwaniki07.workers.dev").replace(/\/$/,"");
 const schedulerToken=(process.env.ACCAFORGE_SCHEDULER_TOKEN||"").trim();
 if(!schedulerToken)throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN GitHub secret.");
 async function schedulerPost(path,payload){
