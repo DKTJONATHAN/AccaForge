@@ -1,35 +1,21 @@
 import { createHash } from "node:crypto";
 
-const required=["CLOUDFLARE_API_TOKEN","CLOUDFLARE_ACCOUNT_ID","D1_DATABASE_ID"];
-for(const name of required) if(!process.env[name]) throw new Error("Missing required environment variable: "+name);
-const groqKeys=[...new Set(["GEMINI_API_KEY","GEMINI_API_KEY1","GEMINI_API_KEY2"].map(name=>(process.env[name]||"").trim()).filter(Boolean))];
-if(!groqKeys.length)throw new Error("Add at least one Groq API key in the existing GEMINI_API_KEY, GEMINI_API_KEY1 or GEMINI_API_KEY2 GitHub secret slots.");
-const oddsKeys=[...new Set(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3","ODDS_API_KEY1","ODDS_API_KEY2","ODDS_API_KEY3"].map(name=>(process.env[name]||"").trim()).filter(Boolean))];
-if(!oddsKeys.length)throw new Error("Add at least one Odds API secret: ODDS_API_KEY, ODDSAPI_KEY or ODDSAPI_KEY1-3.");
-let oddsKeyCursor=0;
-async function oddsFetch(input){
- const attempted=new Set();
- while(attempted.size<oddsKeys.length){
-  const index=oddsKeyCursor%oddsKeys.length;
-  const key=oddsKeys[index];
-  oddsKeyCursor=(index+1)%oddsKeys.length;
-  if(attempted.has(key))continue;
-  attempted.add(key);
-  const requestUrl=new URL(input);
-  requestUrl.searchParams.set("apiKey",key);
-  const response=await fetch(requestUrl);
-  const remaining=Number(response.headers.get("x-requests-remaining"));
-  const hasRemaining=Number.isFinite(remaining)&&response.headers.has("x-requests-remaining");
-  console.log("Odds API key slot "+(index+1)+": HTTP "+response.status+(hasRemaining?", remaining="+remaining:""));
-  if((response.status===429||response.status===401||response.status===403)&&attempted.size<oddsKeys.length){console.warn("Odds API key slot "+(index+1)+" unavailable; rotating to the next configured key.");continue;}
-  if(response.ok)oddsKeyCursor=(index+1)%oddsKeys.length;
-  return response;
- }
- throw new Error("All configured Odds API keys were rejected or rate-limited. Check key validity and account quotas.");
+const schedulerUrl=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.zandani.co.ke").replace(/\/$/,"");
+const schedulerToken=(process.env.ACCAFORGE_SCHEDULER_TOKEN||"").trim();
+if(!schedulerToken)throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN GitHub secret.");
+async function schedulerPost(path,payload){
+ const response=await fetch(schedulerUrl+"/__scheduler/"+path,{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ const text=await response.text();let body;try{body=JSON.parse(text)}catch{body={error:text.slice(0,1000)}}
+ if(!response.ok)throw new Error("Cloudflare scheduler "+path+" failed (HTTP "+response.status+"): "+JSON.stringify(body));
+ return body;
 }
 const env=process.env;
-const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim().replace(/^Bearer\\s+/i,"").replace(/^["']|["']$/g,"");
-if(!cloudflareToken||/\\s/.test(cloudflareToken))throw new Error("CLOUDFLARE_API_TOKEN is empty or contains unexpected whitespace.");
+const oddsKeys=["Cloudflare-managed"];let oddsKeyCursor=0;
+async function oddsFetch(input){
+ const response=await fetch(schedulerUrl+"/__scheduler/odds",{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify({url:new URL(input).toString()})});
+ const body=await response.text();
+ return new Response(body,{status:response.status,headers:{"Content-Type":response.headers.get("Content-Type")||"application/json","x-requests-used":response.headers.get("x-requests-used")||"","x-requests-remaining":response.headers.get("x-requests-remaining")||""}});
+}
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
@@ -44,10 +30,8 @@ function marketLabel(key){
  return labels[key]||String(key).split("_").map(part=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
 }
 async function d1(sql,params=[]){
- const response=await fetch(apiRoot+"/query",{method:"POST",headers:{Authorization:"Bearer "+cloudflareToken,"Content-Type":"application/json"},body:JSON.stringify({sql,params:params.map(value=>String(value))})});
- const body=await response.json();
- if(!response.ok||!body.success)throw new Error("D1 query failed: "+JSON.stringify(body.errors||body));
- return body.result?.[0]?.results||[];
+ const result=await schedulerPost("d1",{sql,params});
+ return result.results||[];
 }
 async function ensureSchema(){
  const statements=[
@@ -287,54 +271,19 @@ function buildCandidates(events){
 }
 async function groqRequest(body,label){
  let lastError;
- for(let keyIndex=0;keyIndex<groqKeys.length;keyIndex++){
-  const key=groqKeys[keyIndex];
-  for(let attempt=1;attempt<=3;attempt++){
-   let response,responseText,payload;
-   try{
-    response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(180000)});
-    responseText=await response.text();
-   }catch(error){
-    if(attempt>=3){lastError=new Error("Groq network request failed during "+label+" for key slot "+(keyIndex+1)+": "+(error?.cause?.code||error?.name||"network error")+" "+error.message);break;}
-    console.warn("Groq network attempt "+attempt+" failed during "+label+" for key slot "+(keyIndex+1)+"; retrying.");
-    await new Promise(resolve=>setTimeout(resolve,attempt*5000));
-    continue;
-   }
-   try{payload=JSON.parse(responseText);}catch{throw new Error("Groq returned a non-JSON API response during "+label+": "+responseText.slice(0,500));}
-   console.log("Groq "+label+" key slot "+(keyIndex+1)+": HTTP "+response.status);
-   if(response.ok){
-    if(label==="preflight"){
-     const choice=payload?.choices?.[0];
-     const content=choice?.message?.content;
-     if(typeof content!=="string"||!content.trim()){
-      const finish=choice?.finish_reason||"missing";
-      const detail="HTTP 200 but no usable assistant text (finish_reason="+finish+", choices="+(Array.isArray(payload?.choices)?payload.choices.length:0)+").";
-      console.warn("Groq preflight key slot "+(keyIndex+1)+" returned no usable text; "+detail);
-      lastError=new Error("Groq preflight returned no usable response from key slot "+(keyIndex+1)+": "+detail);
-      if(attempt<2){
-       await new Promise(resolve=>setTimeout(resolve,attempt*2000));
-       continue;
-      }
-      break;
-     }
-    }
-    return payload;
-   }
+ for(let attempt=1;attempt<=3;attempt++){
+  try{
+   const response=await fetch(schedulerUrl+"/__scheduler/groq",{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify({body}),signal:AbortSignal.timeout(180000)});
+   const responseText=await response.text();let payload;try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
+   console.log("Groq "+label+" via Cloudflare: HTTP "+response.status);
+   if(response.ok)return payload;
    const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1200);
-   if([401,403,429].includes(response.status)){
-    console.warn("Groq key slot "+(keyIndex+1)+" unavailable during "+label+": "+detail);
-    lastError=new Error("Groq "+label+" rejected key slot "+(keyIndex+1)+" with HTTP "+response.status+": "+detail);
-    break;
-   }
-   if((response.status===408||response.status>=500)&&attempt<3){
-    console.warn("Groq temporarily returned HTTP "+response.status+" during "+label+"; retrying.");
-    await new Promise(resolve=>setTimeout(resolve,attempt*5000));
-    continue;
-   }
-   throw new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
-  }
+   lastError=new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
+   if([401,403,429].includes(response.status))throw lastError;
+   if(response.status<500&&response.status!==408)throw lastError;
+  }catch(error){lastError=error;if(attempt===3)break;console.warn("Groq attempt "+attempt+" failed during "+label+"; retrying.");await new Promise(resolve=>setTimeout(resolve,attempt*5000));}
  }
- throw lastError||new Error("No configured Groq API key could complete "+label+". Check the Groq API keys and free-tier limits.");
+ throw lastError||new Error("Groq request failed during "+label);
 }
 async function verifyGroqAccess(){
  const payload=await groqRequest({
