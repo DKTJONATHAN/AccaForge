@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
-import { cachedContentResponse, getCachedContent, refreshDailyContent, serveCachedMedia } from "./content";
+import { cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { refreshYesterdayResults, resultsApi } from "./results";
 
 interface Env {
