@@ -22,7 +22,7 @@ function settle(row:PickRow,home:number,away:number){
   if(!wantsYes&&!wantsNo)return {outcome:"PENDING",note:"Market selection could not be interpreted safely."};
   return {outcome:yes===wantsYes?"WON":"LOST",note:"Full-time score: "+home+"–"+away+"."};
  }
- if(market==="totals"||market==="alternate_totals"||market==="team_totals"){
+ if(market==="totals"||market==="alternate_totals"){
   const line=Number((pick+" "+row.market_name).match(/\b(\d+(?:\.\d+)?)\b/)?.[1]);
   const isOver=/over/i.test(pick),isUnder=/under/i.test(pick);
   if(!Number.isFinite(line)||(!isOver&&!isUnder))return {outcome:"PENDING",note:"Goal line could not be interpreted safely."};
@@ -49,7 +49,7 @@ function settle(row:PickRow,home:number,away:number){
 export async function refreshYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
- await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?",[date]).run();
+ await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?",[date]).run();
  const pending=(await env.DB.prepare("SELECT DISTINCT sport_key FROM result_selections WHERE publish_date >= date(?, '-2 days') AND outcome='PENDING'").bind(date).all<{sport_key:string}>()).results||[];
  if(!env.ODDS_API_KEY)return {date,fixtures:pending.length,settled:0,needsOddsApiSecret:true};
  let settled=0;
