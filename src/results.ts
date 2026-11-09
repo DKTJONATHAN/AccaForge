@@ -50,7 +50,7 @@ export async function refreshYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
  await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?",[date]).run();
- const pending=(await env.DB.prepare("SELECT DISTINCT sport_key FROM result_selections WHERE publish_date=? AND outcome='PENDING'").bind(date).all<{sport_key:string}>()).results||[];
+ const pending=(await env.DB.prepare("SELECT DISTINCT sport_key FROM result_selections WHERE publish_date >= date(?, '-2 days') AND outcome='PENDING'").bind(date).all<{sport_key:string}>()).results||[];
  if(!env.ODDS_API_KEY)return {date,fixtures:pending.length,settled:0,needsOddsApiSecret:true};
  let settled=0;
  for(const item of pending){
@@ -62,7 +62,7 @@ export async function refreshYesterdayResults(env:ResultsEnv){
   for(const event of events||[]){
    if(!event.completed)continue;
    const score=scoreMap(event);if(!score)continue;
-   const picks=(await env.DB.prepare("SELECT selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status FROM result_selections WHERE event_id=? AND outcome='PENDING'").bind(event.id).all<PickRow>()).results||[];
+   const picks=(await env.DB.prepare("SELECT selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status FROM result_selections WHERE event_id=? AND outcome='PENDING' AND publish_date >= date(?, '-2 days')").bind(event.id,date).all<PickRow>()).results||[];
    for(const pick of picks){
     const result=settle(pick,score.home,score.away);
     await env.DB.prepare("UPDATE result_selections SET home_score=?,away_score=?,outcome=?,settled_at=CURRENT_TIMESTAMP,result_note=? WHERE selection_id=?").bind(score.home,score.away,result.outcome,result.note,pick.selection_id).run();
@@ -79,6 +79,6 @@ export async function getYesterdayResults(env:ResultsEnv){
  const rows=(await env.DB.prepare("SELECT * FROM result_selections WHERE publish_date=? ORDER BY CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END,commence_time,acca_id").bind(date).all<any>()).results||[];
  const summary={total:rows.length,won:rows.filter(row=>row.outcome==="WON").length,lost:rows.filter(row=>row.outcome==="LOST").length,pending:rows.filter(row=>row.outcome==="PENDING").length,void:rows.filter(row=>row.outcome==="VOID").length,pass:rows.filter(row=>row.outcome==="PASS").length};
  const accuracy=summary.won+summary.lost?Math.round(summary.won/(summary.won+summary.lost)*100):null;
- return {date,rows,summary,accuracy};
+ return {date,rows,summary,accuracy,needsOddsApiSecret:!env.ODDS_API_KEY};
 }
 export async function resultsApi(env:ResultsEnv){try{return Response.json(await getYesterdayResults(env),{headers:{"Cache-Control":"public, max-age=60, s-maxage=180, stale-while-revalidate=600"}});}catch(error){console.error("AccaForge results read failed",error);return Response.json({error:"Results are temporarily unavailable."},{status:500});}}
