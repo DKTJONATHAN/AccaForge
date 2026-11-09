@@ -124,7 +124,7 @@ async function sitemap(env:Env,origin:string){
   const accas=(await env.DB.prepare("SELECT id,publish_date FROM accas WHERE status='published' ORDER BY publish_date DESC").all<{id:string;publish_date:string}>()).results||[];
   const matches=(await env.DB.prepare("SELECT s.event_id,MAX(a.publish_date) AS lastmod FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' GROUP BY s.event_id ORDER BY lastmod DESC").all<{event_id:string;lastmod:string}>()).results||[];
   const urls:Array<{path:string;lastmod?:string}>=[
-    {path:"/"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
+    {path:"/"},{path:"/daily"},{path:"/recent"},{path:"/competitions"},{path:"/safe-picks"},{path:"/super-5"},{path:"/super-10"},{path:"/all-matches"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
     {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/image-credits"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"},{path:"/teams/chelsea"},{path:"/teams/arsenal"},{path:"/teams/manchester-united"},{path:"/teams/liverpool"},{path:"/leagues/soccer_epl"},{path:"/leagues/soccer_uefa_champs_league"},{path:"/leagues/soccer_uefa_europa_league"},{path:"/leagues/soccer_spain_la_liga"},{path:"/leagues/soccer_germany_bundesliga"},{path:"/leagues/soccer_italy_serie_a"},{path:"/leagues/soccer_france_ligue_one"},{path:"/leagues/soccer_netherlands_eredivisie"}
   ];
   for(const item of accas)urls.push({path:"/accumulators/"+encodeURIComponent(item.id),lastmod:item.publish_date});
@@ -171,7 +171,8 @@ async function renderHome(request:Request,env:Env){
   }
   const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
   const todayLabel=new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
-  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,todayLabel}));
+  const pathname=new URL(request.url).pathname.replace(/\/$/,"")||"/";
+  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,todayLabel,pathname}));
   const stream=await renderToReadableStream(app);
   await stream.allReady;
   const rendered=await new Response(stream).text();
@@ -179,7 +180,24 @@ async function renderHome(request:Request,env:Env){
   const shell=await env.ASSETS.fetch(new Request(assetUrl,{headers:request.headers}));
   if(!shell.ok)throw new Error("The built AccaForge HTML shell could not be loaded.");
   let html=await shell.text();
-  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,todayLabel})+"</script>";
+  const routeMeta:Record<string,{title:string;description:string}>={
+    "/":{title:"AccaForge | Daily Football Fixtures, Selections and Odds",description:"Review daily football selections, fixtures, markets and decimal odds on AccaForge. Clear match details and published accumulator editions. 18+ only."},
+    "/daily":{title:"Daily Football Board | AccaForge",description:"Browse the AccaForge daily football board and open each published selection format."},
+    "/recent":{title:"Recent Football Editions | AccaForge",description:"Browse recent published AccaForge football editions, fixtures and combined odds."},
+    "/competitions":{title:"Football Competitions | AccaForge",description:"Browse football leagues covered by the AccaForge daily football board."},
+    "/safe-picks":{title:"Safe Picks | AccaForge Football Selections",description:"Review the published Safe Picks football accumulator, fixtures, markets and listed odds."},
+    "/super-5":{title:"Super 5 | AccaForge Football Selections",description:"Review the Super 5 football accumulator, five researched matches, markets and listed odds."},
+    "/super-10":{title:"Super 10 | AccaForge Football Selections",description:"Review the Super 10 football accumulator and its combined odds target."},
+    "/all-matches":{title:"All-Matches Challenge | AccaForge",description:"Review eligible football fixtures and the published match-by-match selections."}
+  };
+  const meta=routeMeta[pathname]||routeMeta["/"];
+  html=html.replace(/<title>[\\s\\S]*?<\\/title>/,"<title>"+escapeHtml(meta.title)+"</title>")
+    .replace(/<meta name="description" content="[^"]*"/,'<meta name="description" content="'+escapeHtml(meta.description)+'"')
+    .replace(/<meta property="og:title" content="[^"]*"/,'<meta property="og:title" content="'+escapeHtml(meta.title)+'"')
+    .replace(/<meta property="og:description" content="[^"]*"/,'<meta property="og:description" content="'+escapeHtml(meta.description)+'"')
+    .replace(/<meta property="og:url" content="[^"]*"/,'<meta property="og:url" content="'+escapeHtml(new URL(pathname,request.url).toString())+'"')
+    .replace(/<link rel="canonical" href="[^"]*"/,'<link rel="canonical" href="'+escapeHtml(new URL(pathname,request.url).toString())+'"');
+  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,todayLabel,pathname})+"</script>";
   if(!/<div id="root">\s*<\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
   html=html.replace(/<div id="root">\s*<\/div>/,rootMarkup);
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
@@ -233,7 +251,8 @@ export default {
     if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin);
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
-    if (url.pathname === "/") return renderHome(request,env);
+    const appPath=url.pathname.replace(/\\/$/,"")||"/";
+    if (["/","/daily","/recent","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
     if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
       return env.ASSETS.fetch(request);
     }
