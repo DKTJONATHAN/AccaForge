@@ -11,6 +11,10 @@
       "/*"
     ]
   },
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "accaforge-media" }
+  ],
+  "triggers": { "crons": ["0 0 * * *"] },
   "d1_databases": [
     {
       "binding": "DB",
