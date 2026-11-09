@@ -10,7 +10,6 @@ async function schedulerPost(path,payload){
  return body;
 }
 const env=process.env;
-const oddsKeys=["Cloudflare-managed"];let oddsKeyCursor=0;
 async function oddsFetch(input){
  const response=await fetch(schedulerUrl+"/__scheduler/odds",{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify({url:new URL(input).toString()})});
  const body=await response.text();
