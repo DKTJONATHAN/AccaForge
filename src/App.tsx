@@ -24,7 +24,7 @@ async function loadAccas():Promise<AccasResponse>{
  return response.json();
 }
 
-export default function App({initialData}:{initialData?:AccasResponse}){
+export default function App({initialData,todayLabel}:{initialData?:AccasResponse;todayLabel?:string}){
  const [product,setProduct]=useState<ProductType>("safe_picks");
  const [expanded,setExpanded]=useState<string|null>(null);
  const [archiveDate,setArchiveDate]=useState("all");
@@ -33,6 +33,7 @@ export default function App({initialData}:{initialData?:AccasResponse}){
  const [mobileMenuOpen,setMobileMenuOpen]=useState(false);
  const [heroIndex,setHeroIndex]=useState(0);
  const hero=heroSlides[heroIndex];
+ const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
  useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
  useEffect(()=>{if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;const timer=window.setInterval(()=>setHeroIndex(current=>{let next=current;while(next===current)next=Math.floor(Math.random()*heroSlides.length);return next;}),7000);return ()=>window.clearInterval(timer);},[]);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
@@ -54,7 +55,7 @@ export default function App({initialData}:{initialData?:AccasResponse}){
      <p className="eyebrow"><span className="eyebrow-line"/> THE DAILY FOOTBALL DESK</p>
      <h1>Read the game.<br/><em>Know the fixtures.</em></h1>
      <p className="intro-text">Daily football research across Safe Picks, Super 5, Super 10 and the All-Matches Challenge — with fixtures, markets, estimated probabilities and bookmaker odds in plain view. No guaranteed wins. Just the reasoning behind each pick.</p>
-     <div className="intro-meta"><span><CalendarDays size={14}/>{new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"})}</span><span><ShieldCheck size={14}/>Adults 18+ only</span></div>
+     <div className="intro-meta"><span><CalendarDays size={14}/>{displayDate}</span><span><ShieldCheck size={14}/>Adults 18+ only</span></div>
      <a className="hero-primary-link" href="#board">See today’s football tips <ArrowUpRight size={16}/></a>
     </div>
     <div className={"hero-visual "+(hero.kind==="player"?"is-player":"is-club")} key={hero.name}>
