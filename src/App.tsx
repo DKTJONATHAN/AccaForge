@@ -25,7 +25,7 @@ const leagueFor=(key:string)=>leagues.find(item=>item.key===key);
 const localTeamLogos:Record<string,string>={"Arsenal":"/media/arsenal.svg","Arsenal FC":"/media/arsenal.svg","Chelsea":"/media/chelsea.svg","Chelsea FC":"/media/chelsea.svg","Liverpool":"/media/liverpool.svg","Liverpool FC":"/media/liverpool.svg","Manchester United":"/media/manchester-united.svg","Manchester United FC":"/media/manchester-united.svg"};
 const kenyaTime=(value:string)=>new Date(value).toLocaleString("en-KE",{timeZone:"Africa/Nairobi",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 const dateLabel=(value:string)=>new Date(value+"T12:00:00").toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
-type SiteContent = { news:Array<{id:string;title:string;url:string;source:string;published_at:string;image_url:string;image_credit:string}>; photos:Array<{image_url:string;title:string;credit:string;license:string;license_url:string;source_url:string}>; teamBadges:Record<string,string>; hero?:{image_url:string;title:string;credit:string;license:string;license_url:string;source_url:string}|null; updatedAt:string|null };
+export type SiteContent = { news:Array<{id:string;title:string;url:string;source:string;published_at:string;image_url:string;image_credit:string}>; photos:Array<{image_url:string;title:string;credit:string;license:string;license_url:string;source_url:string}>; teamBadges:Record<string,string>; hero?:{image_url:string;title:string;credit:string;license:string;license_url:string;source_url:string}|null; updatedAt:string|null };
 async function loadContent():Promise<SiteContent>{
  const response=await fetch("/api/content");
  if(!response.ok)throw new Error("Could not load cached sports coverage.");
@@ -103,7 +103,7 @@ function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
 }
-export default function App({initialData,todayLabel,pathname="/"}:{initialData?:AccasResponse;todayLabel?:string;pathname?:string}){
+export default function App({initialData,initialContent,todayLabel,pathname="/"}:{initialData?:AccasResponse;initialContent?:SiteContent;todayLabel?:string;pathname?:string}){
  void React;
  const [ageOk,setAgeOk]=useState(false);
  const [archiveDate,setArchiveDate]=useState("all");
@@ -111,7 +111,7 @@ export default function App({initialData,todayLabel,pathname="/"}:{initialData?:
  const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
  useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
- const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,staleTime:300000,refetchOnWindowFocus:false});
+ const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});
  const teamBadges=contentData?.teamBadges||{};
  const accas=data?.accas||[];
  const currentProduct=products.find(item=>item[3]===pathname)?.[0];
