@@ -25,7 +25,7 @@ const leagueFor=(key:string)=>leagues.find(item=>item.key===key);
 const kenyaTime=(value:string)=>new Date(value).toLocaleString("en-KE",{timeZone:"Africa/Nairobi",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 const dateLabel=(value:string)=>new Date(value+"T12:00:00").toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
 async function loadAccas():Promise<AccasResponse>{
- const response=await fetch("/api/accas?days=30");
+ const response=await fetch("/api/accas?days=3");
  if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
 }
