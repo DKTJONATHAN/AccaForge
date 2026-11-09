@@ -191,7 +191,7 @@ async function renderHome(request:Request,env:Env){
     "/all-matches":{title:"All-Matches Challenge | AccaForge",description:"Review eligible football fixtures and the published match-by-match selections."}
   };
   const meta=routeMeta[pathname]||routeMeta["/"];
-  html=html.replace(/<title>[\\s\\S]*?<\\/title>/,"<title>"+escapeHtml(meta.title)+"</title>")
+  html=html.replace(/<title>[\s\S]*?<\/title>/,"<title>"+escapeHtml(meta.title)+"</title>")
     .replace(/<meta name="description" content="[^"]*"/,'<meta name="description" content="'+escapeHtml(meta.description)+'"')
     .replace(/<meta property="og:title" content="[^"]*"/,'<meta property="og:title" content="'+escapeHtml(meta.title)+'"')
     .replace(/<meta property="og:description" content="[^"]*"/,'<meta property="og:description" content="'+escapeHtml(meta.description)+'"')
