@@ -302,7 +302,24 @@ async function groqRequest(body,label){
    }
    try{payload=JSON.parse(responseText);}catch{throw new Error("Groq returned a non-JSON API response during "+label+": "+responseText.slice(0,500));}
    console.log("Groq "+label+" key slot "+(keyIndex+1)+": HTTP "+response.status);
-   if(response.ok)return payload;
+   if(response.ok){
+    if(label==="preflight"){
+     const choice=payload?.choices?.[0];
+     const content=choice?.message?.content;
+     if(typeof content!=="string"||!content.trim()){
+      const finish=choice?.finish_reason||"missing";
+      const detail="HTTP 200 but no usable assistant text (finish_reason="+finish+", choices="+(Array.isArray(payload?.choices)?payload.choices.length:0)+").";
+      console.warn("Groq preflight key slot "+(keyIndex+1)+" returned no usable text; "+detail);
+      lastError=new Error("Groq preflight returned no usable response from key slot "+(keyIndex+1)+": "+detail);
+      if(attempt<2){
+       await new Promise(resolve=>setTimeout(resolve,attempt*2000));
+       continue;
+      }
+      break;
+     }
+    }
+    return payload;
+   }
    const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1200);
    if([401,403,429].includes(response.status)){
     console.warn("Groq key slot "+(keyIndex+1)+" unavailable during "+label+": "+detail);
@@ -322,10 +339,10 @@ async function groqRequest(body,label){
 async function verifyGroqAccess(){
  const payload=await groqRequest({
   model, messages:[{role:"user",content:"Reply with the single word READY."}],
-  max_completion_tokens:32,temperature:0
+  max_completion_tokens:256,temperature:0,reasoning_effort:"low"
  },"preflight");
  const content=payload.choices?.[0]?.message?.content||"";
- if(!content.trim())throw new Error("Groq preflight returned no response. No Odds API fixtures were requested.");
+ if(!content.trim())throw new Error("Groq preflight returned no usable response after trying configured keys. No Odds API fixtures were requested.");
  console.log("Groq preflight successful; proceeding to Odds API collection.");
 }
 
