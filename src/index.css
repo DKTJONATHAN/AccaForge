@@ -417,3 +417,30 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
 .home-board-preview .preview-row svg{color:#64748b}
 .home-board-preview .preview-all{color:#075f3a;padding-top:15px}
 @media(max-width:760px){.home-board-preview{padding:17px 14px 13px;border-radius:12px}.board-card-top h2{font-size:24px}.board-card-note{margin:8px 0}.home-board-preview .preview-row{min-height:56px}}
+
+
+/* Club and competition identity plus compact league standings */
+.league-mini-logo{width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:5px}
+.standings-section{margin-top:38px}
+.standings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.standings-card{min-width:0;background:#fff;border:1px solid #dbe2e9;border-radius:12px;overflow:hidden;box-shadow:0 6px 20px rgba(7,17,31,.04)}
+.standings-card>header{display:flex;align-items:center;gap:11px;padding:15px 16px;border-bottom:1px solid #e7ecf1}
+.standings-card>header>img{width:34px;height:34px;object-fit:contain}
+.standings-card>header strong{display:block;color:#101c2b;font-size:14px}
+.standings-card>header small{display:block;color:#64748b;font-size:10px;margin-top:2px}
+.standings-table-wrap{overflow-x:auto}
+.standings-table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+.standings-table th{padding:9px 8px;text-align:right;color:#64748b;font-size:9px;font-weight:700;background:#f7f9fb}
+.standings-table th:nth-child(1),.standings-table td:nth-child(1){text-align:center;width:28px}
+.standings-table th:nth-child(2),.standings-table td:nth-child(2){text-align:left}
+.standings-table td{padding:9px 8px;text-align:right;border-top:1px solid #edf0f3;color:#344457}
+.standings-table td strong{color:#075f3a}
+.standing-team{display:inline-flex;align-items:center;gap:6px;max-width:170px;overflow:hidden;text-overflow:ellipsis;color:#152231;font-weight:600}
+.standing-team img{width:17px;height:17px;object-fit:contain;flex:0 0 auto}
+@media(max-width:760px){
+ .standings-section{margin-top:28px}
+ .standings-grid{grid-template-columns:1fr;gap:12px}
+ .standings-card>header{padding:12px 14px}
+ .standings-table td{padding:8px 7px}
+ .standing-team{max-width:230px}
+}
