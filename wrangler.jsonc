@@ -3,6 +3,12 @@
   "name": "accaforge",
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-08",
+  "routes": [
+    {
+      "pattern": "accaforge.zandani.co.ke",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
