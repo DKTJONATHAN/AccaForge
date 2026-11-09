@@ -358,3 +358,44 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
 .home-seo-responsible{margin:24px 0 0;padding:14px 16px;background:var(--surface-raised);color:var(--secondary);font-size:11px;line-height:1.7}
 .home-seo-responsible a{color:var(--emerald-dark);font-weight:700}
 @media(max-width:760px){.home-seo{padding:36px 0 16px;margin-top:26px}.home-seo-intro h2{font-size:32px}.home-seo-grid{grid-template-columns:1fr}.home-seo-grid article{padding:18px 16px}.home-seo-faq{margin-top:28px}.home-seo-faq h2{font-size:27px}.home-seo-grid h3{font-size:21px}}
+
+
+/* Homepage hierarchy and compact mobile presentation */
+.home-kicker{display:block;color:#075f3a;font-size:10px;font-weight:800;letter-spacing:.13em;margin:0 0 12px}
+.home-copy h1{color:#07111f;font-weight:600}
+.home-copy>p{color:#344457}
+.hero-actions{gap:14px}
+.button-primary{background:#087b4a;color:#fff;box-shadow:0 5px 14px rgba(8,123,74,.16)}
+.button-primary:hover{background:#075f3a}
+.hero-actions .text-link{padding:10px 0;color:#075f3a}
+.home-date{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:22px;color:#465568}
+.home-date strong{color:#152231}
+.home-live,.home-awaiting{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#075f3a}
+.home-awaiting{color:#76520b}
+.home-live i,.home-awaiting i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.home-seo{padding-top:34px;margin-top:28px}
+.home-seo-intro{margin-bottom:18px}
+.home-seo-intro h2,.home-seo-faq h2,.home-seo-grid h3{color:#07111f}
+.home-seo-intro>p,.home-seo-grid p,.home-seo-faq details p{color:#344457}
+.home-seo-grid article{padding:18px 20px 20px}
+.home-seo-grid a{font-size:12px;padding:5px 0}
+.mobile-dock{padding-bottom:max(7px,env(safe-area-inset-bottom))}
+@media(max-width:760px){
+ .home-hero{gap:20px;padding:26px 0 24px}
+ .home-copy h1{font-size:clamp(38px,10vw,48px);line-height:.98;max-width:12ch}
+ .home-copy>p{font-size:13px;line-height:1.55;margin-top:12px}
+ .hero-actions{flex-direction:row;align-items:center;flex-wrap:wrap;gap:10px;margin-top:17px}
+ .hero-actions .button{min-height:48px;padding:0 15px}
+ .hero-actions .text-link{font-size:11px;padding:8px 0}
+ .home-date{margin-top:15px;font-size:11px}
+ .home-latest{padding-top:26px}
+ .home-news{padding-top:28px}
+ .home-seo{padding-top:26px;margin-top:20px}
+ .home-seo-intro h2{font-size:29px}
+ .home-seo-grid article{padding:15px 13px}
+ .home-seo-grid h3{font-size:20px}
+ .home-seo-grid p{font-size:12px;line-height:1.6;margin-bottom:8px}
+ .home-seo-faq{margin-top:22px}
+ .app{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+ .mobile-dock{padding-bottom:calc(7px + env(safe-area-inset-bottom))}
+}
