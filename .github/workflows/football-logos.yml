@@ -32,8 +32,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Enrich today's already-published matches
+      - name: Enrich today's already-published matches directly into D1
         env:
-          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: https://accaforge.jonathanmwaniki07.workers.dev
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
         run: node scripts/enrich-football-data.mjs
