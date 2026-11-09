@@ -170,7 +170,8 @@ async function renderHome(request:Request,env:Env){
     console.error("AccaForge SSR data response could not be parsed.",error);
   }
   const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
-  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData}));
+  const todayLabel=new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
+  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,todayLabel}));
   const stream=await renderToReadableStream(app);
   await stream.allReady;
   const rendered=await new Response(stream).text();
@@ -178,7 +179,7 @@ async function renderHome(request:Request,env:Env){
   const shell=await env.ASSETS.fetch(new Request(assetUrl,{headers:request.headers}));
   if(!shell.ok)throw new Error("The built AccaForge HTML shell could not be loaded.");
   let html=await shell.text();
-  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson(initialData)+"</script>";
+  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,todayLabel})+"</script>";
   if(!/<div id="root">\s*<\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
   html=html.replace(/<div id="root">\s*<\/div>/,rootMarkup);
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
