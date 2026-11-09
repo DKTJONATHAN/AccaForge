@@ -7,6 +7,7 @@ import App from "./App";
 import type { AccasResponse } from "./types";
 import { cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { refreshYesterdayResults, resultsApi } from "./results";
+import { prepareFootballEnrichment, enrichFootballLeague, finishFootballEnrichment } from "./sports-data";
 
 interface Env {
   DB: D1Database;
@@ -21,6 +22,7 @@ interface Env {
   GEMINI_API_KEY1?: string;
   GEMINI_API_KEY2?: string;
   SCHEDULER_TOKEN?: string;
+  API_FOOTBALL_KEY?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string;
@@ -249,7 +251,16 @@ async function schedulerProxy(request: Request, env: Env): Promise<Response> {
     const result = await refreshYesterdayResults(env);
     return Response.json({ ok: true, result });
   }
-  const payload = await request.json() as { sql?: string; params?: string[]; url?: string; body?: unknown };
+  const payload = await request.json() as { sql?: string; params?: string[]; url?: string; body?: unknown; action?: string; sport_key?: string; date?: string };
+  if (path === "/__scheduler/enrich") {
+    if (payload.action === "prepare") return Response.json(await prepareFootballEnrichment(env));
+    if (payload.action === "league") {
+      if (typeof payload.sport_key !== "string" || !/^soccer_[a-z0-9_]+$/.test(payload.sport_key) || typeof payload.date !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) return Response.json({ error: "Invalid competition enrichment request." }, { status: 400 });
+      return Response.json(await enrichFootballLeague(env, payload.sport_key, payload.date));
+    }
+    if (payload.action === "finish" && typeof payload.date === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) return Response.json(await finishFootballEnrichment(env, payload.date));
+    return Response.json({ error: "Unknown sports enrichment action." }, { status: 400 });
+  }
   if (path === "/__scheduler/d1") {
     if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
     const statement = env.DB.prepare(payload.sql).bind(...payload.params);
