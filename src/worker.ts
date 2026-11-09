@@ -1,5 +1,10 @@
 import { onRequestGet as getAccas } from "../functions/api/accas";
 import { onRequestGet as getHealth } from "../functions/api/health";
+import { createElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToReadableStream } from "react-dom/server";
+import App from "./App";
+import type { AccasResponse } from "./types";
 
 interface Env {
   DB: D1Database;
@@ -151,6 +156,32 @@ async function matchPage(eventId:string,env:Env,origin:string){
   const body="<h1>"+escapeHtml(name)+"</h1><p class='lead'>Football match information and published accumulator selections for "+escapeHtml(name)+", listed in the "+escapeHtml(competition)+".</p><div class='panel'><div class='facts'><span>Competition: <strong>"+escapeHtml(competition)+"</strong></span><span>Kick-off: <strong>"+escapeHtml(dateTime(first.commence_time))+"</strong></span></div></div><h2>AccaForge selections featuring this fixture</h2><ul class='list'>"+editionLinks+"</ul><p class='notice'>These are editorial market selections, not a live score or a guaranteed prediction. Match details and odds may change. 18+ only; information and entertainment only.</p><p><a class='button' href='/'>Explore daily football accumulators</a></p>";
   const schema={"@context":"https://schema.org","@type":"SportsEvent","name":name,"startDate":first.commence_time,"sport":"Soccer","homeTeam":{"@type":"SportsTeam","name":first.home_team},"awayTeam":{"@type":"SportsTeam","name":first.away_team},"url":new URL("/matches/"+encodeURIComponent(eventId),origin).toString(),"organizer":{"@type":"Organization","name":"AccaForge","url":origin}};
   return renderPage({title:name+" | "+competition+" Match Analysis and Accumulator Tips | AccaForge",description:"View "+name+" match information, kick-off time and published AccaForge football accumulator markets and odds.",path:"/matches/"+encodeURIComponent(eventId),body,schema},origin);
+}
+
+async function renderHome(request:Request,env:Env){
+  const dataUrl=new URL("/api/accas?days=3",request.url);
+  const dataRequest=new Request(dataUrl,{headers:request.headers});
+  const dataResponse=await getAccas({request:dataRequest,env});
+  let initialData:AccasResponse={accas:[],updatedAt:null};
+  try {
+    const payload=await dataResponse.json() as AccasResponse;
+    if(Array.isArray(payload.accas))initialData=payload;
+  } catch(error) {
+    console.error("AccaForge SSR data response could not be parsed.",error);
+  }
+  const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
+  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData}));
+  const stream=await renderToReadableStream(app);
+  await stream.allReady;
+  const rendered=await new Response(stream).text();
+  const assetUrl=new URL("/index.html",request.url);
+  const shell=await env.ASSETS.fetch(new Request(assetUrl,{headers:request.headers}));
+  if(!shell.ok)throw new Error("The built AccaForge HTML shell could not be loaded.");
+  let html=await shell.text();
+  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson(initialData)+"</script>";
+  if(!/<div id="root">\\s*<\\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
+  html=html.replace(/<div id="root">\\s*<\\/div>/,rootMarkup);
+  return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
 }
 
 export default {
