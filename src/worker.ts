@@ -290,7 +290,7 @@ export default {
     },url.origin,404);
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === "0 0 * * *") {
+    if (controller.cron === "0 6 * * *") {
       ctx.waitUntil(refreshDailyContent(env).then(result => console.log("AccaForge daily content refresh complete", result)).catch(error => console.error("AccaForge daily content refresh failed", error)));
       ctx.waitUntil(refreshYesterdayResults(env).then(result => console.log("AccaForge results refresh complete", result)).catch(error => console.error("AccaForge results refresh failed", error)));
     }
