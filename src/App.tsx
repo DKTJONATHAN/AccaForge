@@ -1,6 +1,6 @@
 import React, {useEffect,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,Layers,CalendarRange} from "lucide-react";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,Layers,CalendarRange,ClipboardCheck} from "lucide-react";
 import type {Acca,AccasResponse,ProductType,Selection} from "./types";
 
 const products:[ProductType,string,string,string][]=[
@@ -31,7 +31,7 @@ async function loadContent():Promise<SiteContent>{
  if(!response.ok)throw new Error("Could not load cached sports coverage.");
  return response.json();
 }
-async function loadAccas():Promise<AccasResponse>{
+type ResultsPayload={date:string;rows:Array<{selection_id:string;product_type:string;headline:string;publish_date:string;event_id:string;commence_time:string;home_team:string;away_team:string;market_name:string;selection_name:string;odds:number;home_score:number|null;away_score:number|null;outcome:string;result_note:string}>;summary:{total:number;won:number;lost:number;pending:number;void:number;pass:number};accuracy:number|null};\nasync function loadResults():Promise<ResultsPayload>{const response=await fetch("/api/results");if(!response.ok)throw new Error("Could not load yesterday’s results.");return response.json();}\nasync function loadAccas():Promise<AccasResponse>{
  const response=await fetch("/api/accas?days=3");
  if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
@@ -41,7 +41,7 @@ function PageHeading({title,description,aside}:{title:string;description:string;
 }
 function SiteHeader({pathname}:{pathname:string}){
  const [menuOpen,setMenuOpen]=useState(false);
- const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/competitions","Competitions"],["/football-betting-tips","Guides"]];
+ const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/results","Results"],["/competitions","Competitions"],["/football-betting-tips","Guides"]];
  return <>
   <header className="site-header">
    <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={18}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
@@ -53,7 +53,7 @@ function SiteHeader({pathname}:{pathname:string}){
    <a className={pathname==="/"?"active":""} href="/"><Home size={18}/><span>Home</span></a>
    <a className={pathname==="/daily"||products.some(item=>item[3]===pathname)?"active":""} href="/daily"><Target size={18}/><span>Daily</span></a>
    <a className={pathname==="/recent"?"active":""} href="/recent"><CalendarRange size={18}/><span>Archive</span></a>
-   <a className={pathname==="/competitions"?"active":""} href="/competitions"><Layers size={18}/><span>Leagues</span></a>
+   <a className={pathname==="/results"?"active":""} href="/results"><ClipboardCheck size={18}/><span>Results</span></a>
   </nav>
  </>;
 }
@@ -111,7 +111,7 @@ export default function App({initialData,initialContent,todayLabel,pathname="/"}
  const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
  useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
- const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});
+ const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});\n const {data:resultsData,isLoading:resultsLoading,isError:resultsError,refetch:refetchResults}=useQuery({queryKey:["yesterday-results"],queryFn:loadResults,enabled:pathname==="/results",staleTime:60000,refetchOnWindowFocus:false});
  const teamBadges=contentData?.teamBadges||{};
  const accas=data?.accas||[];
  const currentProduct=products.find(item=>item[3]===pathname)?.[0];
@@ -136,7 +136,7 @@ export default function App({initialData,initialContent,todayLabel,pathname="/"}
   page=<main className="page-shell product-page"><PageHeading title={productLabel(currentProduct)} description={products.find(item=>item[0]===currentProduct)?.[2]||"Football selections and match information."} aside={<a className="text-link" href="/daily">All daily formats <ArrowUpRight size={15}/></a>}/>{status||<>{current?<AccaDetail acca={current} badges={teamBadges}/>:<div className="state-panel"><Target size={26}/><h2>No {productLabel(currentProduct)} edition published</h2><p>This format appears when its selection rules and available research are satisfied. We do not add unsupported picks to fill a list.</p><button className="button button-secondary" disabled={isFetching} onClick={()=>refetch()}>{isFetching?"Checking":"Refresh edition"}</button></div>}</>}<nav className="product-switcher" aria-label="Other daily formats">{products.filter(item=>item[0]!==currentProduct).map(([type,label,,path])=><a key={type} href={path}>{label}<ArrowUpRight size={14}/></a>)}</nav></main>;
  }else if(pathname==="/recent"){
   page=<main className="page-shell"><PageHeading title="Recent editions" description="Browse the published football selections retained in the recent archive." aside={<label className="archive-select"><CalendarDays size={15}/><select value={archiveDate} onChange={event=>setArchiveDate(event.target.value)}><option value="all">All dates</option>{dates.map(date=><option key={date} value={date}>{dateLabel(date)}</option>)}</select><ChevronDown size={14}/></label>}/>{status||<div className="archive-list">{filteredArchive.length?filteredArchive.map(item=><a key={item.id} className="archive-row" href={"/accumulators/"+encodeURIComponent(item.id)}><span className="archive-date">{dateLabel(item.publish_date)}</span><span className="archive-target">{productLabel(item.product_type)}</span><span className="archive-legs">{item.selections.length} {item.product_type==="all_matches"?"fixtures":"selections"}</span><strong className="archive-price">{item.product_type==="all_matches"?"—":item.actual_odds.toFixed(2)}</strong><span className="archive-open">Open <ArrowUpRight size={14}/></span></a>):<p className="muted-copy">No recent editions are available for this date.</p>}</div>}</main>;
- }else if(pathname==="/competitions"){
+ }else if(pathname==="/results"){\n  const rows=resultsData?.rows||[];const summary=resultsData?.summary;\n  const grouped=products.map(([type,label])=>({type,label,rows:rows.filter(row=>row.product_type===type)})).filter(group=>group.rows.length);\n  page=<main className="page-shell results-page"><PageHeading title="Yesterday’s results" description="Every selection from yesterday’s published editions, settled against confirmed match scores." aside={<span className="updated"><Clock3 size={15}/>Updates every six hours</span>}/>{resultsLoading?<div className="state-panel"><span className="loader"/><p>Loading yesterday’s results…</p></div>:resultsError?<div className="state-panel"><h2>Results are temporarily unavailable</h2><button className="button button-secondary" onClick={()=>refetchResults()}>Try again</button></div>:<><div className="results-summary"><div><strong>{summary?.total||0}</strong><span>Selections</span></div><div className="result-won"><strong>{summary?.won||0}</strong><span>Won</span></div><div className="result-lost"><strong>{summary?.lost||0}</strong><span>Lost</span></div><div className="result-pending"><strong>{summary?.pending||0}</strong><span>Pending</span></div><div><strong>{resultsData?.accuracy===null||resultsData?.accuracy===undefined?"—":resultsData.accuracy+"%"}</strong><span>Accuracy</span></div></div>{grouped.length?grouped.map(group=><section className="results-group" key={group.type}><div className="section-heading"><div><h2>{group.label}</h2><p>{group.rows.length} selections · {group.rows.filter(row=>row.outcome==="WON").length} won · {group.rows.filter(row=>row.outcome==="LOST").length} lost</p></div></div><div className="results-list">{group.rows.map(row=><article className="result-card" key={row.selection_id}><div className="result-fixture"><strong>{row.home_team}</strong><span className="result-score">{row.home_score===null||row.away_score===null?"vs":row.home_score+" – "+row.away_score}</span><strong>{row.away_team}</strong></div><div className="result-pick"><span>{row.market_name}</span><strong>{row.selection_name}</strong><small>Odds {Number(row.odds).toFixed(2)}</small></div><span className={"result-status status-"+row.outcome.toLowerCase()}>{row.outcome}</span>{row.result_note&&<small className="result-note">{row.result_note}</small>}</article>)}</div></section>):<div className="state-panel"><Trophy size={27}/><h2>No published predictions for yesterday</h2><p>When yesterday’s editions are available, every selection will appear here with its result.</p></div>}</>}</main>;\n }else if(pathname==="/competitions"){
   page=<main className="page-shell"><PageHeading title="Football competitions" description="Browse the leagues followed by the AccaForge daily football board."/><div className="league-directory">{leagues.map(league=><a href={"/leagues/"+league.key} className="league-directory-row" key={league.key}><img src={league.logo} alt=""/><span>{league.name}</span><ArrowUpRight size={16}/></a>)}</div></main>;
  }else{
   page=<main className="page-shell"><PageHeading title="Page not found" description="The page you requested is not part of the AccaForge daily board."/><a className="button button-primary" href="/">Return home</a></main>;
