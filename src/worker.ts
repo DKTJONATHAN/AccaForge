@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
-import { cachedContentResponse, getCachedContent, refreshDailyContent, serveCachedMedia } from "./content";
+import { cachedContentResponse, getCachedContent, refreshDailyContent, serveCachedMedia } from "./content";\nimport { refreshYesterdayResults, resultsApi } from "./results";
 
 interface Env {
   DB: D1Database;
@@ -187,7 +187,7 @@ async function renderHome(request:Request,env:Env){
   const routeMeta:Record<string,{title:string;description:string}>={
     "/":{title:"AccaForge | Daily Football Fixtures, Selections and Odds",description:"Review daily football selections, fixtures, markets and decimal odds on AccaForge. Clear match details and published accumulator editions. 18+ only."},
     "/daily":{title:"Daily Football Board | AccaForge",description:"Browse the AccaForge daily football board and open each published selection format."},
-    "/recent":{title:"Recent Football Editions | AccaForge",description:"Browse recent published AccaForge football editions, fixtures and combined odds."},
+    "/recent":{title:"Recent Football Editions | AccaForge",description:"Browse recent published AccaForge football editions, fixtures and combined odds."},\n    "/results":{title:"Yesterday’s Football Results | AccaForge",description:"Review yesterday’s published AccaForge football selections, final scores and won, lost or pending outcomes."},
     "/competitions":{title:"Football Competitions | AccaForge",description:"Browse football leagues covered by the AccaForge daily football board."},
     "/safe-picks":{title:"Safe Picks | AccaForge Football Selections",description:"Review the published Safe Picks football accumulator, fixtures, markets and listed odds."},
     "/super-5":{title:"Super 5 | AccaForge Football Selections",description:"Review the Super 5 football accumulator, five researched matches, markets and listed odds."},
@@ -214,7 +214,7 @@ export default {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
     }
-    if (url.pathname === "/api/content") {
+    if (url.pathname === "/api/results") {\n      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });\n      return resultsApi(env);\n    }\n    if (url.pathname === "/api/content") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return cachedContentResponse(env);
     }
@@ -266,7 +266,7 @@ export default {
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
     const appPath=url.pathname.replace(/\/+$/,"")||"/";
-    if (["/","/daily","/recent","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
+    if (["/","/daily","/recent","/results","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
     if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
       return env.ASSETS.fetch(request);
     }
