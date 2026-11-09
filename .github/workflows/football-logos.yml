@@ -35,5 +35,5 @@ jobs:
       - name: Enrich today's already-published matches
         env:
           ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: https://accaforge.eu.cc
+          ACCAFORGE_WORKER_URL: https://accaforge.jonathanmwaniki07.workers.dev
         run: node scripts/enrich-football-data.mjs
