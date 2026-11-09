@@ -255,10 +255,10 @@ async function schedulerProxy(request: Request, env: Env): Promise<Response> {
   if (path === "/__scheduler/enrich") {
     if (payload.action === "prepare") return Response.json(await prepareFootballEnrichment(env));
     if (payload.action === "league") {
-      if (typeof payload.sport_key !== "string" || !/^soccer_[a-z0-9_]+$/.test(payload.sport_key) || typeof payload.date !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) return Response.json({ error: "Invalid competition enrichment request." }, { status: 400 });
+      if (typeof payload.sport_key !== "string" || !/^soccer_[a-z0-9_]+$/.test(payload.sport_key) || typeof payload.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) return Response.json({ error: "Invalid competition enrichment request." }, { status: 400 });
       return Response.json(await enrichFootballLeague(env, payload.sport_key, payload.date));
     }
-    if (payload.action === "finish" && typeof payload.date === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) return Response.json(await finishFootballEnrichment(env, payload.date));
+    if (payload.action === "finish" && typeof payload.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) return Response.json(await finishFootballEnrichment(env, payload.date));
     return Response.json({ error: "Unknown sports enrichment action." }, { status: 400 });
   }
   if (path === "/__scheduler/d1") {
@@ -320,7 +320,7 @@ export default {
     if (url.pathname.startsWith("/media-cache/")) {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
       const key = decodeURIComponent(url.pathname.slice("/media-cache/".length));
-      if (!/^(photos|teams)\/[a-f0-9]{64}\.(jpg|jpeg|png|webp)$/.test(key)) return new Response("Not found", { status: 404 });
+      if (!/^(photos|teams|leagues)\/[a-f0-9]{64}\.(jpg|jpeg|png|webp|svg)$/.test(key)) return new Response("Not found", { status: 404 });
       return serveCachedMedia(env, key);
     }
     if (url.pathname === "/api/health") {
