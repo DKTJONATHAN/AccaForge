@@ -173,7 +173,7 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .mobile-menu{position:absolute;top:59px;left:0;right:0;display:flex;flex-direction:column;gap:0;padding:6px 17px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
  .mobile-menu a{min-height:46px;display:flex;align-items:center;padding:8px 2px;color:var(--ink);text-decoration:none;font-size:13px;border-bottom:1px solid var(--line)}
  .mobile-dock{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);min-height:64px;padding:7px 8px max(7px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}
- .mobile-dock a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:10px;text-decoration:none;min-height:48px}
+ .mobile-dock a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:11px;text-decoration:none;min-height:48px}
  .mobile-dock a.active{color:var(--emerald-dark);font-weight:600}
  .app{padding-bottom:72px}
  .page-shell{padding:0 17px 36px}
@@ -244,7 +244,8 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .league-directory-row{min-height:64px}
  .site-footer{padding:20px 17px 24px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
  .footer-links{gap:9px 13px}
- .footer-note{font-size:9px}
+ .footer-note{font-size:11px}
+ .preview-head span:last-child,.preview-row small,.edition-link-copy small,.edition-link-value small,.product-row-main small,.acca-topline,.combined-odds small,.selection-heading,.field-label,.fixture-meta,.selection-market small,.selection-estimate small,.selection-price small,.archive-date,.archive-legs,.archive-open,.footer-links a{font-size:11px}
  .age-modal{padding:22px}
 }
 @media(max-width:380px){
