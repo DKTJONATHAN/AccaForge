@@ -46,7 +46,7 @@ function SiteHeader({pathname}:{pathname:string}){
  const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/results","Results"],["/competitions","Competitions"],["/football-betting-tips","Guides"]];
  return <>
   <header className="site-header">
-   <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={18}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
+   <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><img className="brand-icon" src="/accaforge-icon.svg" alt="" /></span><span className="brand-name">Acca<span>Forge</span></span></a>
    <nav className="desktop-nav" aria-label="Main navigation">{links.map(([href,label])=><a key={href} className={pathname===href?"nav-active":""} href={href}>{label}</a>)}</nav>
    <button className="icon-button mobile-menu-button" onClick={()=>setMenuOpen(value=>!value)} aria-label="Toggle navigation menu" aria-expanded={menuOpen}>{menuOpen?<X size={19}/>:<Menu size={19}/>}</button>
    {menuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation">{links.map(([href,label])=><a key={href} href={href} onClick={()=>setMenuOpen(false)}>{label}</a>)}<a href="/responsible-gambling" onClick={()=>setMenuOpen(false)}>Responsible play</a></nav>}
