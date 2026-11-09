@@ -178,7 +178,7 @@ async function renderHome(request:Request,env:Env){
   const dataRequest=new Request(dataUrl,{headers:request.headers});
   const dataResponse=await getAccas({request:dataRequest,env});
   let initialData:AccasResponse={accas:[],updatedAt:null};
-  let initialContent:Awaited<ReturnType<typeof getCachedContent>>={news:[],photos:[],teamBadges:{},hero:null,updatedAt:null};
+  let initialContent:Awaited<ReturnType<typeof getCachedContent>>={news:[],photos:[],teamBadges:{},leagueBadges:{},leagueTables:{},hero:null,updatedAt:null};
   try {
     const payload=await dataResponse.json() as AccasResponse;
     if(Array.isArray(payload.accas))initialData=payload;
