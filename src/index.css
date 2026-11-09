@@ -447,3 +447,33 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
 
 .league-mark{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:9px;background:#e9f3ed;color:#075f3a;font-size:11px;font-weight:800;letter-spacing:.04em}
 .league-directory-row .league-mark{width:30px;height:30px}
+
+
+/* Site-wide mobile width and page hierarchy corrections */
+@media(max-width:760px){
+ .page-shell{width:100%;max-width:100%;padding-left:18px;padding-right:18px;overflow-x:clip}
+ .home-hero{grid-template-columns:minmax(0,1fr);width:100%;gap:22px}
+ .home-copy{width:100%;min-width:0}
+ .home-copy h1{width:100%;max-width:18ch;font-size:clamp(32px,8.4vw,40px);line-height:1.04;letter-spacing:-.7px;overflow-wrap:normal}
+ .home-copy>p{max-width:58ch;font-size:14px;line-height:1.65}
+ .home-board-preview{width:100%;min-width:0}
+ .page-heading{width:100%;align-items:flex-start}
+ .page-heading>div:first-child{width:100%;min-width:0}
+ .page-heading h1{max-width:100%;font-size:clamp(30px,8vw,38px);line-height:1.05;letter-spacing:-.6px;overflow-wrap:anywhere}
+ .page-heading p{font-size:13px;line-height:1.65}
+ .page-heading-aside{max-width:100%;width:100%}
+ .archive-select{max-width:100%}
+ .product-page,.results-page,.home-page{min-width:0}
+ .site-footer{padding-left:18px;padding-right:18px}
+ .footer-links{gap:8px 12px}
+ .footer-links a{font-size:11px}
+ .selection-row,.result-card,.archive-row,.product-row,.edition-link{min-width:0}
+ .selection-fixture,.selection-market,.selection-estimate,.selection-price{min-width:0}
+ .league-directory{grid-template-columns:1fr}
+}
+@media(min-width:761px){
+ .page-shell{max-width:1160px}
+ .home-hero{gap:42px}
+ .home-copy h1{max-width:13ch}
+ .page-heading h1{max-width:18ch}
+}
