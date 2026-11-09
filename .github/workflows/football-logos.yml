@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: accaforge-football-data-enrichment
+  group: accaforge-scheduled-jobs
   cancel-in-progress: false
 
 jobs:
