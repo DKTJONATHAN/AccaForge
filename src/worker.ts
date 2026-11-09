@@ -6,23 +6,12 @@ import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
 import { cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
-import { refreshYesterdayResults, resultsApi } from "./results";
-import { prepareFootballEnrichment, enrichFootballLeague, finishFootballEnrichment } from "./sports-data";
+import { resultsApi } from "./results";
 
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
-  ODDSAPI_KEY?: string;
-  ODDSAPI_KEY1?: string;
-  ODDSAPI_KEY2?: string;
-  ODDSAPI_KEY3?: string;
-  ODDS_API_KEY?: string;
-  GEMINI_API_KEY?: string;
-  GEMINI_API_KEY1?: string;
-  GEMINI_API_KEY2?: string;
-  SCHEDULER_TOKEN?: string;
-  API_FOOTBALL_KEY?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string;
@@ -253,71 +242,9 @@ async function renderHome(request:Request,env:Env){
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
 }
 
-let oddsProxyCursor = 0;
-let groqProxyCursor = 0;
-async function schedulerProxy(request: Request, env: Env): Promise<Response> {
-  if (request.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
-  const expected = env.SCHEDULER_TOKEN || "";
-  if (!expected || request.headers.get("Authorization") !== "Bearer " + expected) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const path = new URL(request.url).pathname;
-  if (path === "/__scheduler/results") {
-    const result = await refreshYesterdayResults(env);
-    return Response.json({ ok: true, result });
-  }
-  const payload = await request.json() as { sql?: string; params?: string[]; url?: string; body?: unknown; action?: string; sport_key?: string; date?: string };
-  if (path === "/__scheduler/enrich") {
-    if (payload.action === "prepare") return Response.json(await prepareFootballEnrichment(env));
-    if (payload.action === "league") {
-      if (typeof payload.sport_key !== "string" || !/^soccer_[a-z0-9_]+$/.test(payload.sport_key) || typeof payload.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) return Response.json({ error: "Invalid competition enrichment request." }, { status: 400 });
-      return Response.json(await enrichFootballLeague(env, payload.sport_key, payload.date));
-    }
-    if (payload.action === "finish" && typeof payload.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) return Response.json(await finishFootballEnrichment(env, payload.date));
-    return Response.json({ error: "Unknown sports enrichment action." }, { status: 400 });
-  }
-  if (path === "/__scheduler/d1") {
-    if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
-    const statement = env.DB.prepare(payload.sql).bind(...payload.params);
-    const isRead = /^(SELECT|PRAGMA|EXPLAIN)\b/i.test(payload.sql.trim());
-    const result = isRead ? await statement.all() : await statement.run();
-    if (!result.success) return Response.json({ error: "D1 query failed" }, { status: 500 });
-    return Response.json({ results: isRead ? result.results || [] : [] });
-  }
-  if (path === "/__scheduler/odds") {
-    if (typeof payload.url !== "string") return Response.json({ error: "Missing Odds API URL" }, { status: 400 });
-    const target = new URL(payload.url);
-    if (target.hostname !== "api.the-odds-api.com" || !target.pathname.startsWith("/v4/")) return Response.json({ error: "Invalid upstream" }, { status: 400 });
-    const keys = [...new Set([env.ODDSAPI_KEY, env.ODDS_API_KEY, env.ODDSAPI_KEY1, env.ODDSAPI_KEY2, env.ODDSAPI_KEY3].map(v => (v || "").trim()).filter(Boolean))];
-    if (!keys.length) return Response.json({ error: "Odds API secrets are not configured in Cloudflare" }, { status: 503 });
-    for (let i = 0; i < keys.length; i++) {
-      const index = (oddsProxyCursor + i) % keys.length;
-      const upstreamUrl = new URL(target);
-      upstreamUrl.searchParams.set("apiKey", keys[index]);
-      const response = await fetch(upstreamUrl);
-      if (![401, 403, 429].includes(response.status) || i === keys.length - 1) {
-        oddsProxyCursor = (index + 1) % keys.length;
-        return new Response(await response.text(), { status: response.status, headers: { "Content-Type": response.headers.get("Content-Type") || "application/json", "x-requests-used": response.headers.get("x-requests-used") || "", "x-requests-remaining": response.headers.get("x-requests-remaining") || "" } });
-      }
-    }
-  }
-  if (path === "/__scheduler/groq") {
-    const keys = [...new Set([env.GEMINI_API_KEY, env.GEMINI_API_KEY1, env.GEMINI_API_KEY2].map(v => (v || "").trim()).filter(Boolean))];
-    if (!keys.length) return Response.json({ error: "Groq API secrets are not configured in Cloudflare" }, { status: 503 });
-    for (let i = 0; i < keys.length; i++) {
-      const index = (groqProxyCursor + i) % keys.length;
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + keys[index], "Content-Type": "application/json" }, body: JSON.stringify(payload.body) });
-      if (![401, 403, 429].includes(response.status) || i === keys.length - 1) {
-        groqProxyCursor = (index + 1) % keys.length;
-        return new Response(await response.text(), { status: response.status, headers: { "Content-Type": response.headers.get("Content-Type") || "application/json" } });
-      }
-    }
-  }
-  return Response.json({ error: "Unknown scheduler action" }, { status: 404 });
-}
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/__scheduler/")) return schedulerProxy(request, env);
     if (url.pathname === "/api/accas") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
