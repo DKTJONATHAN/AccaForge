@@ -133,7 +133,7 @@ export async function refreshDailyContent(env: ContentEnv) {
 export async function getCachedContent(env: ContentEnv) {
   await ensureContentTables(env);
   const [newsResult, mediaResult, badgesResult] = await Promise.all([
-    env.DB.prepare("SELECT n.id,n.title,n.url,n.source,n.published_at,n.image_key,m.credit AS stored_credit FROM content_news n LEFT JOIN content_media m ON m.key=n.image_key ORDER BY n.published_at DESC LIMIT 12").all<any>(),
+    env.DB.prepare("SELECT n.id,n.title,n.url,n.source,n.published_at,n.image_key,m.credit AS stored_credit,m.license AS stored_license,m.license_url AS stored_license_url,m.description_url AS stored_description_url FROM content_news n LEFT JOIN content_media m ON m.key=n.image_key ORDER BY n.published_at DESC LIMIT 12").all<any>(),
     env.DB.prepare("SELECT key,title,credit,license,license_url,description_url FROM content_media WHERE kind='photo' ORDER BY created_at DESC LIMIT 6").all<any>(),
     env.DB.prepare("SELECT team_name,image_key FROM team_badges").all<any>()
   ]);
@@ -141,7 +141,10 @@ export async function getCachedContent(env: ContentEnv) {
   const news = (newsResult.results || []).map((item: any, index: number) => ({
     id: item.id, title: item.title, url: item.url, source: item.source, published_at: item.published_at,
     image_url: item.image_key ? "/media-cache/" + encodeURIComponent(item.image_key) : photos[index % Math.max(photos.length,1)] ? "/media-cache/" + encodeURIComponent(photos[index % photos.length].key) : "",
-    image_credit: item.stored_credit || photos[index % Math.max(photos.length,1)]?.credit || ""
+    image_credit: item.stored_credit || photos[index % Math.max(photos.length,1)]?.credit || "",
+    image_license: item.stored_license || photos[index % Math.max(photos.length,1)]?.license || "",
+    image_license_url: item.stored_license_url || photos[index % Math.max(photos.length,1)]?.license_url || "",
+    image_source_url: item.stored_description_url || photos[index % Math.max(photos.length,1)]?.description_url || ""
   }));
   const teamBadges: Record<string,string> = {};
   for (const badge of badgesResult.results || []) teamBadges[badge.team_name] = "/media-cache/" + encodeURIComponent(badge.image_key);
