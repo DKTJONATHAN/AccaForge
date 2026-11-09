@@ -68,20 +68,20 @@ await d1("CREATE TABLE IF NOT EXISTS team_badges (team_name TEXT PRIMARY KEY,nor
 let localLastRequest = 0;
 async function footballApi(path, params) {
   const day = utcDate();
-  const usage = await d1("SELECT requests FROM sports_api_usage WHERE utc_date=?", [day]);
-  if (Number(usage[0]?.requests || 0) >= 75) throw new Error("Daily safety cap reached (75 API-Football requests).");
-  const stored = await d1("SELECT last_request_at FROM sports_api_rate_state WHERE id=1");
-  const persisted = stored[0]?.last_request_at ? Date.parse(stored[0].last_request_at) : 0;
-  const elapsed = Date.now() - Math.max(localLastRequest, persisted);
-  if (elapsed < 7200) await wait(7200 - elapsed);
-  const now = new Date().toISOString();
-  localLastRequest = Date.now();
-  await d1("INSERT INTO sports_api_rate_state (id,last_request_at) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET last_request_at=excluded.last_request_at", [now]);
-  await d1("INSERT INTO sports_api_usage (utc_date,requests) VALUES (?,1) ON CONFLICT(utc_date) DO UPDATE SET requests=requests+1", [day]);
   const url = new URL("https://v3.football.api-sports.io/" + path);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
+    const usage = await d1("SELECT requests FROM sports_api_usage WHERE utc_date=?", [day]);
+    if (Number(usage[0]?.requests || 0) >= 75) throw new Error("Daily safety cap reached (75 API-Football requests).");
+    const stored = await d1("SELECT last_request_at FROM sports_api_rate_state WHERE id=1");
+    const persisted = stored[0]?.last_request_at ? Date.parse(stored[0].last_request_at) : 0;
+    const elapsed = Date.now() - Math.max(localLastRequest, persisted);
+    if (elapsed < 7200) await wait(7200 - elapsed);
+    const now = new Date().toISOString();
+    localLastRequest = Date.now();
+    await d1("INSERT INTO sports_api_rate_state (id,last_request_at) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET last_request_at=excluded.last_request_at", [now]);
+    await d1("INSERT INTO sports_api_usage (utc_date,requests) VALUES (?,1) ON CONFLICT(utc_date) DO UPDATE SET requests=requests+1", [day]);
     const response = await fetch(url, { headers: { "x-apisports-key": footballKey, "User-Agent": "AccaForge/1.0" }, signal: AbortSignal.timeout(20000) });
     const payload = await response.json().catch(() => ({}));
     if (response.status === 429 || payload?.errors?.rateLimit) {
@@ -163,10 +163,8 @@ for (const [sportKey, group] of grouped) {
     const league = old?.league_id && Number(old.season) === expectedSeason
       ? { id: Number(old.league_id), name: old.league_name, country: old.country, logo: old.logo_url, season: Number(old.season) }
       : await resolveLeague(sportKey, expectedSeason);
-    const [teamItems, standingsItems] = await Promise.all([
-      footballApi("teams", { league: String(league.id), season: String(league.season) }),
-      footballApi("standings", { league: String(league.id), season: String(league.season) })
-    ]);
+    const teamItems = await footballApi("teams", { league: String(league.id), season: String(league.season) });
+    const standingsItems = await footballApi("standings", { league: String(league.id), season: String(league.season) });
     const teams = teamItems.map(item => ({ id: Number(item.team?.id), name: clean(item.team?.name), logo: String(item.team?.logo || "") })).filter(team => team.id && team.name);
     const table = normalizeStandings(standingsItems);
     const logoUrl = String(table.logo || league.logo || "");
