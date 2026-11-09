@@ -23,8 +23,8 @@ export async function ensureContentTables(env: ContentEnv) {
 async function cacheCommonsPhoto(env: ContentEnv, term: string) {
   const api = new URL("https://commons.wikimedia.org/w/api.php");
   api.search = new URLSearchParams({
-    action: "query", generator: "search", gsrsearch: term + " filetype:bitmap",
-    gsrnamespace: "6", gsrlimit: "8", prop: "imageinfo",
+    action: "query", generator: "search", gsrsearch: term,
+    gsrnamespace: "6", gsrlimit: "20", prop: "imageinfo",
     iiprop: "url|extmetadata", iiurlwidth: "1200",
     iiextmetadatafilter: "LicenseShortName|LicenseUrl|Artist|Credit|ImageDescription",
     format: "json"
@@ -111,7 +111,7 @@ export async function refreshDailyContent(env: ContentEnv) {
       .bind(id, clean(item.title).slice(0, 240), item.url, clean(item.domain || new URL(item.url).hostname), parsed).run();
   }
 
-  const photoTerms = ["football stadium", "football match action", "football supporters"];
+  const photoTerms = ["association football stadium", "football match action", "football supporters crowd", "soccer player in action", "football pitch stadium"];
   const photos: any[] = [];
   for (const term of photoTerms) {
     try { const photo = await cacheCommonsPhoto(env, term); if (photo) photos.push(photo); }
