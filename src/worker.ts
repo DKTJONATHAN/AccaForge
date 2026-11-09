@@ -17,6 +17,10 @@ interface Env {
   ODDSAPI_KEY2?: string;
   ODDSAPI_KEY3?: string;
   ODDS_API_KEY?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_API_KEY1?: string;
+  GEMINI_API_KEY2?: string;
+  SCHEDULER_TOKEN?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string;
@@ -214,9 +218,60 @@ async function renderHome(request:Request,env:Env){
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
 }
 
+let oddsProxyCursor = 0;
+let groqProxyCursor = 0;
+async function schedulerProxy(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
+  const expected = env.SCHEDULER_TOKEN || "";
+  if (!expected || request.headers.get("Authorization") !== "Bearer " + expected) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const path = new URL(request.url).pathname;
+  if (path === "/__scheduler/results") {
+    const result = await refreshYesterdayResults(env);
+    return Response.json({ ok: true, result });
+  }
+  const payload = await request.json() as { sql?: string; params?: unknown[]; url?: string; body?: unknown };
+  if (path === "/__scheduler/d1") {
+    if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
+    const result = await env.DB.prepare(payload.sql).bind(...payload.params).all();
+    if (!result.success) return Response.json({ error: "D1 query failed" }, { status: 500 });
+    return Response.json({ results: result.results || [] });
+  }
+  if (path === "/__scheduler/odds") {
+    if (typeof payload.url !== "string") return Response.json({ error: "Missing Odds API URL" }, { status: 400 });
+    const target = new URL(payload.url);
+    if (target.hostname !== "api.the-odds-api.com" || !target.pathname.startsWith("/v4/")) return Response.json({ error: "Invalid upstream" }, { status: 400 });
+    const keys = [...new Set([env.ODDSAPI_KEY, env.ODDS_API_KEY, env.ODDSAPI_KEY1, env.ODDSAPI_KEY2, env.ODDSAPI_KEY3].map(v => (v || "").trim()).filter(Boolean))];
+    if (!keys.length) return Response.json({ error: "Odds API secrets are not configured in Cloudflare" }, { status: 503 });
+    for (let i = 0; i < keys.length; i++) {
+      const index = (oddsProxyCursor + i) % keys.length;
+      const upstreamUrl = new URL(target);
+      upstreamUrl.searchParams.set("apiKey", keys[index]);
+      const response = await fetch(upstreamUrl);
+      if (![401, 403, 429].includes(response.status) || i === keys.length - 1) {
+        oddsProxyCursor = (index + 1) % keys.length;
+        return new Response(await response.text(), { status: response.status, headers: { "Content-Type": response.headers.get("Content-Type") || "application/json", "x-requests-used": response.headers.get("x-requests-used") || "", "x-requests-remaining": response.headers.get("x-requests-remaining") || "" } });
+      }
+    }
+  }
+  if (path === "/__scheduler/groq") {
+    const keys = [...new Set([env.GEMINI_API_KEY, env.GEMINI_API_KEY1, env.GEMINI_API_KEY2].map(v => (v || "").trim()).filter(Boolean))];
+    if (!keys.length) return Response.json({ error: "Groq API secrets are not configured in Cloudflare" }, { status: 503 });
+    for (let i = 0; i < keys.length; i++) {
+      const index = (groqProxyCursor + i) % keys.length;
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + keys[index], "Content-Type": "application/json" }, body: JSON.stringify(payload.body) });
+      if (![401, 403, 429].includes(response.status) || i === keys.length - 1) {
+        groqProxyCursor = (index + 1) % keys.length;
+        return new Response(await response.text(), { status: response.status, headers: { "Content-Type": response.headers.get("Content-Type") || "application/json" } });
+      }
+    }
+  }
+  return Response.json({ error: "Unknown scheduler action" }, { status: 404 });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/__scheduler/")) return schedulerProxy(request, env);
     if (url.pathname === "/api/accas") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
@@ -289,12 +344,5 @@ export default {
       body:"<h1>Page not found</h1><p>This address may have changed or the page may no longer be available. Visit the <a href='/'>AccaForge daily football tips</a> homepage.</p>"
     },url.origin,404);
   },
-  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === "0 0 * * *") {
-      ctx.waitUntil(refreshYesterdayResults(env).then(result => console.log("AccaForge 3 AM EAT results refresh complete", result)).catch(error => console.error("AccaForge results refresh failed", error)));
-    }
-    if (controller.cron === "0 6 * * *") {
-      ctx.waitUntil(refreshDailyContent(env).then(result => console.log("AccaForge 9 AM EAT content refresh complete", result)).catch(error => console.error("AccaForge daily content refresh failed", error)));
-    }
-  }
+
 } satisfies ExportedHandler<Env>;
