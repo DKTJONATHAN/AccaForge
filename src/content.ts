@@ -50,7 +50,7 @@ async function cacheCommonsPhoto(env: ContentEnv, term: string) {
     const licenseUrl = clean(meta.LicenseUrl?.value || "");
     const title = clean(page.title.replace(/^File:/, ""));
     await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" }, customMetadata: { title, credit, license, licenseUrl, descriptionUrl: info.descriptionurl } });
-    await env.DB.prepare("INSERT OR REPLACE INTO content_media (key,kind,title,source_url,credit,license,license_url,description_url) VALUES (?,'photo',?,?,?,?,?,?,?)")
+    await env.DB.prepare("INSERT OR REPLACE INTO content_media (key,kind,title,source_url,credit,license,license_url,description_url) VALUES (?,'photo',?,?,?,?,?,?)")
       .bind(key, title, info.thumburl, credit, license, licenseUrl, info.descriptionurl).run();
     return { key, credit, title, license, licenseUrl, descriptionUrl: info.descriptionurl };
   }
@@ -66,7 +66,7 @@ async function cacheTeamBadge(env: ContentEnv, team: string) {
   const data = await response.json() as any;
   const teams = Array.isArray(data.teams) ? data.teams : [];
   const normalized = (value: string) => value.toLowerCase().replace(/\b(fc|afc|cf|sc)\b/g, "").replace(/[^a-z0-9]/g, "");
-  const match = teams.find((item: any) => normalized(item.strTeam || "") === normalized(team)) || teams[0];
+  const match = teams.find((item: any) => normalized(item.strTeam || "") === normalized(team));
   if (!match?.strTeamBadge) return;
   const imageResponse = await fetch(match.strTeamBadge, { headers: { "User-Agent": "AccaForge/1.0" } });
   if (!imageResponse.ok) return;
@@ -113,7 +113,7 @@ export async function refreshDailyContent(env: ContentEnv) {
     await env.DB.prepare("INSERT INTO content_news (id,title,url,source,published_at,image_key) VALUES (?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET title=excluded.title,source=excluded.source,published_at=excluded.published_at,image_key=CASE WHEN excluded.image_key<>'' THEN excluded.image_key ELSE content_news.image_key END")
       .bind(id, clean(item.title).slice(0, 240), item.url, clean(item.domain || new URL(item.url).hostname), parsed, photo?.key || "").run();
   }
-  const rows = await env.DB.prepare("SELECT DISTINCT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.commence_time IS NOT NULL ORDER BY a.publish_date DESC LIMIT 60").all<{home_team:string;away_team:string}>();
+  const rows = await env.DB.prepare("SELECT DISTINCT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.commence_time IS NOT NULL ORDER BY s.commence_time DESC LIMIT 60").all<{home_team:string;away_team:string}>();
   const names = [...new Set((rows.results || []).flatMap(row => [row.home_team,row.away_team]).filter(Boolean))];
   let checked = 0;
   for (const team of names) {
