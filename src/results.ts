@@ -76,6 +76,7 @@ export async function refreshYesterdayResults(env:ResultsEnv){
 export async function getYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
+ await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?").bind(date).run();
  const rows=(await env.DB.prepare("SELECT * FROM result_selections WHERE publish_date=? ORDER BY CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END,commence_time,acca_id").bind(date).all<any>()).results||[];
  const summary={total:rows.length,won:rows.filter(row=>row.outcome==="WON").length,lost:rows.filter(row=>row.outcome==="LOST").length,pending:rows.filter(row=>row.outcome==="PENDING").length,void:rows.filter(row=>row.outcome==="VOID").length,pass:rows.filter(row=>row.outcome==="PASS").length};
  const accuracy=summary.won+summary.lost?Math.round(summary.won/(summary.won+summary.lost)*100):null;
