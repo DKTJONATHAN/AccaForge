@@ -1,19 +1,38 @@
 import { createHash } from "node:crypto";
 
-const schedulerUrl=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.jonathanmwaniki07.workers.dev").replace(/\/$/,"");
-const schedulerToken=(process.env.ACCAFORGE_SCHEDULER_TOKEN||"").trim();
-if(!schedulerToken)throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN GitHub secret.");
-async function schedulerPost(path,payload){
- const response=await fetch(schedulerUrl+"/__scheduler/"+path,{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify(payload)});
- const text=await response.text();let body;try{body=JSON.parse(text)}catch{body={error:text.slice(0,1000)}}
- if(!response.ok)throw new Error("Cloudflare scheduler "+path+" failed (HTTP "+response.status+"): "+JSON.stringify(body));
- return body;
-}
 const env=process.env;
+const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
+const databaseId=(env.D1_DATABASE_ID||"").trim();
+const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim();
+if(!accountId||!databaseId||!cloudflareToken)throw new Error("Missing CLOUDFLARE_ACCOUNT_ID, D1_DATABASE_ID or CLOUDFLARE_API_TOKEN GitHub secret.");
+const d1Endpoint="https://api.cloudflare.com/client/v4/accounts/"+accountId+"/d1/database/"+databaseId+"/query";
+async function d1(sql,params=[]){
+ const response=await fetch(d1Endpoint,{method:"POST",headers:{Authorization:"Bearer "+cloudflareToken,"Content-Type":"application/json"},body:JSON.stringify({sql,params}),signal:AbortSignal.timeout(30000)});
+ const payload=await response.json().catch(()=>null);
+ if(!response.ok||payload?.success!==true)throw new Error("Cloudflare D1 query failed (HTTP "+response.status+"): "+JSON.stringify(payload?.errors||payload).slice(0,1000));
+ const result=payload.result?.[0];
+ if(result?.success===false)throw new Error("Cloudflare D1 SQL failed: "+JSON.stringify(result.meta||result).slice(0,1000));
+ return result?.results||[];
+}
+function apiKeys(names){return [...new Set(names.flatMap(name=>(env[name]||"").split(",")).map(value=>value.trim()).filter(Boolean))];}
+const oddsKeys=apiKeys(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"]);
+const groqKeys=apiKeys(["GROQ_API_KEY","GROQ_API_KEY1","GROQ_API_KEY2","GEMINI_API_KEY","GEMINI_API_KEY1","GEMINI_API_KEY2"]);
+if(!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
+if(!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
+let oddsKeyCursor=0,groqKeyCursor=0;
 async function oddsFetch(input){
- const response=await fetch(schedulerUrl+"/__scheduler/odds",{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify({url:new URL(input).toString()})});
- const body=await response.text();
- return new Response(body,{status:response.status,headers:{"Content-Type":response.headers.get("Content-Type")||"application/json","x-requests-used":response.headers.get("x-requests-used")||"","x-requests-remaining":response.headers.get("x-requests-remaining")||""}});
+ const target=new URL(input);
+ if(target.hostname!=="api.the-odds-api.com"||!target.pathname.startsWith("/v4/"))throw new Error("Blocked unexpected Odds API destination.");
+ let last;
+ for(let attempt=0;attempt<oddsKeys.length;attempt++){
+  const index=(oddsKeyCursor+attempt)%oddsKeys.length;
+  const url=new URL(target);url.searchParams.set("apiKey",oddsKeys[index]);
+  const response=await fetch(url,{headers:{"User-Agent":"AccaForge/1.0"},signal:AbortSignal.timeout(30000)});
+  if(![401,403,429].includes(response.status)||attempt===oddsKeys.length-1){oddsKeyCursor=(index+1)%oddsKeys.length;return response;}
+  last=response.status;
+  console.warn("Odds API key slot "+(index+1)+" returned HTTP "+response.status+"; rotating to the next configured key.");
+ }
+ throw new Error("All Odds API key slots failed; last status "+last+".");
 }
 const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
@@ -26,10 +45,6 @@ function makeId(value){return createHash("sha256").update(value).digest("hex").s
 function marketLabel(key){
  const labels={h2h:"Match result (1X2)",h2h_3_way:"Match result (1X2)",totals:"Goals over/under",btts:"Both teams to score",double_chance:"Double chance",draw_no_bet:"Draw no bet",spreads:"Handicap"};
  return labels[key]||String(key).split("_").map(part=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
-}
-async function d1(sql,params=[]){
- const result=await schedulerPost("d1",{sql,params:params.map(value=>String(value))});
- return result.results||[];
 }
 async function ensureSchema(){
  const statements=[
@@ -271,9 +286,15 @@ async function groqRequest(body,label){
  let lastError;
  for(let attempt=1;attempt<=3;attempt++){
   try{
-   const response=await fetch(schedulerUrl+"/__scheduler/groq",{method:"POST",headers:{Authorization:"Bearer "+schedulerToken,"Content-Type":"application/json"},body:JSON.stringify({body}),signal:AbortSignal.timeout(180000)});
-   const responseText=await response.text();let payload;try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
-   console.log("Groq "+label+" via Cloudflare: HTTP "+response.status);
+   let response,payload,responseText;
+   for(let keyAttempt=0;keyAttempt<groqKeys.length;keyAttempt++){
+    const keyIndex=(groqKeyCursor+keyAttempt)%groqKeys.length;
+    response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(180000)});
+    responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
+    if(![401,403,429].includes(response.status)||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
+    console.warn("Groq key slot "+(keyIndex+1)+" returned HTTP "+response.status+" during "+label+"; rotating.");
+   }
+   console.log("Groq "+label+" direct from GitHub Actions: HTTP "+response.status);
    if(response.ok)return payload;
    const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1200);
    lastError=new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
