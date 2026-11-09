@@ -233,7 +233,7 @@ async function schedulerProxy(request: Request, env: Env): Promise<Response> {
   if (path === "/__scheduler/d1") {
     if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
     const statement = env.DB.prepare(payload.sql).bind(...payload.params);
-    const isRead = /^(SELECT|PRAGMA|EXPLAIN)\\b/i.test(payload.sql.trim());
+    const isRead = /^(SELECT|PRAGMA|EXPLAIN)\b/i.test(payload.sql.trim());
     const result = isRead ? await statement.all() : await statement.run();
     if (!result.success) return Response.json({ error: "D1 query failed" }, { status: 500 });
     return Response.json({ results: isRead ? result.results || [] : [] });
