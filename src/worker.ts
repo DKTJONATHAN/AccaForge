@@ -232,9 +232,11 @@ async function schedulerProxy(request: Request, env: Env): Promise<Response> {
   const payload = await request.json() as { sql?: string; params?: string[]; url?: string; body?: unknown };
   if (path === "/__scheduler/d1") {
     if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
-    const result = await env.DB.prepare(payload.sql).bind(...payload.params).all();
+    const statement = env.DB.prepare(payload.sql).bind(...payload.params);
+    const isRead = /^(SELECT|PRAGMA|EXPLAIN)\\b/i.test(payload.sql.trim());
+    const result = isRead ? await statement.all() : await statement.run();
     if (!result.success) return Response.json({ error: "D1 query failed" }, { status: 500 });
-    return Response.json({ results: result.results || [] });
+    return Response.json({ results: isRead ? result.results || [] : [] });
   }
   if (path === "/__scheduler/odds") {
     if (typeof payload.url !== "string") return Response.json({ error: "Missing Odds API URL" }, { status: 400 });
