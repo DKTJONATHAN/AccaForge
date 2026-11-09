@@ -20,7 +20,6 @@ const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
 console.log("Groq model selected: "+model+" (shared research + four independent product stages).");
-const apiRoot="https://api.cloudflare.com/client/v4/accounts/"+env.CLOUDFLARE_ACCOUNT_ID+"/d1/database/"+env.D1_DATABASE_ID;
 
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
 function cleanText(value,max=180){return String(value??"").replace(/[<>\u0000-\u001f]/g,"").replace(/\s+/g," ").trim().slice(0,max);}
@@ -30,7 +29,7 @@ function marketLabel(key){
  return labels[key]||String(key).split("_").map(part=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
 }
 async function d1(sql,params=[]){
- const result=await schedulerPost("d1",{sql,params});
+ const result=await schedulerPost("d1",{sql,params:params.map(value=>String(value))});
  return result.results||[];
 }
 async function ensureSchema(){
