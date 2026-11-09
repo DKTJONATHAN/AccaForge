@@ -21,7 +21,7 @@ interface Env {
   GEMINI_API_KEY?: string;
   GEMINI_API_KEY1?: string;
   GEMINI_API_KEY2?: string;
-  ACCAFORGE_SCHEDULER_TOKEN?: string;
+  SCHEDULER_TOKEN?: string;
   API_FOOTBALL_KEY?: string;
 }
 interface AccaRow {
@@ -257,7 +257,7 @@ let oddsProxyCursor = 0;
 let groqProxyCursor = 0;
 async function schedulerProxy(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
-  const expected = env.ACCAFORGE_SCHEDULER_TOKEN || "";
+  const expected = env.SCHEDULER_TOKEN || "";
   if (!expected || request.headers.get("Authorization") !== "Bearer " + expected) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const path = new URL(request.url).pathname;
   if (path === "/__scheduler/results") {
