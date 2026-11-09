@@ -12,6 +12,10 @@ interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
+  ODDSAPI_KEY?: string;
+  ODDSAPI_KEY1?: string;
+  ODDSAPI_KEY2?: string;
+  ODDSAPI_KEY3?: string;
   ODDS_API_KEY?: string;
 }
 interface AccaRow {
