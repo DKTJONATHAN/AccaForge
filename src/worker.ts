@@ -5,12 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
-import { cachedContentResponse, getCachedContent, refreshDailyContent, serveCachedMedia } from "./content";\nimport { refreshYesterdayResults, resultsApi } from "./results";
+import { cachedContentResponse, getCachedContent, refreshDailyContent, serveCachedMedia } from "./content";
+import { refreshYesterdayResults, resultsApi } from "./results";
 
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
+  ODDS_API_KEY?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string;
@@ -187,7 +189,8 @@ async function renderHome(request:Request,env:Env){
   const routeMeta:Record<string,{title:string;description:string}>={
     "/":{title:"AccaForge | Daily Football Fixtures, Selections and Odds",description:"Review daily football selections, fixtures, markets and decimal odds on AccaForge. Clear match details and published accumulator editions. 18+ only."},
     "/daily":{title:"Daily Football Board | AccaForge",description:"Browse the AccaForge daily football board and open each published selection format."},
-    "/recent":{title:"Recent Football Editions | AccaForge",description:"Browse recent published AccaForge football editions, fixtures and combined odds."},\n    "/results":{title:"Yesterday’s Football Results | AccaForge",description:"Review yesterday’s published AccaForge football selections, final scores and won, lost or pending outcomes."},
+    "/recent":{title:"Recent Football Editions | AccaForge",description:"Browse recent published AccaForge football editions, fixtures and combined odds."},
+    "/results":{title:"Yesterday’s Football Results | AccaForge",description:"Review yesterday’s published AccaForge football selections, final scores and won, lost or pending outcomes."},
     "/competitions":{title:"Football Competitions | AccaForge",description:"Browse football leagues covered by the AccaForge daily football board."},
     "/safe-picks":{title:"Safe Picks | AccaForge Football Selections",description:"Review the published Safe Picks football accumulator, fixtures, markets and listed odds."},
     "/super-5":{title:"Super 5 | AccaForge Football Selections",description:"Review the Super 5 football accumulator, five researched matches, markets and listed odds."},
@@ -214,7 +217,11 @@ export default {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
     }
-    if (url.pathname === "/api/results") {\n      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });\n      return resultsApi(env);\n    }\n    if (url.pathname === "/api/content") {
+    if (url.pathname === "/api/results") {
+      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
+      return resultsApi(env);
+    }
+    if (url.pathname === "/api/content") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return cachedContentResponse(env);
     }
@@ -278,7 +285,10 @@ export default {
       body:"<h1>Page not found</h1><p>This address may have changed or the page may no longer be available. Visit the <a href='/'>AccaForge daily football tips</a> homepage.</p>"
     },url.origin,404);
   },
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(refreshDailyContent(env).then(result => console.log("AccaForge daily content refresh complete", result)).catch(error => console.error("AccaForge daily content refresh failed", error)));
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === "0 0 * * *") {
+      ctx.waitUntil(refreshDailyContent(env).then(result => console.log("AccaForge daily content refresh complete", result)).catch(error => console.error("AccaForge daily content refresh failed", error)));
+      ctx.waitUntil(refreshYesterdayResults(env).then(result => console.log("AccaForge results refresh complete", result)).catch(error => console.error("AccaForge results refresh failed", error)));
+    }
   }
 } satisfies ExportedHandler<Env>;
