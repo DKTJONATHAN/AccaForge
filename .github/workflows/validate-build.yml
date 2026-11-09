@@ -23,6 +23,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Check daily generator JavaScript syntax
-        run: node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs
+        run: node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs && node --check scripts/refresh-results.mjs
       - name: Type-check and build
         run: npm run build
