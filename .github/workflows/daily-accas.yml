@@ -36,7 +36,7 @@ jobs:
         if: (github.event_name == 'schedule' && github.event.schedule == '0 0 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'results')
         env:
           ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
+          ACCAFORGE_WORKER_URL: https://accaforge.eu.cc
         run: |
           node --input-type=module <<'NODE'
           const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.eu.cc").replace(/\/$/,"");
@@ -50,7 +50,7 @@ jobs:
         if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'generate')
         env:
           ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
+          ACCAFORGE_WORKER_URL: https://accaforge.eu.cc
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
@@ -62,5 +62,5 @@ jobs:
         if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'enrich'))
         env:
           ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
+          ACCAFORGE_WORKER_URL: https://accaforge.eu.cc
         run: node scripts/enrich-football-data.mjs
