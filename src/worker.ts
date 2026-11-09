@@ -5,10 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
+import { cachedContentResponse, refreshDailyContent, serveCachedMedia } from "./content";
 
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  MEDIA: R2Bucket;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string;
@@ -210,6 +212,16 @@ export default {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
     }
+    if (url.pathname === "/api/content") {
+      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
+      return cachedContentResponse(env);
+    }
+    if (url.pathname.startsWith("/media-cache/")) {
+      if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+      const key = decodeURIComponent(url.pathname.slice("/media-cache/".length));
+      if (!/^(photos|teams)\/[a-f0-9]{64}\.(jpg|jpeg|png|webp)$/.test(key)) return new Response("Not found", { status: 404 });
+      return serveCachedMedia(env, key);
+    }
     if (url.pathname === "/api/health") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getHealth({ request, env });
@@ -264,4 +276,7 @@ export default {
       body:"<h1>Page not found</h1><p>This address may have changed or the page may no longer be available. Visit the <a href='/'>AccaForge daily football tips</a> homepage.</p>"
     },url.origin,404);
   },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(refreshDailyContent(env).then(result => console.log("AccaForge daily content refresh complete", result)).catch(error => console.error("AccaForge daily content refresh failed", error)));
+  }
 } satisfies ExportedHandler<Env>;
