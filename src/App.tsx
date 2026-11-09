@@ -1,103 +1,135 @@
 import React, {useEffect,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Menu,ShieldCheck,Target,Trophy,X} from "lucide-react";
-import type {Acca,AccasResponse,ProductType} from "./types";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,Layers,CalendarRange} from "lucide-react";
+import type {Acca,AccasResponse,ProductType,Selection} from "./types";
 
-const products:[ProductType,string,string][]=[["safe_picks","Safe Picks","10.00+ combined odds"],["super_5","Super 5","Five researched matches"],["super_10","Super 10","Combined odds 9.50–10.50"],["all_matches","All-Matches Challenge","Every eligible fixture"]];
-const productLabel=(type:ProductType)=>products.find(item=>item[0]===type)?.[1]||"Football picks";
-const leagues=[{key:"soccer_epl",name:"Premier League",logo:"PL.png"},{key:"soccer_uefa_champs_league",name:"Champions League",logo:"CL.png"},{key:"soccer_uefa_europa_league",name:"Europa League",logo:"EL.png"},{key:"soccer_spain_la_liga",name:"La Liga",logo:"PD.png"},{key:"soccer_germany_bundesliga",name:"Bundesliga",logo:"BL1.png"},{key:"soccer_italy_serie_a",name:"Serie A",logo:"SA.png"},{key:"soccer_france_ligue_one",name:"Ligue 1",logo:"FL1.png"},{key:"soccer_netherlands_eredivisie",name:"Eredivisie",logo:"DED.png"}];
-const leagueFor=(key:string)=>leagues.find(item=>item.key===key);
-const leagueLogo=(key:string)=>({soccer_epl:"/media/premier-league.svg",soccer_uefa_champs_league:"/media/champions-league.svg",soccer_uefa_europa_league:"/media/europa-league.svg",soccer_spain_la_liga:"/media/la-liga.svg",soccer_germany_bundesliga:"/media/bundesliga.svg",soccer_italy_serie_a:"/media/serie-a.svg",soccer_france_ligue_one:"/media/ligue-1.svg",soccer_netherlands_eredivisie:"/media/eredivisie.svg"} as Record<string,string>)[key]||"/media/football-mark.svg";
-const heroSlides=[
- {name:"Lionel Messi",kind:"player",caption:"A generational talent. A game that never stands still.",club:"Inter Miami · Argentina",image:"/media/lionel-messi.jpg",href:"/players/lionel-messi",eyebrow:"PLAYER PROFILE"},
- {name:"Cristiano Ronaldo",kind:"player",caption:"Goals, records and a career built for the big stage.",club:"Al Nassr · Portugal",image:"/media/cristiano-ronaldo.jpg",href:"/players/cristiano-ronaldo",eyebrow:"PLAYER PROFILE"},
- {name:"Arsenal",kind:"club",caption:"North London. A storied badge and a demanding standard.",club:"English Premier League",image:"/media/arsenal.svg",href:"/teams/arsenal",eyebrow:"CLUB FOCUS"},
- {name:"Chelsea",kind:"club",caption:"West London football, history and ambition.",club:"English Premier League",image:"/media/chelsea.svg",href:"/teams/chelsea",eyebrow:"CLUB FOCUS"},
- {name:"Manchester United",kind:"club",caption:"One of the most followed clubs in world football.",club:"English Premier League",image:"/media/manchester-united.svg",href:"/teams/manchester-united",eyebrow:"CLUB FOCUS"},
- {name:"Liverpool",kind:"club",caption:"A famous Anfield atmosphere and a global following.",club:"English Premier League",image:"/media/liverpool.svg",href:"/teams/liverpool",eyebrow:"CLUB FOCUS"}
+const products:[ProductType,string,string,string][]=[
+ ["safe_picks","Safe Picks","10.00+ combined odds","/safe-picks"],
+ ["super_5","Super 5","Five researched matches","/super-5"],
+ ["super_10","Super 10","Combined odds 9.50–10.50","/super-10"],
+ ["all_matches","All-Matches Challenge","Every eligible fixture","/all-matches"]
 ];
+const productLabel=(type:ProductType)=>products.find(item=>item[0]===type)?.[1]||"Football picks";
+const productPath=(type:ProductType)=>products.find(item=>item[0]===type)?.[3]||"/daily";
+const leagues=[
+ {key:"soccer_epl",name:"Premier League",logo:"/media/premier-league.svg"},
+ {key:"soccer_uefa_champs_league",name:"Champions League",logo:"/media/champions-league.svg"},
+ {key:"soccer_uefa_europa_league",name:"Europa League",logo:"/media/europa-league.svg"},
+ {key:"soccer_spain_la_liga",name:"La Liga",logo:"/media/la-liga.svg"},
+ {key:"soccer_germany_bundesliga",name:"Bundesliga",logo:"/media/bundesliga.svg"},
+ {key:"soccer_italy_serie_a",name:"Serie A",logo:"/media/serie-a.svg"},
+ {key:"soccer_france_ligue_one",name:"Ligue 1",logo:"/media/ligue-1.svg"},
+ {key:"soccer_netherlands_eredivisie",name:"Eredivisie",logo:"/media/eredivisie.svg"}
+];
+const leagueFor=(key:string)=>leagues.find(item=>item.key===key);
 const kenyaTime=(value:string)=>new Date(value).toLocaleString("en-KE",{timeZone:"Africa/Nairobi",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 const dateLabel=(value:string)=>new Date(value+"T12:00:00").toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
 async function loadAccas():Promise<AccasResponse>{
- const response=await fetch("/api/accas?days=3");
- if(!response.ok)throw new Error("Could not load the latest football analysis.");
+ const response=await fetch("/api/accas?days=30");
+ if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
 }
-
-export default function App({initialData,todayLabel}:{initialData?:AccasResponse;todayLabel?:string}){
- void React;
- const [product,setProduct]=useState<ProductType>("safe_picks");
- const [expanded,setExpanded]=useState<string|null>(null);
- const [archiveDate,setArchiveDate]=useState("all");
- const [ageOk,setAgeOk]=useState(false);
- const [notice,setNotice]=useState(false);
- const [mobileMenuOpen,setMobileMenuOpen]=useState(false);
- const [heroIndex,setHeroIndex]=useState(0);
- const hero=heroSlides[heroIndex];
- const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
- useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
- useEffect(()=>{if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;const timer=window.setInterval(()=>setHeroIndex(current=>{let next=current;while(next===current)next=Math.floor(Math.random()*heroSlides.length);return next;}),7000);return ()=>window.clearInterval(timer);},[]);
- const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
- const accas=data?.accas||[];
- const dates=useMemo(()=>Array.from(new Set(accas.map(item=>item.publish_date))),[accas]);
- const visible=archiveDate==="all"?accas:accas.filter(item=>item.publish_date===archiveDate);
- const current=visible.find(item=>item.product_type===product);
- const confirmAge=()=>{localStorage.setItem("accaforge-18plus","yes");setAgeOk(true);};
- return <div className="app theme-light">
-  <header className="site-header">
-   <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={19}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
-   <nav className="desktop-nav" aria-label="Main navigation"><a className="nav-active" href="#daily">Daily tips</a><a href="#archive">Recent editions</a><a href="/football-betting-tips">Football tips</a><a href="/accumulator-tips">Accumulators</a><a href="/about">About</a><a href="/contact">Contact</a></nav>
-   <div className="header-actions"><span className="live-label">Football, without the noise.</span><button className="icon-button mobile-menu-button" onClick={()=>setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle navigation menu" aria-expanded={mobileMenuOpen}><Menu size={17}/></button></div>
-   {mobileMenuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation"><a href="#daily" onClick={()=>setMobileMenuOpen(false)}>Daily football tips</a><a href="#archive" onClick={()=>setMobileMenuOpen(false)}>Recent editions</a><a href="/about">About AccaForge</a><a href="/contact">Contact</a><a href="/sure-tips">Sure tips</a><a href="/football-betting-tips">Football tips</a><a href="/accumulator-tips">Accumulator tips</a><a href="/responsible-gambling">Responsible gambling</a></nav>}
-  </header>
-  <main>
-   <section className="intro" id="daily">
-    <div className="intro-copy">
-     <p className="eyebrow"><span className="eyebrow-line"/> THE DAILY FOOTBALL DESK</p>
-     <h1>Read the game.<br/><em>Know the fixtures.</em></h1>
-     <p className="intro-text">Daily football research across Safe Picks, Super 5, Super 10 and the All-Matches Challenge — with fixtures, markets, estimated probabilities and bookmaker odds in plain view. No guaranteed wins. Just the reasoning behind each pick.</p>
-     <div className="intro-meta"><span><CalendarDays size={14}/>{displayDate}</span><span><ShieldCheck size={14}/>Adults 18+ only</span></div>
-     <a className="hero-primary-link" href="#board">See today’s football tips <ArrowUpRight size={16}/></a>
-    </div>
-    <div className={"hero-visual "+(hero.kind==="player"?"is-player":"is-club")} key={hero.name}>
-     <a href={hero.href} className="hero-image-link" aria-label={"Read about "+hero.name}>
-      <img className="hero-image" src={hero.image} alt={hero.name+(hero.kind==="club"?" football club crest":" footballer")} onError={event=>{event.currentTarget.onerror=null;event.currentTarget.src="/media/football-mark.svg";}}/>
-      <span className="hero-image-shade"/>
-      <span className="hero-caption"><small>{hero.eyebrow}</small><strong>{hero.name}</strong><span>{hero.caption}</span><em>{hero.club}</em></span>
-     </a>
-     <div className="hero-controls" aria-label="Featured football profiles">{heroSlides.map((slide,index)=><button key={slide.name} className={index===heroIndex?"active":""} onClick={()=>setHeroIndex(index)} aria-label={"Show "+slide.name} aria-current={index===heroIndex?"true":undefined}/>)}</div>
-     <span className="hero-rotation-note">FEATURE ROTATES EVERY 7 SECONDS</span>
-    </div>
-   </section>
-   <section className="league-strip" aria-label="Football leagues and competitions covered"><div className="league-strip-heading">Football competitions</div><div className="league-strip-list">{leagues.map(league=><a className="league-chip" href={"/leagues/"+league.key} key={league.key} title={league.name+" football analysis"}><img src={leagueLogo(league.key)} alt={league.name+" logo"} loading="lazy"/><span>{league.name}</span></a>)}</div></section>
-   <section className="board-section" id="board">
-    <div className="section-heading"><div><h2>Today’s evidence-led football picks</h2></div><div className="updated"><Clock3 size={14}/>{data?.updatedAt?"Updated "+kenyaTime(data.updatedAt)+" EAT":"Awaiting today's edition"}</div></div>
-    <div className="target-tabs product-tabs" role="tablist" aria-label="Daily football products">{products.map(([type,label,caption])=>{const item=visible.find(a=>a.product_type===type);return <button key={type} role="tab" aria-selected={product===type} className={"target-tab "+(product===type?"active":"")} onClick={()=>setProduct(type)}><span className="target-label">{label}</span><strong>{item?(type==="all_matches"?item.selections.length:item.actual_odds.toFixed(2)):(type==="safe_picks"?"10.00+":type==="super_5"?"5":type==="super_10"?"10.00":"—")}</strong><span className="target-caption">{item?(type==="all_matches"?"fixtures covered":item.selections.length+" selections"):caption}</span></button>;})}</div>
-    {isLoading?<div className="loading-panel"><span className="loader"/><p>Preparing the daily board</p></div>:isError?<div className="empty-panel"><Activity size={24}/><h3>Results could not load</h3><p>We couldn't reach the latest board. Please try again shortly.</p><button className="button button-secondary" onClick={()=>refetch()}>Try again</button></div>:current?<AccaDetail acca={current} expanded={expanded} setExpanded={setExpanded}/>:<div className="empty-panel"><Target size={24}/><h3>No published {productLabel(product)} edition yet</h3><p>This product appears only when its evidence and selection rules are satisfied. The system will not force weak picks to fill a list.</p><button className="button button-secondary" disabled={isFetching} onClick={()=>refetch()}>{isFetching?"Checking…":"Refresh results"}</button></div>}
-   </section>
-   <section className="archive-section" id="archive">
-    <div className="section-heading"><div><h2>Recent football editions</h2></div><label className="archive-select"><CalendarDays size={15}/><select value={archiveDate} onChange={event=>setArchiveDate(event.target.value)}><option value="all">All recent editions</option>{dates.map(date=><option key={date} value={date}>{dateLabel(date)}</option>)}</select><ChevronDown size={14}/></label></div>
-    {visible.length?<div className="archive-list">{visible.map(item=><button key={item.id} className="archive-row" onClick={()=>{setArchiveDate(item.publish_date);setProduct(item.product_type);setExpanded(expanded===item.id?null:item.id);}}><span className="archive-date">{dateLabel(item.publish_date)}</span><span className="archive-target">{productLabel(item.product_type)}</span><span className="archive-legs">{item.product_type==="all_matches"?item.selections.length+" fixtures":item.selections.length+" selections"}</span><strong className="archive-price">{item.product_type==="all_matches"?"—":item.actual_odds.toFixed(2)}</strong><span className="archive-open">View <ArrowUpRight size={14}/></span></button>)}</div>:<p className="archive-empty">No recent editions available.</p>}
-   </section>
-   <section className="keyword-hub"><h2>Football betting tips, sure tips and accumulator analysis</h2><p>Looking for <a href="/sure-tips">sure tips</a>, <a href="/football-betting-tips">football betting tips</a>, <a href="/accumulator-tips">accumulator tips</a> or <a href="/premier-league-tips">Premier League tips</a>? AccaForge publishes daily football predictions and match previews with selected markets, decimal odds and clear fixture information. Explore today’s football tips, BTTS (both teams to score), over 2.5 goals, double chance and match-by-match analysis. “Sure tips” is a common search phrase, not a promise: football outcomes are uncertain and no tip is guaranteed.</p></section><section className="editorial-section"><div><h2>How to read the AccaForge football tips</h2><p>Safe Picks targets combined odds of at least 10.00, can extend across as many different fixtures as the research supports, and excludes individual prices below 1.20. Super 5 contains five researched fixtures without a combined-odds target. Super 10 targets combined odds from 9.50 to 10.50 and may use different markets from the same fixture. All-Matches Challenge lists every eligible fixture and marks unsupported matches PASS. Probabilities are model estimates, not guarantees. Individual bookmaker prices can change before kick-off.</p></div><a className="text-button" href="/editorial-policy">Our editorial approach <ArrowUpRight size={14}/></a></section>
-   <section className="responsible-section" id="responsible"><div className="responsible-icon"><ShieldCheck size={22}/></div><div><h2>Football is unpredictable</h2><p>AccaForge is for information and entertainment only. Accumulators carry a high risk of losing your entire stake. Odds can change, and no selection or return is guaranteed. Only adults aged 18 and over may use this service. Please gamble responsibly.</p></div><a className="text-button" href="/responsible-gambling">Responsible gambling guidance <ArrowUpRight size={14}/></a></section>
-  </main>
-  <footer className="site-footer"><div className="footer-brand-group"><a className="footer-brand" href="/">AccaForge</a><span>Football analysis, fixtures and daily tips.</span></div><nav className="footer-links" aria-label="Legal and company links"><a href="/about">About</a><a href="/contact">Contact</a><a href="/terms">Terms of service</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/editorial-policy">Editorial policy</a><a href="/image-credits">Image credits</a><a href="/responsible-gambling">Responsible play</a><a href="/sure-tips">Sure tips</a><a href="/football-betting-tips">Football tips</a><a href="/accumulator-tips">Accumulator tips</a><a href="/premier-league-tips">Premier League tips</a></nav><span>18+ · Information and entertainment only · Gamble responsibly</span></footer>
-  {(!ageOk||notice)&&<div className="modal-backdrop"><section className="age-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-mark"><ShieldCheck size={25}/></div><h2 id="modal-title">{ageOk?"Know the risk":"Are you 18 or older?"}</h2><p>AccaForge provides football accumulator analysis for entertainment only. Betting involves risk and you may lose your entire stake. No prediction is certain. Please never gamble with money you cannot afford to lose.</p><div className="modal-notice"><strong>18+ only</strong><span>By continuing, you confirm that you are at least 18 years old and accept this responsible-play notice.</span></div><div className="modal-actions">{ageOk?<button className="button button-primary" onClick={()=>setNotice(false)}>I understand</button>:<><button className="button button-primary" onClick={confirmAge}><Check size={16}/> I am 18 or older</button><button className="button button-secondary" onClick={()=>window.location.assign("https://www.begambleaware.org/")}>I am under 18</button></>}</div>{ageOk&&<button className="modal-close" aria-label="Close notice" onClick={()=>setNotice(false)}><X size={17}/></button>}</section></div>}
- </div>;
+function PageHeading({title,description,aside}:{title:string;description:string;aside?:React.ReactNode}){
+ return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div>{aside&&<div className="page-heading-aside">{aside}</div>}</div>;
 }
-
-function AccaDetail({acca,expanded,setExpanded}:{acca:Acca;expanded:string|null;setExpanded:(value:string|null)=>void}){
- const open=expanded===acca.id;
+function SiteHeader({pathname}:{pathname:string}){
+ const [menuOpen,setMenuOpen]=useState(false);
+ const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/competitions","Competitions"],["/football-betting-tips","Guides"]];
+ return <>
+  <header className="site-header">
+   <a className="brand" href="/" aria-label="AccaForge home"><span className="brand-mark"><Activity size={18}/></span><span className="brand-name">Acca<span>Forge</span></span></a>
+   <nav className="desktop-nav" aria-label="Main navigation">{links.map(([href,label])=><a key={href} className={pathname===href?"nav-active":""} href={href}>{label}</a>)}</nav>
+   <button className="icon-button mobile-menu-button" onClick={()=>setMenuOpen(value=>!value)} aria-label="Toggle navigation menu" aria-expanded={menuOpen}>{menuOpen?<X size={19}/>:<Menu size={19}/>}</button>
+   {menuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation">{links.map(([href,label])=><a key={href} href={href} onClick={()=>setMenuOpen(false)}>{label}</a>)}<a href="/responsible-gambling" onClick={()=>setMenuOpen(false)}>Responsible play</a></nav>}
+  </header>
+  <nav className="mobile-dock" aria-label="Main mobile navigation">
+   <a className={pathname==="/"?"active":""} href="/"><Home size={18}/><span>Home</span></a>
+   <a className={pathname==="/daily"||products.some(item=>item[3]===pathname)?"active":""} href="/daily"><Target size={18}/><span>Daily</span></a>
+   <a className={pathname==="/recent"?"active":""} href="/recent"><CalendarRange size={18}/><span>Archive</span></a>
+   <a className={pathname==="/competitions"?"active":""} href="/competitions"><Layers size={18}/><span>Leagues</span></a>
+  </nav>
+ </>;
+}
+function SiteFooter(){
+ return <footer className="site-footer">
+  <div className="footer-brand-group"><a className="footer-brand" href="/">AccaForge</a><span>Football analysis, fixtures and daily editions.</span></div>
+  <nav className="footer-links" aria-label="Company and legal links"><a href="/about">About</a><a href="/contact">Contact</a><a href="/editorial-policy">Editorial policy</a><a href="/responsible-gambling">Responsible play</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/image-credits">Image credits</a></nav>
+  <span className="footer-note">18+ · Information and entertainment only · Gamble responsibly</span>
+ </footer>;
+}
+function EditionLink({acca}:{acca:Acca}){
+ const isAll=acca.product_type==="all_matches";
+ return <a className="edition-link" href={productPath(acca.product_type)}>
+  <span className="edition-link-copy"><strong>{productLabel(acca.product_type)}</strong><small>{acca.selections.length} {isAll?"fixtures":"selections"} · {dateLabel(acca.publish_date)}</small></span>
+  <span className="edition-link-value">{isAll?acca.selections.length:acca.actual_odds.toFixed(2)}<small>{isAll?"fixtures":"combined odds"}</small></span>
+  <ArrowUpRight size={17}/>
+ </a>;
+}
+function AccaDetail({acca}:{acca:Acca}){
+ const [expanded,setExpanded]=useState(false);
  const isAll=acca.product_type==="all_matches";
  const picks=acca.selections.filter(item=>item.selection_status!=="PASS");
  return <article className="acca-detail">
   <div className="acca-topline"><span className="published"><i/> Published edition</span><span>{productLabel(acca.product_type)} · {dateLabel(acca.publish_date)}</span></div>
-  <div className="acca-summary"><div><h3>{acca.headline}</h3><p>{acca.analysis_note}</p></div>{!isAll&&<div className="combined-odds"><span>Combined odds</span><strong>{acca.actual_odds.toFixed(2)}</strong><small>Calculated from current listed prices</small></div>}</div>
-  <div className="selection-header"><span>{isAll?"Full fixture coverage":"Selection breakdown"}</span><span>{isAll?acca.selections.length+" fixtures":acca.selections.length+" selections"} · {picks.length} picks · {acca.selections.length-picks.length} passes</span></div>
-  <div className="selection-list">{acca.selections.map((selection,index)=><div className={"selection-row "+(selection.selection_status==="PASS"?"selection-pass":"")} key={selection.id}><span className="selection-index">{String(index+1).padStart(2,"0")}</span><div className="selection-main"><div className="fixture-title">{leagueLogo(selection.sport_key)&&<img src={leagueLogo(selection.sport_key)} alt={(leagueFor(selection.sport_key)?.name||"Football competition")+" logo"} loading="lazy"/>}<a href={"/matches/"+encodeURIComponent(selection.event_id)} title={"View "+selection.home_team+" vs "+selection.away_team+" match details"}>{selection.home_team} <span>vs</span> {selection.away_team}</a></div><small>{kenyaTime(selection.commence_time)} EAT · {leagueFor(selection.sport_key)?.name||"Football"} · {selection.market_name}</small><p>{selection.selection_name}{selection.note?" · "+selection.note:""}</p>{selection.selection_status!=="PASS"&&<small className="probability-line">AI-estimated probability: {selection.probability.toFixed(1)}% · bookmaker implied probability: {selection.implied_probability.toFixed(1)}%</small>}</div><div className="selection-price">{selection.selection_status==="PASS"?<strong className="pass-label">PASS</strong>:<><strong>{selection.odds.toFixed(2)}</strong><small>{selection.bookmaker}</small></>}</div></div>)}</div>
-  <button className="details-toggle" onClick={()=>setExpanded(open?null:acca.id)}>{open?"Hide edition details":"About this edition"} <ChevronDown size={15} className={open?"rotate":""}/></button>
-  {open&&<div className="edition-details"><p>Probabilities are AI-generated estimates based on available research, not measured guarantees or certainty. Bookmaker implied probability is a simple 1 ÷ decimal odds calculation and does not remove bookmaker margin. Prices may change before kick-off. A PASS means no sufficiently defensible market was identified.</p><span><Trophy size={14}/> {picks.length} picks across {acca.selections.length} listed fixtures</span></div>}
-  <div className="acca-bottomline"><span><ShieldCheck size={14}/> Entertainment only</span><span>Updated {kenyaTime(acca.created_at)} EAT</span><a href={"/accumulators/"+encodeURIComponent(acca.id)}>Open shareable edition <ArrowUpRight size={13}/></a></div>
+  <div className="acca-summary">
+   <div className="acca-summary-copy"><h2>{acca.headline}</h2><p>{acca.analysis_note}</p></div>
+   <div className="combined-odds"><span>{isAll?"Fixtures listed":"Combined odds"}</span><strong>{isAll?acca.selections.length:acca.actual_odds.toFixed(2)}</strong><small>{isAll?"Eligible fixtures":"Target "+acca.target_odds.toFixed(2)}</small></div>
+  </div>
+  <div className="selection-heading"><span>{isAll?"Fixture coverage":"Match and selection details"}</span><span>{picks.length} picks · {acca.selections.length-picks.length} passes</span></div>
+  <div className="selection-list">{acca.selections.map((selection,index)=><SelectionRow key={selection.id} selection={selection} index={index}/>)}</div>
+  <button className="details-toggle" onClick={()=>setExpanded(value=>!value)} aria-expanded={expanded}>{expanded?"Hide edition notes":"Read edition notes"} <ChevronDown size={16} className={expanded?"rotate":""}/></button>
+  {expanded&&<div className="edition-details"><p>Displayed probabilities are estimates based on the available research. They are not guarantees. Bookmaker implied probability is calculated as 1 ÷ decimal odds and does not remove bookmaker margin. Prices may change before kick-off. A PASS means no sufficiently defensible market was identified.</p><span><Trophy size={15}/> {picks.length} picks across {acca.selections.length} listed fixtures</span></div>}
+  <div className="acca-bottomline"><span><ShieldCheck size={15}/> Information only</span><span>Updated {kenyaTime(acca.created_at)} EAT</span><a href={"/accumulators/"+encodeURIComponent(acca.id)}>Open shareable edition <ArrowUpRight size={14}/></a></div>
  </article>;
+}
+function SelectionRow({selection,index}:{selection:Selection;index:number}){
+ const isPass=selection.selection_status==="PASS";
+ return <div className={"selection-row "+(isPass?"selection-pass":"")}>
+  <span className="selection-index">{String(index+1).padStart(2,"0")}</span>
+  <div className="selection-fixture"><a className="fixture-title" href={"/matches/"+encodeURIComponent(selection.event_id)}>{selection.home_team}<span>vs</span>{selection.away_team}</a><span className="fixture-meta">{leagueFor(selection.sport_key)?.name||"Football"} <i/> {kenyaTime(selection.commence_time)} EAT</span></div>
+  <div className="selection-market"><span className="field-label">Market</span><strong>{selection.market_name}</strong><small>{selection.selection_name}{selection.note?" · "+selection.note:""}</small></div>
+  <div className="selection-estimate"><span className="field-label">Estimated chance</span><strong>{isPass?"Not listed":selection.probability.toFixed(1)+"%"}</strong><small>{isPass?"No supported selection":"Bookmaker: "+selection.implied_probability.toFixed(1)+"%"}</small></div>
+  <div className="selection-price"><span className="field-label">Odds</span><strong>{isPass?"PASS":selection.odds.toFixed(2)}</strong><small>{isPass?"":selection.bookmaker}</small></div>
+ </div>;
+}
+function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
+ const product=products.find(item=>item[0]===type)!;
+ return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
+}
+export default function App({initialData,todayLabel,pathname="/"}:{initialData?:AccasResponse;todayLabel?:string;pathname?:string}){
+ void React;
+ const [ageOk,setAgeOk]=useState(false);
+ const [archiveDate,setArchiveDate]=useState("all");
+ const [notice,setNotice]=useState(false);
+ const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
+ useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
+ const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
+ const accas=data?.accas||[];
+ const currentProduct=products.find(item=>item[3]===pathname)?.[0];
+ const dates=useMemo(()=>Array.from(new Set(accas.map(item=>item.publish_date))).sort((a,b)=>b.localeCompare(a)),[accas]);
+ const filteredArchive=archiveDate==="all"?accas:accas.filter(item=>item.publish_date===archiveDate);
+ const current=currentProduct?accas.find(item=>item.product_type===currentProduct):undefined;
+ const confirmAge=()=>{localStorage.setItem("accaforge-18plus","yes");setAgeOk(true);};
+ const status=isLoading?<div className="state-panel"><span className="loader"/><p>Loading published football editions</p></div>:isError?<div className="state-panel"><Activity size={25}/><h2>We could not load the board</h2><p>Check your connection and try again.</p><button className="button button-secondary" onClick={()=>refetch()}>Try again</button></div>:null;
+ let page:React.ReactNode;
+ if(pathname==="/"){
+  page=<main className="page-shell home-page">
+   <section className="home-hero">
+    <div className="home-copy"><h1>Football fixtures, markets and odds in one clear view</h1><p>AccaForge publishes researched football selections with match details and prices shown plainly. Open an edition, review every leg and make your own assessment.</p><div className="hero-actions"><a className="button button-primary" href="/daily">View today’s board <ArrowUpRight size={16}/></a><a className="text-link" href="/editorial-policy">How selections are presented</a></div><div className="home-date"><CalendarDays size={15}/>{displayDate} · East Africa Time</div></div>
+    <div className="home-board-preview"><div className="preview-head"><span>Daily editions</span><span>{data?.updatedAt?"Updated "+kenyaTime(data.updatedAt):"Latest published"}</span></div>{products.map(([type,label,caption,path])=>{const item=accas.find(acca=>acca.product_type===type);return <a className="preview-row" href={path} key={type}><span><strong>{label}</strong><small>{caption}</small></span><b>{item?(type==="all_matches"?item.selections.length+" fixtures":item.actual_odds.toFixed(2)):"—"}</b><ArrowUpRight size={15}/></a>;})}<a className="preview-all" href="/daily">Open daily board <ArrowUpRight size={15}/></a></div>
+   </section>
+   <section className="home-latest"><div className="section-heading"><div><h2>Latest published editions</h2><p>Choose a format to inspect its fixtures and selections</p></div><a className="text-link" href="/recent">Browse archive <ArrowUpRight size={15}/></a></div>{status||<div className="edition-links">{accas.slice(0,4).map(acca=><EditionLink key={acca.id} acca={acca}/>)}{!accas.length&&<p className="muted-copy">No editions have been published yet. Check the daily board later.</p>}</div>}</section>
+  </main>;
+ }else if(pathname==="/daily"){
+  page=<main className="page-shell"><PageHeading title="Daily football board" description="Four publication formats, each with its own page and complete fixture breakdown." aside={<span className="updated"><Clock3 size={15}/>{data?.updatedAt?"Updated "+kenyaTime(data.updatedAt)+" EAT":"Awaiting an edition"}</span>}/>{status||<section className="product-list">{products.map(([type])=><ProductCard key={type} type={type} acca={accas.find(item=>item.product_type===type)}/>)}</section>}</main>;
+ }else if(currentProduct){
+  page=<main className="page-shell product-page"><PageHeading title={productLabel(currentProduct)} description={products.find(item=>item[0]===currentProduct)?.[2]||"Football selections and match information."} aside={<a className="text-link" href="/daily">All daily formats <ArrowUpRight size={15}/></a>}/>{status||<>{current?<AccaDetail acca={current}/>:<div className="state-panel"><Target size={26}/><h2>No {productLabel(currentProduct)} edition published</h2><p>This format appears when its selection rules and available research are satisfied. We do not add unsupported picks to fill a list.</p><button className="button button-secondary" disabled={isFetching} onClick={()=>refetch()}>{isFetching?"Checking":"Refresh edition"}</button></div>}</>}<nav className="product-switcher" aria-label="Other daily formats">{products.filter(item=>item[0]!==currentProduct).map(([type,label,,path])=><a key={type} href={path}>{label}<ArrowUpRight size={14}/></a>)}</nav></main>;
+ }else if(pathname==="/recent"){
+  page=<main className="page-shell"><PageHeading title="Recent editions" description="Browse the published football selections retained in the recent archive." aside={<label className="archive-select"><CalendarDays size={15}/><select value={archiveDate} onChange={event=>setArchiveDate(event.target.value)}><option value="all">All dates</option>{dates.map(date=><option key={date} value={date}>{dateLabel(date)}</option>)}</select><ChevronDown size={14}/></label>}/>{status||<div className="archive-list">{filteredArchive.length?filteredArchive.map(item=><a key={item.id} className="archive-row" href={"/accumulators/"+encodeURIComponent(item.id)}><span className="archive-date">{dateLabel(item.publish_date)}</span><span className="archive-target">{productLabel(item.product_type)}</span><span className="archive-legs">{item.selections.length} {item.product_type==="all_matches"?"fixtures":"selections"}</span><strong className="archive-price">{item.product_type==="all_matches"?"—":item.actual_odds.toFixed(2)}</strong><span className="archive-open">Open <ArrowUpRight size={14}/></span></a>):<p className="muted-copy">No recent editions are available for this date.</p>}</div>}</main>;
+ }else if(pathname==="/competitions"){
+  page=<main className="page-shell"><PageHeading title="Football competitions" description="Browse the leagues followed by the AccaForge daily football board."/><div className="league-directory">{leagues.map(league=><a href={"/leagues/"+league.key} className="league-directory-row" key={league.key}><img src={league.logo} alt=""/><span>{league.name}</span><ArrowUpRight size={16}/></a>)}</div></main>;
+ }else{
+  page=<main className="page-shell"><PageHeading title="Page not found" description="The page you requested is not part of the AccaForge daily board."/><a className="button button-primary" href="/">Return home</a></main>;
+ }
+ return <div className="app theme-light"><SiteHeader pathname={pathname}/>{page}<SiteFooter/>{(!ageOk||notice)&&<div className="modal-backdrop"><section className="age-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-mark"><ShieldCheck size={24}/></div><h2 id="modal-title">{ageOk?"A responsible-play reminder":"Are you 18 or older?"}</h2><p>AccaForge provides football information for entertainment only. Betting involves risk and you may lose your entire stake. No prediction is certain.</p><div className="modal-notice"><strong>18+ only</strong><span>By continuing, you confirm that you are at least 18 years old.</span></div><div className="modal-actions">{ageOk?<button className="button button-primary" onClick={()=>setNotice(false)}>I understand</button>:<><button className="button button-primary" onClick={confirmAge}><Check size={16}/> I am 18 or older</button><button className="button button-secondary" onClick={()=>window.location.assign("https://www.begambleaware.org/")}>I am under 18</button></>}</div>{ageOk&&<button className="modal-close" aria-label="Close notice" onClick={()=>setNotice(false)}><X size={17}/></button>}</section></div>}</div>;
 }
