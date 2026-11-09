@@ -103,8 +103,14 @@ async function footballApi(env:SportsDataEnv,path:string,params:Record<string,st
 }
 
 async function resolveLeague(env:SportsDataEnv,sportKey:string):Promise<LeagueInfo>{
-  const known=leagueSearch[sportKey];
-  if(!known)throw new Error("No safe API-Football competition mapping for "+sportKey+".");
+  const countryNames:Record<string,string>={england:"England",spain:"Spain",germany:"Germany",italy:"Italy",france:"France",netherlands:"Netherlands",portugal:"Portugal",usa:"USA",brazil:"Brazil",australia:"Australia",japan:"Japan",turkey:"Turkey",scotland:"Scotland",belgium:"Belgium",mexico:"Mexico",argentina:"Argentina",sweden:"Sweden",norway:"Norway",denmark:"Denmark",switzerland:"Switzerland",austria:"Austria",greece:"Greece",poland:"Poland",ireland:"Ireland",wales:"Wales",finland:"Finland",romania:"Romania",ukraine:"Ukraine",croatia:"Croatia",serbia:"Serbia",egypt:"Egypt",morocco:"Morocco",india:"India",china:"China",south_korea:"South Korea",saudi_arabia:"Saudi Arabia",south_africa:"South Africa"};
+  const suffixAliases:Record<string,string>={la_liga:"La Liga",serie_a:"Serie A",bundesliga:"Bundesliga",ligue_one:"Ligue 1",primeira_liga:"Primeira Liga",championship:"Championship",league_one:"League One",league_two:"League Two",premiership:"Premiership",j_league:"J1 League",aleague:"A-League Men",ligamx:"Liga MX",campeonato:"Serie A",first_div:"First Division",pro_league:"Pro League",super_league:"Super League",eredivisie:"Eredivisie",liga_profesional:"Liga Profesional",super_lig:"Super Lig"};
+  const parts=sportKey.replace(/^soccer_/,"").split("_");
+  const countryKey=parts.shift()||"";
+  const suffix=parts.join("_");
+  const inferredName=suffixAliases[suffix]||suffix.split("_").map(word=>word.charAt(0).toUpperCase()+word.slice(1)).join(" ");
+  const known=leagueSearch[sportKey]||{name:inferredName,country:countryNames[countryKey]};
+  if(!known.name||!known.country)throw new Error("No safe API-Football competition mapping for "+sportKey+".");
   const query:Record<string,string>={search:known.name};
   if(known.country)query.country=known.country;
   const result=await footballApi(env,"leagues",query);
@@ -137,6 +143,7 @@ function findTeam(teams:TeamInfo[],name:string){
 }
 
 export async function prepareFootballEnrichment(env:SportsDataEnv){
+  if(!(env.API_FOOTBALL_KEY||"").trim())throw new Error("Add API_FOOTBALL_KEY as a Cloudflare Worker secret before running sports enrichment.");
   await ensureSportsSchema(env);
   const date=nairobiDate();
   const rows=(await env.DB.prepare("SELECT DISTINCT s.sport_key,s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=? ORDER BY s.sport_key,s.home_team,s.away_team").bind(date).all< {sport_key:string;home_team:string;away_team:string} >()).results||[];
