@@ -1,4 +1,4 @@
-const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.eu.cc").replace(/\/$/,"");
+const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.jonathanmwaniki07.workers.dev").replace(/\/$/,"");
 const token=(process.env.ACCAFORGE_SCHEDULER_TOKEN||"").trim();
 if(!token)throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN GitHub secret.");
 async function post(payload){
