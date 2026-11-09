@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "accaforge",
+  "workers_dev": true,
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-08",
   "routes": [
