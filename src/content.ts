@@ -130,7 +130,7 @@ export async function refreshDailyContent(env: ContentEnv) {
 export async function getCachedContent(env: ContentEnv) {
   await ensureContentTables(env);
   const [newsResult, mediaResult, badgesResult] = await Promise.all([
-    env.DB.prepare("SELECT id,title,url,source,published_at,image_key FROM content_news ORDER BY published_at DESC LIMIT 12").all<any>(),
+    env.DB.prepare("SELECT n.id,n.title,n.url,n.source,n.published_at,n.image_key,m.credit AS stored_credit FROM content_news n LEFT JOIN content_media m ON m.key=n.image_key ORDER BY n.published_at DESC LIMIT 12").all<any>(),
     env.DB.prepare("SELECT key,title,credit,license,license_url,description_url FROM content_media WHERE kind='photo' ORDER BY created_at DESC LIMIT 6").all<any>(),
     env.DB.prepare("SELECT team_name,image_key FROM team_badges").all<any>()
   ]);
@@ -138,7 +138,7 @@ export async function getCachedContent(env: ContentEnv) {
   const news = (newsResult.results || []).map((item: any, index: number) => ({
     id: item.id, title: item.title, url: item.url, source: item.source, published_at: item.published_at,
     image_url: item.image_key ? "/media-cache/" + encodeURIComponent(item.image_key) : photos[index % Math.max(photos.length,1)] ? "/media-cache/" + encodeURIComponent(photos[index % photos.length].key) : "",
-    image_credit: photos[index % Math.max(photos.length,1)]?.credit || ""
+    image_credit: item.stored_credit || photos[index % Math.max(photos.length,1)]?.credit || ""
   }));
   const teamBadges: Record<string,string> = {};
   for (const badge of badgesResult.results || []) teamBadges[badge.team_name] = "/media-cache/" + encodeURIComponent(badge.image_key);
