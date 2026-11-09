@@ -13,6 +13,7 @@ on:
         options:
           - generate
           - results
+          - enrich
         default: generate
 
 permissions:
@@ -38,7 +39,7 @@ jobs:
           ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
         run: |
           node --input-type=module <<'NODE'
-          const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.zandani.co.ke").replace(/\/$/,"");
+          const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.eu.cc").replace(/\/$/,"");
           if(!process.env.ACCAFORGE_SCHEDULER_TOKEN) throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN repository secret.");
           const response=await fetch(base+"/__scheduler/results",{method:"POST",headers:{Authorization:"Bearer "+process.env.ACCAFORGE_SCHEDULER_TOKEN}});
           const body=await response.text();
@@ -56,3 +57,10 @@ jobs:
           ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
         run: node scripts/generate-daily.mjs
+
+      - name: Enrich published matches with club crests and league tables
+        if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'enrich'))
+        env:
+          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
+          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
+        run: node scripts/enrich-football-data.mjs
