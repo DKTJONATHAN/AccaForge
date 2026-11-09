@@ -229,7 +229,7 @@ async function schedulerProxy(request: Request, env: Env): Promise<Response> {
     const result = await refreshYesterdayResults(env);
     return Response.json({ ok: true, result });
   }
-  const payload = await request.json() as { sql?: string; params?: unknown[]; url?: string; body?: unknown };
+  const payload = await request.json() as { sql?: string; params?: string[]; url?: string; body?: unknown };
   if (path === "/__scheduler/d1") {
     if (typeof payload.sql !== "string" || !Array.isArray(payload.params)) return Response.json({ error: "Invalid D1 request" }, { status: 400 });
     const result = await env.DB.prepare(payload.sql).bind(...payload.params).all();
