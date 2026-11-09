@@ -319,3 +319,18 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
 .status-won{background:#e5f5ed;color:#087b4a}.status-lost{background:#fdeaea;color:#b42323}.status-pending{background:#fff4dc;color:#94620a}.status-void{background:#edf0f4;color:#465568}.status-pass{background:#edf0f4;color:#667487}
 .result-note{grid-column:1/-1;margin-top:-8px}
 @media(max-width:760px){.results-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 26px}.results-summary>div{padding:13px 11px}.results-summary strong{font-size:25px}.result-card{grid-template-columns:1fr auto;gap:12px;padding:15px}.result-fixture{grid-column:1/-1;justify-content:space-between}.result-pick{grid-column:1}.result-status{grid-column:2;grid-row:2}.result-note{grid-column:1/-1}.results-group{margin:25px 0}}
+
+/* Make the actual outcome selected for each fixture the most prominent market detail. */
+.pick-label{display:inline-flex;align-items:center;align-self:flex-start;width:max-content;max-width:100%;padding:5px 9px;border-radius:5px;font-size:12px;line-height:1.25;font-weight:800;letter-spacing:.035em;overflow-wrap:anywhere}
+.pick-home{background:#e3efff;color:#124c9b;border:1px solid #b8d4fa}
+.pick-away{background:#f0eaff;color:#5b35a5;border:1px solid #d5c5fb}
+.pick-draw{background:#fff3d8;color:#805000;border:1px solid #f0d69d}
+.gg-yes{background:#dff6e9;color:#08663a;border:1px solid #a9e2c1}
+.gg-no{background:#ffebeb;color:#a51e2b;border:1px solid #f4bfc3}
+.pick-default{background:#e9eef3;color:#27384a;border:1px solid #d1dbe5}
+.selection-market{gap:7px}
+.selection-market .pick-label{margin-top:1px}
+@media(max-width:760px){
+ .selection-market{gap:6px}
+ .selection-market .pick-label{font-size:11px;padding:5px 8px}
+}
