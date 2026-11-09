@@ -1,79 +1,58 @@
-name: AccaForge Daily Accumulators
+name: AccaForge Scheduled Jobs
 
 on:
   schedule:
-    - cron: "0 9 * * *"
-      timezone: "Africa/Nairobi"
+    - cron: "0 0 * * *" # 3:00 AM Africa/Nairobi - results refresh
+    - cron: "0 6 * * *" # 9:00 AM Africa/Nairobi - daily generation
   workflow_dispatch:
     inputs:
-      migrate_only:
-        description: "Apply D1 schema updates only; do not call Groq or The Odds API."
-        required: false
-        type: boolean
-        default: false
+      task:
+        description: "Task to run"
+        required: true
+        type: choice
+        options:
+          - generate
+          - results
+        default: generate
 
 permissions:
   contents: read
 
 concurrency:
-  group: accaforge-daily-generation
+  group: accaforge-scheduled-jobs
   cancel-in-progress: false
 
 jobs:
-  generate:
-    name: Generate and publish daily football accumulators
+  run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Verify Cloudflare token and D1 access
+      - name: Refresh yesterday's results (3 AM EAT)
+        if: (github.event_name == 'schedule' && github.event.schedule == '0 0 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'results')
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
+          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
         run: |
           node --input-type=module <<'NODE'
-          const token = (process.env.CLOUDFLARE_API_TOKEN || "").trim();
-          if (!token) throw new Error("CLOUDFLARE_API_TOKEN is empty.");
-          console.log(JSON.stringify({ tokenLength: token.length }));
-          const headers = {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          };
-          const checks = [
-            ["Token verification", `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/tokens/verify`],
-            ["D1 database access", `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/d1/database/${process.env.D1_DATABASE_ID}`]
-          ];
-          for (const [label, url] of checks) {
-            const response = await fetch(url, { headers });
-            const body = await response.json();
-            console.log(`${label}: HTTP ${response.status}`);
-            console.log(JSON.stringify({ success: body.success, result: body.result, errors: body.errors }));
-            if (!response.ok || !body.success) process.exitCode = 1;
-          }
+          const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.zandani.co.ke").replace(/\/$/,"");
+          if(!process.env.ACCAFORGE_SCHEDULER_TOKEN) throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN repository secret.");
+          const response=await fetch(base+"/__scheduler/results",{method:"POST",headers:{Authorization:"Bearer "+process.env.ACCAFORGE_SCHEDULER_TOKEN}});
+          const body=await response.text();
+          console.log(body);
+          if(!response.ok) throw new Error("Results refresh failed: HTTP "+response.status);
           NODE
-      - name: Generate, validate and store today's accumulators
+      - name: Generate and publish daily accumulators (9 AM EAT)
+        if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'generate')
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY || secrets.ODDSAPI_KEY }}
-          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
-          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
-          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
-          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
-          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
+          ACCAFORGE_WORKER_URL: ${{ vars.ACCAFORGE_WORKER_URL }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
           ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-          MIGRATE_ONLY: ${{ inputs.migrate_only || false }}
         run: node scripts/generate-daily.mjs
