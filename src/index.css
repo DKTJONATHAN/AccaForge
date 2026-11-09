@@ -399,3 +399,21 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .app{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
  .mobile-dock{padding-bottom:calc(7px + env(safe-area-inset-bottom))}
 }
+
+
+/* Replace the empty-looking dark hero block with a useful daily status card */
+.home-board-preview{background:#fff;color:#152231;border:1px solid #d5dfe7;border-top:4px solid #087b4a;border-radius:14px;padding:22px 24px;box-shadow:0 12px 34px rgba(7,17,31,.07)}
+.board-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.board-eyebrow{display:block;color:#075f3a;font-size:9px;font-weight:800;letter-spacing:.13em;margin:0 0 6px}
+.board-card-top h2{font:600 27px/1.05 var(--display);color:#07111f;margin:0}
+.board-status{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border-radius:999px;background:#fff4dc;color:#76520b;font-size:9px;font-weight:800;white-space:nowrap}
+.board-status.is-live{background:#e5f5ed;color:#075f3a}
+.board-status i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.board-card-note{margin:10px 0 12px;color:#465568;font-size:11px;line-height:1.5}
+.home-board-preview .preview-row{border-bottom-color:#e6ebf0;min-height:62px}
+.home-board-preview .preview-row strong{color:#152231;font-weight:700}
+.home-board-preview .preview-row small{color:#536276}
+.home-board-preview .preview-row b{color:#075f3a}
+.home-board-preview .preview-row svg{color:#64748b}
+.home-board-preview .preview-all{color:#075f3a;padding-top:15px}
+@media(max-width:760px){.home-board-preview{padding:17px 14px 13px;border-radius:12px}.board-card-top h2{font-size:24px}.board-card-note{margin:8px 0}.home-board-preview .preview-row{min-height:56px}}
