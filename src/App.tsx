@@ -111,7 +111,7 @@ export default function App({initialData,initialContent,todayLabel,pathname="/"}
  const displayDate=todayLabel||new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
  useEffect(()=>{setAgeOk(localStorage.getItem("accaforge-18plus")==="yes");},[]);
  const {data,isLoading,isError,refetch,isFetching}=useQuery({queryKey:["accas"],queryFn:loadAccas,initialData});
- const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});\n const {data:resultsData,isLoading:resultsLoading,isError:resultsError,refetch:refetchResults}=useQuery({queryKey:["yesterday-results"],queryFn:loadResults,enabled:pathname==="/results",staleTime:60000,refetchOnWindowFocus:false});
+ const {data:contentData}=useQuery({queryKey:["site-content"],queryFn:loadContent,initialData:initialContent,staleTime:300000,refetchOnWindowFocus:false});\n const {data:resultsData,isLoading:resultsLoading,isError:resultsError,refetch:refetchResults}=useQuery({queryKey:["yesterday-results"],queryFn:loadResults,enabled:pathname==="/results" && typeof window!=="undefined",staleTime:60000,refetchOnWindowFocus:false});
  const teamBadges=contentData?.teamBadges||{};
  const accas=data?.accas||[];
  const currentProduct=products.find(item=>item[3]===pathname)?.[0];
