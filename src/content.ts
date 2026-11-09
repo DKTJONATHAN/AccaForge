@@ -29,7 +29,7 @@ async function cacheCommonsPhoto(env: ContentEnv, term: string) {
     iiextmetadatafilter: "LicenseShortName|LicenseUrl|Artist|Credit|ImageDescription",
     format: "json"
   }).toString();
-  const response = await fetch(api, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" } });
+  const response = await fetch(api, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" }, signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error("Wikimedia Commons search failed: " + response.status);
   const data = await response.json() as any;
   const pages = Object.values(data.query?.pages || {}) as any[];
@@ -39,7 +39,7 @@ async function cacheCommonsPhoto(env: ContentEnv, term: string) {
     const license = clean(meta.LicenseShortName?.value).toLowerCase();
     const allowed = /^(cc0|public domain|cc by 4\.0|cc by-sa 4\.0|cc by 3\.0|cc by-sa 3\.0)$/.test(license);
     if (!allowed || !info?.thumburl || !info?.descriptionurl) continue;
-    const imageResponse = await fetch(info.thumburl, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" } });
+    const imageResponse = await fetch(info.thumburl, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" }, signal: AbortSignal.timeout(12000) });
     if (!imageResponse.ok) continue;
     const type = imageResponse.headers.get("content-type") || "";
     if (!type.startsWith("image/")) continue;
@@ -61,14 +61,14 @@ async function cacheTeamBadge(env: ContentEnv, team: string) {
   if (existing?.image_key) return;
   const api = new URL("https://www.thesportsdb.com/api/v1/json/123/searchteams.php");
   api.searchParams.set("t", team);
-  const response = await fetch(api, { headers: { "User-Agent": "AccaForge/1.0" } });
+  const response = await fetch(api, { headers: { "User-Agent": "AccaForge/1.0" }, signal: AbortSignal.timeout(10000) });
   if (!response.ok) return;
   const data = await response.json() as any;
   const teams = Array.isArray(data.teams) ? data.teams : [];
   const normalized = (value: string) => value.toLowerCase().replace(/\b(fc|afc|cf|sc)\b/g, "").replace(/[^a-z0-9]/g, "");
   const match = teams.find((item: any) => normalized(item.strTeam || "") === normalized(team));
   if (!match?.strTeamBadge) return;
-  const imageResponse = await fetch(match.strTeamBadge, { headers: { "User-Agent": "AccaForge/1.0" } });
+  const imageResponse = await fetch(match.strTeamBadge, { headers: { "User-Agent": "AccaForge/1.0" }, signal: AbortSignal.timeout(10000) });
   if (!imageResponse.ok) return;
   const type = imageResponse.headers.get("content-type") || "";
   if (!type.startsWith("image/")) return;
@@ -90,28 +90,39 @@ export async function refreshDailyContent(env: ContentEnv) {
     mode: "artlist", format: "json", maxrecords: "30", sort: "datedesc",
     startdatetime: stamp(start), enddatetime: stamp(now)
   }).toString();
-  const newsResponse = await fetch(newsUrl, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" } });
+  const newsResponse = await fetch(newsUrl, { headers: { "User-Agent": "AccaForge/1.0 (info@jonathanmwaniki.co.ke)" }, signal: AbortSignal.timeout(15000) });
   if (!newsResponse.ok) throw new Error("GDELT news refresh failed: " + newsResponse.status);
   const newsPayload = await newsResponse.json() as any;
   const articles = (Array.isArray(newsPayload.articles) ? newsPayload.articles : [])
     .filter((item: any) => item.url && item.title && /^https?:\/\//i.test(item.url))
     .slice(0, 24);
-  const photoTerms = ["football stadium match", "football supporters stadium", "football player action"];
-  const photos: any[] = [];
-  for (const term of photoTerms) {
-    try { const photo = await cacheCommonsPhoto(env, term); if (photo) photos.push(photo); } catch (error) { console.error("Commons photo cache failed", term, error); }
-    await wait(1200);
-  }
-  for (let index = 0; index < articles.length; index++) {
-    const item = articles[index];
+
+  // Save headlines before requesting artwork. A slow or unavailable image provider
+  // must never prevent the daily news feed from appearing.
+  const articleIds: string[] = [];
+  for (const item of articles) {
     const id = await hash(item.url);
+    articleIds.push(id);
     const published = String(item.seendate || now.toISOString());
     const parsed = /^\d{14}$/.test(published)
       ? published.slice(0,4)+"-"+published.slice(4,6)+"-"+published.slice(6,8)+"T"+published.slice(8,10)+":"+published.slice(10,12)+":"+published.slice(12,14)+"Z"
       : now.toISOString();
-    const photo = photos.length ? photos[index % photos.length] : null;
-    await env.DB.prepare("INSERT INTO content_news (id,title,url,source,published_at,image_key) VALUES (?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET title=excluded.title,source=excluded.source,published_at=excluded.published_at,image_key=CASE WHEN excluded.image_key<>'' THEN excluded.image_key ELSE content_news.image_key END")
-      .bind(id, clean(item.title).slice(0, 240), item.url, clean(item.domain || new URL(item.url).hostname), parsed, photo?.key || "").run();
+    await env.DB.prepare("INSERT INTO content_news (id,title,url,source,published_at,image_key) VALUES (?,?,?,?,?,'') ON CONFLICT(url) DO UPDATE SET title=excluded.title,source=excluded.source,published_at=excluded.published_at")
+      .bind(id, clean(item.title).slice(0, 240), item.url, clean(item.domain || new URL(item.url).hostname), parsed).run();
+  }
+
+  const photoTerms = ["football stadium", "football match action", "football supporters"];
+  const photos: any[] = [];
+  for (const term of photoTerms) {
+    try { const photo = await cacheCommonsPhoto(env, term); if (photo) photos.push(photo); }
+    catch (error) { console.error("Commons photo cache failed", term, error); }
+    await wait(500);
+  }
+  if (photos.length && articleIds.length) {
+    for (let index = 0; index < articleIds.length; index++) {
+      await env.DB.prepare("UPDATE content_news SET image_key=? WHERE id=? AND image_key=''")
+        .bind(photos[index % photos.length].key, articleIds[index]).run();
+    }
   }
   const rows = await env.DB.prepare("SELECT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND datetime(s.commence_time) >= datetime('now','-1 day') AND datetime(s.commence_time) <= datetime('now','+30 days') ORDER BY s.commence_time ASC LIMIT 60").all<{home_team:string;away_team:string}>();
   const names = [...new Set((rows.results || []).flatMap(row => [row.home_team,row.away_team]).filter(Boolean))];
