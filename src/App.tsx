@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from "react";
+import React, {useEffect,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Menu,ShieldCheck,Target,Trophy,X} from "lucide-react";
 import type {Acca,AccasResponse,ProductType} from "./types";
