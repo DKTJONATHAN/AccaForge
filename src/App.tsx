@@ -91,12 +91,32 @@ function AccaDetail({acca,badges}:{acca:Acca;badges:Record<string,string>}){
   <div className="acca-bottomline"><span><ShieldCheck size={15}/> Information only</span><span>Updated {kenyaTime(acca.created_at)} EAT</span><a href={"/accumulators/"+encodeURIComponent(acca.id)}>Open shareable edition <ArrowUpRight size={14}/></a></div>
  </article>;
 }
+function readablePick(selection:Selection){
+ const market=(selection.market_key+" "+selection.market_name).toLowerCase();
+ const raw=selection.selection_name.trim();
+ const value=raw.toLowerCase();
+ if(/btts|both teams to score|gg/.test(market)){
+  const yes=/^(yes|gg yes|both teams to score - yes)$/i.test(raw)||value.includes("yes");
+  const no=/^(no|gg no|both teams to score - no)$/i.test(raw)||value.includes("no");
+  if(yes)return {label:"GG YES",tone:"gg-yes"};
+  if(no)return {label:"GG NO",tone:"gg-no"};
+ }
+ if(/(^|\W)(h2h|1x2|moneyline|match result|full time result)(\W|$)/.test(market)){
+  if(value==="home"||value==="1"||value.includes("home win")||value===selection.home_team.toLowerCase())
+   return {label:selection.home_team.toUpperCase()+" WIN",tone:"pick-home"};
+  if(value==="away"||value==="2"||value.includes("away win")||value===selection.away_team.toLowerCase())
+   return {label:selection.away_team.toUpperCase()+" WIN",tone:"pick-away"};
+  if(value==="draw"||value==="x")return {label:"DRAW",tone:"pick-draw"};
+ }
+ return {label:raw||"Selection",tone:"pick-default"};
+}
 function SelectionRow({selection,index,badges}:{selection:Selection;index:number;badges:Record<string,string>}){
  const isPass=selection.selection_status==="PASS";
+ const pick=readablePick(selection);
  return <div className={"selection-row "+(isPass?"selection-pass":"")}>
   <span className="selection-index">{String(index+1).padStart(2,"0")}</span>
   <div className="selection-fixture"><a className="fixture-title" href={"/matches/"+encodeURIComponent(selection.event_id)}><span className="team-side">{(badges[selection.home_team]||localTeamLogos[selection.home_team])?<img src={badges[selection.home_team]||localTeamLogos[selection.home_team]} alt="" loading="lazy"/>:<i className="team-initial">{selection.home_team.slice(0,1).toUpperCase()}</i>}<b>{selection.home_team}</b></span><span className="versus">vs</span><span className="team-side">{(badges[selection.away_team]||localTeamLogos[selection.away_team])?<img src={badges[selection.away_team]||localTeamLogos[selection.away_team]} alt="" loading="lazy"/>:<i className="team-initial">{selection.away_team.slice(0,1).toUpperCase()}</i>}<b>{selection.away_team}</b></span></a><span className="fixture-meta">{leagueFor(selection.sport_key)?.name||"Football"} <i/> {kenyaTime(selection.commence_time)} EAT</span></div>
-  <div className="selection-market"><span className="field-label">Market</span><strong>{selection.market_name}</strong><small>{selection.selection_name}{selection.note?" · "+selection.note:""}</small></div>
+  <div className="selection-market"><span className="field-label">Market</span><strong>{selection.market_name}</strong><span className={"pick-label "+(isPass?"pick-default":pick.tone)}>{isPass?"PASS":pick.label}</span>{selection.note&&<small>{selection.note}</small>}</div>
   <div className="selection-estimate"><span className="field-label">Estimated chance</span><strong>{isPass?"Not listed":selection.probability.toFixed(1)+"%"}</strong><small>{isPass?"No supported selection":"Bookmaker: "+selection.implied_probability.toFixed(1)+"%"}</small></div>
   <div className="selection-price"><span className="field-label">Odds</span><strong>{isPass?"PASS":selection.odds.toFixed(2)}</strong><small>{isPass?"":selection.bookmaker}</small></div>
  </div>;
