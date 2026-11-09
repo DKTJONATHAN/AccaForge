@@ -26,31 +26,43 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Refresh yesterday's results (3 AM EAT)
+
+      - name: Refresh yesterday's results directly from GitHub (3 AM EAT)
         if: (github.event_name == 'schedule' && github.event.schedule == '0 0 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'results')
         env:
-          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: https://accaforge.jonathanmwaniki07.workers.dev
-        run: |
-          node --input-type=module <<'NODE'
-          const base=(process.env.ACCAFORGE_WORKER_URL||"https://accaforge.jonathanmwaniki07.workers.dev").replace(/\/$/,"");
-          if(!process.env.ACCAFORGE_SCHEDULER_TOKEN) throw new Error("Missing ACCAFORGE_SCHEDULER_TOKEN repository secret.");
-          const response=await fetch(base+"/__scheduler/results",{method:"POST",headers:{Authorization:"Bearer "+process.env.ACCAFORGE_SCHEDULER_TOKEN}});
-          const body=await response.text();
-          console.log(body);
-          if(!response.ok) throw new Error("Results refresh failed: HTTP "+response.status);
-          NODE
-      - name: Generate and publish daily accumulators (9 AM EAT)
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
+          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
+          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
+          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
+        run: node scripts/refresh-results.mjs
+
+      - name: Generate and publish daily accumulators directly from GitHub (9 AM EAT)
         if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'generate')
         env:
-          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: https://accaforge.jonathanmwaniki07.workers.dev
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
+          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
+          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
+          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
+          GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
+          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
@@ -58,9 +70,11 @@ jobs:
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
         run: node scripts/generate-daily.mjs
 
-      - name: Enrich published matches with club crests and league tables
+      - name: Enrich published fixtures with club crests and league tables (GitHub → D1)
         if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'enrich'))
         env:
-          ACCAFORGE_SCHEDULER_TOKEN: ${{ secrets.ACCAFORGE_SCHEDULER_TOKEN }}
-          ACCAFORGE_WORKER_URL: https://accaforge.jonathanmwaniki07.workers.dev
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
         run: node scripts/enrich-football-data.mjs
