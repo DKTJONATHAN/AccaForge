@@ -54,7 +54,19 @@ const competitionName = (key:string) => ({
   soccer_france_ligue_one:"French Ligue 1",
   soccer_netherlands_eredivisie:"Dutch Eredivisie",
   soccer_portugal_primeira_liga:"Portuguese Primeira Liga",
-  soccer_usa_mls:"Major League Soccer"
+  soccer_usa_mls:"Major League Soccer",
+  soccer_england_championship:"English Championship",
+  soccer_brazil_campeonato:"Brazilian Serie A",
+  soccer_australia_aleague:"Australian A-League",
+  soccer_japan_j_league:"Japanese J1 League",
+  soccer_turkey_super_league:"Turkish Super Lig",
+  soccer_scotland_premiership:"Scottish Premiership",
+  soccer_belgium_first_div:"Belgian Pro League",
+  soccer_mexico_ligamx:"Mexican Liga MX",
+  soccer_argentina_primera_division:"Argentine Primera División",
+  soccer_uefa_europa_conference_league:"UEFA Europa Conference League",
+  soccer_uefa_nations_league:"UEFA Nations League",
+  soccer_fifa_world_cup:"FIFA World Cup"
 } as Record<string,string>)[key] || "Football";
 const dateTime = (value:string) => {
   const date = new Date(value);
