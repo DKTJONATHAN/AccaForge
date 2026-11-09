@@ -152,14 +152,19 @@ export async function enrichFootballLeague(env:SportsDataEnv,sportKey:string,dat
   await ensureSportsSchema(env);
   const sync=await env.DB.prepare("SELECT status FROM sports_data_sync WHERE publish_date=?").bind(date).first<{status:string}>();
   if(!sync||sync.status==="completed")return {sportKey,skipped:true,reason:"No active enrichment run."};
-  const existing=await env.DB.prepare("SELECT last_attempt_date,last_enriched_date FROM sports_leagues WHERE sport_key=?").bind(sportKey).first<{last_attempt_date:string;last_enriched_date:string}>();
+  const existing=await env.DB.prepare("SELECT last_attempt_date,last_enriched_date,league_id,season,league_name,country,logo_url FROM sports_leagues WHERE sport_key=?").bind(sportKey).first<{last_attempt_date:string;last_enriched_date:string;league_id:number;season:number;league_name:string;country:string;logo_url:string}>();
   if(existing?.last_attempt_date===date)return {sportKey,skipped:true,reason:existing.last_enriched_date===date?"Already enriched today":"Already attempted today; no repeat API calls."};
   const fixtureRows=(await env.DB.prepare("SELECT DISTINCT s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=? AND s.sport_key=?").bind(date,sportKey).all<FixtureTeam>()).results||[];
   if(!fixtureRows.length)return {sportKey,skipped:true,reason:"No published fixtures for this competition."};
   const names=[...new Set(fixtureRows.flatMap(row=>[row.home_team,row.away_team]))];
   await env.DB.prepare("INSERT INTO sports_leagues (sport_key,league_id,season,league_name,last_attempt_date) VALUES (?,0,0,? ,?) ON CONFLICT(sport_key) DO UPDATE SET last_attempt_date=excluded.last_attempt_date,last_error=''").bind(sportKey,leagueSearch[sportKey]?.name||sportKey,date).run();
   try{
-    const league=await resolveLeague(env,sportKey);
+    const [year,month]=date.split("-").map(Number);
+    const calendarSeasonKeys=new Set(["soccer_usa_mls","soccer_brazil_campeonato","soccer_japan_j_league"]);
+    const expectedSeason=calendarSeasonKeys.has(sportKey)?year:(month>=7?year:year-1);
+    const league=existing?.league_id&&Number(existing.season)===expectedSeason
+      ? {id:Number(existing.league_id),name:existing.league_name,country:existing.country,logo:existing.logo_url,season:Number(existing.season)}
+      : await resolveLeague(env,sportKey);
     const teamResult=await footballApi(env,"teams",{league:String(league.id),season:String(league.season)});
     const tableResult=await footballApi(env,"standings",{league:String(league.id),season:String(league.season)});
     const teams:TeamInfo[]=teamResult.items.map((item:any)=>({id:Number(item.team?.id),name:clean(item.team?.name),logo:String(item.team?.logo||"")})).filter(team=>team.id&&team.name);
@@ -192,7 +197,7 @@ export async function enrichFootballLeague(env:SportsDataEnv,sportKey:string,dat
       await env.DB.prepare("INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(team_name) DO UPDATE SET image_key=excluded.image_key,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP")
         .bind(team.name,normalized(team.name),imageKey,team.logo).run();
     }
-    return {sportKey,league:table.leagueName||league.name,teams:teams.length,matchedFixtures:matched,standings:table.rows.length,apiRequests:2+(existing?.last_attempt_date?0:1),logoCached:Boolean(leagueLogoKey)};
+    return {sportKey,league:table.leagueName||league.name,teams:teams.length,matchedFixtures:matched,standings:table.rows.length,apiRequests:existing?.league_id&&Number(existing.season)===expectedSeason?2:3,logoCached:Boolean(leagueLogoKey)};
   }catch(error){
     const message=clean(error instanceof Error?error.message:error,400);
     await env.DB.prepare("UPDATE sports_leagues SET last_error=? WHERE sport_key=?").bind(message,sportKey).run();
