@@ -232,7 +232,8 @@ export default {
     if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin);
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
-    if (url.pathname === "/" || url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
+    if (url.pathname === "/") return renderHome(request,env);
+    if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
       return env.ASSETS.fetch(request);
     }
     return renderPage({
