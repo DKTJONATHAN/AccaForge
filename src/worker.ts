@@ -221,7 +221,7 @@ async function renderHome(request:Request,env:Env){
       {"@type":"Question","name":"Which football competitions does AccaForge cover?","acceptedAnswer":{"@type":"Answer","text":"Coverage includes competitions such as the English Premier League, UEFA Champions League, Europa League, La Liga, Bundesliga, Serie A, Ligue 1 and Eredivisie when eligible fixtures and markets are available."}}
     ]}]:[])
   ]};
-  html=html.replace(/<title>[\\s\\S]*?<\\/title>/,"<title>"+escapeHtml(meta.title)+"</title>")
+  html=html.replace(/<title>[\s\S]*?<\/title>/,"<title>"+escapeHtml(meta.title)+"</title>")
     .replace(/<meta name="description" content="[^"]*"/,'<meta name="description" content="'+escapeHtml(meta.description)+'"')
     .replace(/<meta name="keywords" content="[^"]*"/,'<meta name="keywords" content="'+escapeHtml(meta.keywords)+'"')
     .replace(/<meta property="og:title" content="[^"]*"/,'<meta property="og:title" content="'+escapeHtml(meta.title)+'"')
@@ -230,7 +230,7 @@ async function renderHome(request:Request,env:Env){
     .replace(/<meta name="twitter:title" content="[^"]*"/,'<meta name="twitter:title" content="'+escapeHtml(meta.title)+'"')
     .replace(/<meta name="twitter:description" content="[^"]*"/,'<meta name="twitter:description" content="'+escapeHtml(meta.description)+'"')
     .replace(/<link rel="canonical" href="[^"]*"/,'<link rel="canonical" href="'+escapeHtml(canonical)+'"')
-    .replace(/<script type="application\\/ld\\+json">[\\s\\S]*?<\\/script>/,"<script type=\"application/ld+json\">"+safeJson(graph)+"</script>");
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,"<script type=\"application/ld+json\">"+safeJson(graph)+"</script>");
   const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,initialContent,todayLabel,pathname})+"</script>";
   if(!/<div id="root">\s*<\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
   html=html.replace(/<div id="root">\s*<\/div>/,rootMarkup);
