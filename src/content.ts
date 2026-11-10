@@ -6,7 +6,7 @@ export interface CachedNews {
   id: string; title: string; url: string; source: string; published_at: string;
   image_url: string; image_credit: string;
 }
-const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300, s-maxage=900, stale-while-revalidate=3600" };
+const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=600" };
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const clean = (value: unknown) => String(value ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 async function hash(value: string) {
