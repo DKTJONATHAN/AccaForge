@@ -44,6 +44,7 @@ function nairobiDate(offsetDays = 0) {
   return date.toISOString().slice(0, 10);
 }
 
+await d1("CREATE TABLE IF NOT EXISTS result_selections (selection_id TEXT PRIMARY KEY,acca_id TEXT NOT NULL,product_type TEXT NOT NULL,headline TEXT NOT NULL,publish_date TEXT NOT NULL,event_id TEXT NOT NULL,sport_key TEXT NOT NULL,commence_time TEXT NOT NULL,home_team TEXT NOT NULL,away_team TEXT NOT NULL,market_key TEXT NOT NULL,market_name TEXT NOT NULL,selection_name TEXT NOT NULL,odds REAL NOT NULL,selection_status TEXT NOT NULL DEFAULT 'PENDING',home_score INTEGER,away_score INTEGER,outcome TEXT NOT NULL DEFAULT 'PENDING',settled_at TEXT,result_note TEXT NOT NULL DEFAULT '')");
 await d1("CREATE TABLE IF NOT EXISTS team_badges (team_name TEXT PRIMARY KEY,normalized_name TEXT NOT NULL,image_key TEXT NOT NULL,source_url TEXT NOT NULL,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 await d1("CREATE TABLE IF NOT EXISTS sports_leagues (sport_key TEXT PRIMARY KEY,league_id INTEGER NOT NULL,season INTEGER NOT NULL,league_name TEXT NOT NULL,country TEXT NOT NULL DEFAULT '',logo_url TEXT NOT NULL DEFAULT '',logo_key TEXT NOT NULL DEFAULT '',standings_json TEXT NOT NULL DEFAULT '[]',last_attempt_date TEXT NOT NULL DEFAULT '',last_enriched_date TEXT NOT NULL DEFAULT '',last_error TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
