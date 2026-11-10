@@ -137,35 +137,6 @@ function renderPage(input:{title:string;description:string;path:string;body:stri
   return new Response(html,{status,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":status===200?"public, max-age=0, s-maxage=120, stale-while-revalidate=300":"public, max-age=60","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
 }
 
-async function sitemap(env:Env,origin:string,head=false){
-  // Keep the sitemap available even during a temporary D1 outage. Static
-  // editorial URLs are always returned; database-backed URLs are appended
-  // when the published-edition queries succeed.
-  let accas:Array<{id:string;publish_date:string}>=[];
-  let matches:Array<{event_id:string;lastmod:string}>=[];
-  try {
-    const [accaRows,matchRows]=await Promise.all([
-      env.DB.prepare("SELECT id,publish_date FROM accas WHERE status='published' ORDER BY publish_date DESC").all<{id:string;publish_date:string}>(),
-      env.DB.prepare("SELECT s.event_id,MAX(a.publish_date) AS lastmod FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' GROUP BY s.event_id ORDER BY lastmod DESC").all<{event_id:string;lastmod:string}>()
-    ]);
-    accas=accaRows.results||[];
-    matches=matchRows.results||[];
-  } catch(error) {
-    console.error("Dynamic sitemap entries could not be loaded from D1; serving the static sitemap entries.",error);
-  }
-  const urls:Array<{path:string;lastmod?:string}>=[
-    {path:"/"},{path:"/daily"},{path:"/recent"},{path:"/results"},{path:"/competitions"},{path:"/safe-picks"},{path:"/super-5"},{path:"/super-10"},{path:"/all-matches"},{path:"/about"},{path:"/contact"},{path:"/terms"},{path:"/privacy"},
-    {path:"/cookies"},{path:"/responsible-gambling"},{path:"/editorial-policy"},{path:"/image-credits"},{path:"/sure-tips"},{path:"/football-betting-tips"},{path:"/accumulator-tips"},{path:"/football-predictions-kenya"},{path:"/btts-predictions"},{path:"/over-under-goals-predictions"},{path:"/premier-league-tips"},{path:"/players/lionel-messi"},{path:"/players/cristiano-ronaldo"},{path:"/teams/chelsea"},{path:"/teams/arsenal"},{path:"/teams/manchester-united"},{path:"/teams/liverpool"},{path:"/leagues/soccer_epl"},{path:"/leagues/soccer_uefa_champs_league"},{path:"/leagues/soccer_uefa_europa_league"},{path:"/leagues/soccer_spain_la_liga"},{path:"/leagues/soccer_germany_bundesliga"},{path:"/leagues/soccer_italy_serie_a"},{path:"/leagues/soccer_france_ligue_one"},{path:"/leagues/soccer_netherlands_eredivisie"}
-  ];
-  for(const item of accas)urls.push({path:"/accumulators/"+encodeURIComponent(item.id),lastmod:item.publish_date});
-  for(const item of matches)urls.push({path:"/matches/"+encodeURIComponent(item.event_id),lastmod:item.lastmod});
-  const xml='<?xml version="1.0" encoding="UTF-8"?>'+
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+
-    urls.map(item=>"<url><loc>"+escapeXml(new URL(item.path,origin).toString())+"</loc>"+(item.lastmod?"<lastmod>"+escapeXml(item.lastmod)+"</lastmod>":"")+"</url>").join("")+
-    "</urlset>";
-  return new Response(head?null:xml,{headers:{"Content-Type":"application/xml; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=300","X-Content-Type-Options":"nosniff"}});
-}
-
 async function accumulatorPage(id:string,env:Env,origin:string){
   const acca=await env.DB.prepare("SELECT * FROM accas WHERE id=? AND status='published'").bind(id).first<AccaRow>();
   if(!acca)return renderPage({title:"Accumulator edition not found | AccaForge",description:"This football accumulator edition is no longer available.",path:"/accumulators/"+encodeURIComponent(id),robots:"noindex,follow",body:"<h1>Edition not found</h1><p>This accumulator may have expired from the recent-editions archive. Visit the <a href='/'>AccaForge daily football tips page</a> for the latest published selections.</p>"},origin,404);
@@ -284,10 +255,6 @@ export default {
       return getHealth({ request, env });
     }
     if (url.pathname.startsWith("/api/")) return Response.json({ error: "Not found." }, { status: 404 });
-    if (url.pathname === "/sitemap.xml") {
-      if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-      return sitemap(env,SITE_ORIGIN,request.method==="HEAD");
-    }
     if (url.pathname === "/robots.txt") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
       const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\n";
