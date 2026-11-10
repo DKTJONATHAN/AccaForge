@@ -97,35 +97,80 @@ function seasonStart(value) {
   return match ? Number(match[0]) : Number(nairobiDate().slice(0, 4));
 }
 
-async function saveLeague(team, runDate) {
-  const leagueId = Number(team.idLeague || 0);
-  if (!leagueId) return;
-  if (leagueCache.has(leagueId)) return leagueCache.get(leagueId);
-  const cached = (await d1("SELECT logo_key,logo_url,league_name,country,season FROM sports_leagues WHERE league_id=? LIMIT 1", [leagueId]))[0];
-  let league = null;
-  try {
-    const data = await sportsDb("lookupleague.php", { id: leagueId });
-    league = Array.isArray(data.leagues) ? data.leagues[0] : null;
-  } catch (error) {
-    console.warn("League details lookup failed for " + clean(team.strLeague) + ": " + String(error));
+function leagueForCompetition(team, sportKey) {
+  const slug = sportKey.replace(/^soccer_/, "").toLowerCase();
+  const aliases = {
+    epl: ["premier league", "english premier league"],
+    spain_la_liga: ["la liga", "primera division"],
+    germany_bundesliga: ["bundesliga"],
+    italy_serie_a: ["serie a"],
+    france_ligue_one: ["ligue 1"],
+    netherlands_eredivisie: ["eredivisie"],
+    portugal_primeira_liga: ["primeira liga"],
+    usa_mls: ["major league soccer", "mls"],
+    england_championship: ["championship"],
+    uefa_champs_league: ["uefa champions league", "champions league"],
+    uefa_europa_league: ["uefa europa league", "europa league"],
+    uefa_europa_conference_league: ["uefa europa conference league", "conference league"],
+    uefa_nations_league: ["uefa nations league"],
+    fifa_world_cup: ["fifa world cup", "world cup"],
+    fa_cup: ["fa cup"],
+    brazil_campeonato: ["serie a", "campeonato brasileiro serie a"],
+    brazil_serie_b: ["serie b", "campeonato brasileiro serie b"],
+    australia_aleague: ["a-league", "a-league men"],
+    japan_j_league: ["j1 league", "j league"],
+    turkey_super_league: ["super lig", "super league"],
+    scotland_premiership: ["scottish premiership", "premiership"],
+    belgium_first_div: ["pro league", "first division a"],
+    mexico_ligamx: ["liga mx"],
+    argentina_primera_division: ["liga profesional", "primera division"],
+    chile_campeonato: ["primera division"],
+    norway_eliteserien: ["eliteserien"]
+  };
+  const expected = aliases[slug] || [slug.replace(/_/g, " ")];
+  for (let index = 1; index <= 10; index++) {
+    const name = team["strLeague" + (index === 1 ? "" : index)];
+    const id = team["idLeague" + (index === 1 ? "" : index)];
+    if (!name || !id) continue;
+    const normalized = normalize(name);
+    if (expected.some(alias => normalized === normalize(alias) || normalized.includes(normalize(alias)) || normalize(alias).includes(normalized))) {
+      return { id: Number(id), name: clean(name) };
+    }
   }
-  const name = clean(league?.strLeague || team.strLeague || cached?.league_name || "Football competition");
-  const country = clean(league?.strCountry || team.strCountry || cached?.country || "");
-  const logo = String(league?.strBadge || league?.strLogo || league?.strPoster || cached?.logo_url || "");
-  const season = seasonStart(league?.strCurrentSeason || cached?.season || "");
-  const sportKey = clean(team._accaforgeSportKey || "sportsdb_" + leagueId, 100);
+  return null;
+}
+
+async function saveLeague(team, sportKey, runDate) {
+  const selected = leagueForCompetition(team, sportKey);
+  if (!selected?.id) return false;
+  let details = leagueCache.get(selected.id);
+  if (!details) {
+    try {
+      const data = await sportsDb("lookupleague.php", { id: selected.id });
+      const league = Array.isArray(data.leagues) ? data.leagues[0] : null;
+      details = {
+        name: clean(league?.strLeague || selected.name),
+        country: clean(league?.strCountry || team.strCountry || ""),
+        logo: String(league?.strBadge || league?.strLogo || league?.strPoster || ""),
+        season: seasonStart(league?.strCurrentSeason || "")
+      };
+    } catch (error) {
+      console.warn("League details lookup failed for " + selected.name + ": " + String(error));
+      details = { name: selected.name, country: clean(team.strCountry), logo: "", season: seasonStart("") };
+    }
+    leagueCache.set(selected.id, details);
+  }
+  const existing = (await d1("SELECT standings_json,logo_key,logo_url FROM sports_leagues WHERE sport_key=?", [sportKey]))[0];
   await d1(
     "INSERT INTO sports_leagues (sport_key,league_id,season,league_name,country,logo_url,logo_key,standings_json,last_attempt_date,last_enriched_date,last_error,updated_at) " +
     "VALUES (?,?,?,?,?,?, '', '[]',?,?, '',CURRENT_TIMESTAMP) " +
     "ON CONFLICT(sport_key) DO UPDATE SET league_id=excluded.league_id,season=excluded.season,league_name=excluded.league_name,country=excluded.country," +
     "logo_url=CASE WHEN excluded.logo_url<>'' THEN excluded.logo_url ELSE sports_leagues.logo_url END," +
     "last_attempt_date=excluded.last_attempt_date,last_enriched_date=excluded.last_enriched_date,last_error='',updated_at=CURRENT_TIMESTAMP",
-    [sportKey, leagueId, season, name, country, logo, runDate, runDate]
+    [sportKey, selected.id, details.season, details.name, details.country, details.logo, runDate, runDate]
   );
-  // Keep a TheSportsDB-keyed row for every competition; preserve any existing standings JSON.
-  leagueCache.set(leagueId, { name, country, logo, sportKey });
-  if (logo) savedLeagueLogos++;
-  return leagueCache.get(leagueId);
+  if (details.logo && !existing?.logo_url) savedLeagueLogos++;
+  return true;
 }
 
 console.log("TheSportsDB enrichment starting for " + names.length + " unique teams across today's fixtures and yesterday's results.");
@@ -154,9 +199,9 @@ for (const name of names) {
     const relevantRows = fixtures.filter(row => teamKey(row.home_team) === teamKey(name) || teamKey(row.away_team) === teamKey(name));
     for (const row of relevantRows) {
       try {
-        await saveLeague({ ...team, _accaforgeSportKey: row.sport_key }, today);
+        await saveLeague(team, row.sport_key, today);
       } catch (error) {
-        console.warn("Competition artwork save failed for " + clean(team.strLeague) + ": " + String(error));
+        console.warn("Competition artwork save failed for " + row.sport_key + ": " + String(error));
       }
     }
     console.log(JSON.stringify({ team: name, matched: team.strTeam, country: clean(team.strCountry), league: clean(team.strLeague), teamBadge: Boolean(badge) }));
