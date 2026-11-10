@@ -70,11 +70,10 @@ jobs:
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
         run: node scripts/generate-daily.mjs
 
-      - name: Enrich published fixtures with club crests and league tables (GitHub → D1)
-        if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'enrich'))
+      - name: Discover team and competition artwork for today and yesterday (GitHub → D1)
+        if: (github.event_name == 'schedule' && (github.event.schedule == '0 0 * * *' || github.event.schedule == '0 6 * * *')) || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'results' || inputs.task == 'enrich'))
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
         run: node scripts/enrich-football-data.mjs
