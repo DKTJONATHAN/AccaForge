@@ -1,45 +1,38 @@
-# AccaForge football data enrichment
+# AccaForge football artwork and standings
 
-AccaForge enriches fixtures already published for the current Africa/Nairobi date with club crests, competition crests and league standings.
+AccaForge discovers team crests and competition artwork for the current Kenya/Africa-Nairobi publication day and the previous day's results. Discovery runs in GitHub Actions and saves source metadata to Cloudflare D1. Cloudflare Workers then copy the images into the existing `accaforge-media` R2 bucket and serve immutable cached URLs to every visitor.
 
-## Processing architecture
+## Providers and credentials
 
-GitHub Actions performs the complete enrichment job. It reads the published fixtures, calls API-Football, and writes the resulting team badge URLs and league tables directly to Cloudflare D1 through Cloudflare's D1 REST API. The Cloudflare Worker only serves the website and reads the saved data; no visitor request or scheduler proxy triggers sports API calls.
+- **TheSportsDB V1 public API** supplies team records, country/competition metadata, team badges and league artwork.
+- Its public key is `123`; it requires no account, payment, API secret or manual approval.
+- The free service documents a 30-request-per-minute limit and endpoint-specific result limits. The workflow paces requests and only performs lookups for fixture teams that do not already have a cached R2 image.
+- API-Football is no longer used by the logo enrichment workflow. The `API_FOOTBALL_KEY` GitHub secret is no longer required.
 
-## One-time setup
+## Processing sequence
 
-1. Create a free account at https://dashboard.api-football.com/register.
-2. In the API-Football dashboard, open **Account → My Access** and copy the API key.
-3. In the GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret**.
-4. Add `API_FOOTBALL_KEY` and paste the API key. This key belongs in GitHub Actions because the enrichment runner executes there; it is no longer read from a Cloudflare Worker secret.
-5. Ensure these existing GitHub Actions secrets are present:
-   - `CLOUDFLARE_API_TOKEN` — Cloudflare API token with permission to query and edit the AccaForge D1 database.
-   - `CLOUDFLARE_ACCOUNT_ID`
-   - `D1_DATABASE_ID`
+The GitHub Actions workflow performs discovery after both daily stages:
+1. At 3:00 AM Africa/Nairobi, it refreshes yesterday's match results, then discovers artwork for teams in yesterday's result records and today's already-published fixtures.
+2. At 9:00 AM Africa/Nairobi, it generates and publishes today's editions, then runs discovery again so newly loaded teams are captured immediately.
+3. The discovery script matches each team by its normalized full name and confirms that TheSportsDB identifies it as Soccer. It reads the team's country and competition IDs from the returned record, then looks up the relevant competition artwork. It does not assign a badge when the team match or competition match is uncertain.
+4. Team badge URLs and competition artwork URLs are written to D1. Existing standings JSON is preserved; the free API's limited league-table coverage is not used to overwrite standings.
+5. The Cloudflare Worker runs a five-minute scheduled task. It downloads newly discovered image files into the existing `accaforge-media` R2 bucket, saves the R2 object keys in D1 and serves them through `/media-cache/...` with immutable cache headers.
+6. The public `/api/content` response reads the saved D1 records. Visitor requests do not perform TheSportsDB lookups or initiate logo downloads.
 
-Never commit API keys to the repository or put them in frontend code.
+## Existing GitHub secrets
 
-## Daily sequence
+Keep the existing secrets used by the daily workflow:
+- `CLOUDFLARE_API_TOKEN` — Cloudflare API token with permission to query and edit the AccaForge D1 database.
+- `CLOUDFLARE_ACCOUNT_ID`
+- `D1_DATABASE_ID`
+- The existing Odds API and Groq secrets used by generation and results refresh.
 
-The 9:00 AM Africa/Nairobi GitHub Actions job:
-1. Fetches the day's football fixtures and odds directly from The Odds API.
-2. Performs the shared match research and generates the daily editions directly through Groq.
-3. Publishes the completed editions and snapshots directly to Cloudflare D1.
-4. Runs `scripts/enrich-football-data.mjs`, which reads those newly published fixtures, calls API-Football and saves team/league image URLs and standings JSON directly into D1.
-
-The runner:
-- Reads only fixtures in today's published D1 editions.
-- Groups fixtures by competition and fetches team and standings data in batches, not one request per team.
-- Stores provider image URLs and league tables in D1. The website displays those saved URLs; it does not call API-Football.
-- Reuses competition IDs and season mappings from D1 on later days.
-- Paces API requests and stops at 75 data requests per UTC day, leaving a safety margin below the free 100-request quota.
-- Records the daily run and skips a date already marked completed.
-- Does not make sports API calls from visitor page views.
+No new sports-data API secret is required. The Worker already uses the configured D1 binding and `MEDIA` R2 binding.
 
 ## Manual run
 
-In GitHub, open **Actions → AccaForge Scheduled Jobs → Run workflow** and choose `enrich`, or open **Actions → AccaForge Football Logos & Standings** and run that workflow. Both execute directly on GitHub and write to D1; neither calls the Cloudflare Worker scheduler.
+In GitHub, open **Actions → AccaForge Scheduled Jobs → Run workflow** and choose `enrich`. The job processes both today's fixtures and yesterday's results and writes discovery metadata directly to D1. The Worker then caches the actual image files in R2 on its next scheduled run.
 
-## Coverage
+## Coverage and safety
 
-The job enriches competitions that API-Football can resolve and serve for the current season. If a competition is unavailable or cannot be safely matched, AccaForge retains its existing fallback presentation rather than assigning the wrong club crest or standings.
+TheSportsDB is community-maintained and does not contain every team or competition. Its free search endpoint returns a limited result set. AccaForge therefore accepts only exact normalized team matches and competition matches supported by the team's competition list. Unmatched items remain without a crest rather than displaying another club's artwork. Competition standings already saved in D1 remain intact.
