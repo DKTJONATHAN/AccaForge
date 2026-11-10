@@ -290,7 +290,7 @@ export default {
     }
     if (url.pathname === "/robots.txt") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-      const body="User-agent: *\\nAllow: /\\nDisallow: /api/\\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\\n";
+      const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\n";
       return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"public, max-age=300","X-Content-Type-Options":"nosniff"}});
     }
     const staticPage=staticPages[url.pathname.replace(/\/$/,"") || "/"];
