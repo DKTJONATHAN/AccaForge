@@ -142,6 +142,54 @@ export async function refreshDailyContent(env: ContentEnv) {
   await env.DB.prepare("DELETE FROM content_media WHERE kind='photo' AND created_at < datetime('now','-14 days')").run();
   return { news: articles.length, photos: photos.length, teams_checked: checked, refreshed_at: now.toISOString() };
 }
+export async function cacheSportsArtwork(env: ContentEnv) {
+  await ensureContentTables(env);
+  const [teams, leagues] = await Promise.all([
+    env.DB.prepare("SELECT team_name,source_url FROM team_badges WHERE image_key='' AND source_url LIKE 'https://%' LIMIT 40").all<{team_name:string;source_url:string}>(),
+    env.DB.prepare("SELECT sport_key,logo_url FROM sports_leagues WHERE logo_key='' AND logo_url LIKE 'https://%' LIMIT 20").all<{sport_key:string;logo_url:string}>()
+  ]);
+  let teamsCached = 0;
+  let leaguesCached = 0;
+  const cacheImage = async (sourceUrl: string, folder: "teams" | "leagues") => {
+    const response = await fetch(sourceUrl, {
+      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.eu.cc)" },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!response.ok) throw new Error("Artwork download returned HTTP " + response.status);
+    const contentType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "";
+    if (!extension) throw new Error("Unsupported artwork content type: " + contentType);
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength < 100 || bytes.byteLength > 2_000_000) throw new Error("Artwork size outside the allowed range.");
+    const key = folder + "/" + await hash(sourceUrl) + "." + extension;
+    await env.MEDIA.put(key, bytes, {
+      httpMetadata: { contentType, cacheControl: "public, max-age=31536000, immutable" }
+    });
+    return key;
+  };
+  for (const item of teams.results || []) {
+    try {
+      const key = await cacheImage(item.source_url, "teams");
+      await env.DB.prepare("UPDATE team_badges SET image_key=?,updated_at=CURRENT_TIMESTAMP WHERE team_name=? AND image_key=''")
+        .bind(key, item.team_name).run();
+      teamsCached++;
+    } catch (error) {
+      console.warn("Team crest R2 cache failed for " + item.team_name, error);
+    }
+  }
+  for (const item of leagues.results || []) {
+    try {
+      const key = await cacheImage(item.logo_url, "leagues");
+      await env.DB.prepare("UPDATE sports_leagues SET logo_key=?,updated_at=CURRENT_TIMESTAMP WHERE sport_key=? AND logo_key=''")
+        .bind(key, item.sport_key).run();
+      leaguesCached++;
+    } catch (error) {
+      console.warn("Competition logo R2 cache failed for " + item.sport_key, error);
+    }
+  }
+  return { teamsCached, leaguesCached, teamsPending: teams.results?.length || 0, leaguesPending: leagues.results?.length || 0 };
+}
+
 export async function getCachedContent(env: ContentEnv) {
   await ensureContentTables(env);
   const [newsResult, mediaResult, badgesResult, sportsResult] = await Promise.all([
