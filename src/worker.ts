@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
-import { cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
+import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { resultsApi } from "./results";
 
 interface Env {
@@ -243,6 +243,9 @@ async function renderHome(request:Request,env:Env){
 }
 
 export default {
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); }));
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api/accas") {
