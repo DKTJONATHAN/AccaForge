@@ -32,7 +32,7 @@ async function loadContent():Promise<SiteContent>{
  if(!response.ok)throw new Error("Could not load cached sports coverage.");
  return response.json();
 }
-type ResultsPayload={date:string;needsOddsApiSecret?:boolean;rows:Array<{selection_id:string;product_type:string;headline:string;publish_date:string;event_id:string;commence_time:string;home_team:string;away_team:string;market_name:string;selection_name:string;odds:number;home_score:number|null;away_score:number|null;outcome:string;result_note:string}>;summary:{total:number;won:number;lost:number;pending:number;void:number;pass:number};accuracy:number|null};
+type ResultsPayload={date:string;needsOddsApiSecret?:boolean;rows:Array<{selection_id:string;product_type:string;headline:string;publish_date:string;event_id:string;sport_key:string;commence_time:string;home_team:string;away_team:string;market_name:string;selection_name:string;odds:number;home_score:number|null;away_score:number|null;outcome:string;result_note:string}>;summary:{total:number;won:number;lost:number;pending:number;void:number;pass:number};accuracy:number|null};
 async function loadResults():Promise<ResultsPayload>{const response=await fetch("/api/results");if(!response.ok)throw new Error("Could not load yesterday’s results.");return response.json();}
 async function loadAccas():Promise<AccasResponse>{
  const response=await fetch("/api/accas?days=3");
