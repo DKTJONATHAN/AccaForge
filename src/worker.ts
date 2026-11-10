@@ -29,9 +29,7 @@ interface MatchRow extends SelectionRow {
 
 const SITE_ORIGIN = "https://accaforge.eu.cc";
 const htmlEntities:Record<string,string> = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
-const xmlEntities:Record<string,string> = {"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"};
 const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => htmlEntities[char] || char);
-const escapeXml = (value:string) => value.replace(/[<>&'"]/g, char => xmlEntities[char] || char);
 const safeJson = (value:unknown) => String(JSON.stringify(value ?? null)).replace(/</g,"\\u003c");
 const competitionName = (key:string) => ({
   soccer_epl:"English Premier League",
