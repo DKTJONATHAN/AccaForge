@@ -128,7 +128,7 @@ function leagueForCompetition(team, sportKey) {
     chile_campeonato: ["primera division"],
     norway_eliteserien: ["eliteserien"]
   };
-  const expected = aliases[slug] || [slug.replace(/_/g, " ")];
+  const parts = slug.split("_");\n  const inferred = [slug.replace(/_/g, " ")];\n  if (parts.length > 2) inferred.push(parts.slice(1).join(" "));\n  const expected = [...(aliases[slug] || []), ...inferred];
   for (let index = 1; index <= 10; index++) {
     const name = team["strLeague" + (index === 1 ? "" : index)];
     const id = team["idLeague" + (index === 1 ? "" : index)];
