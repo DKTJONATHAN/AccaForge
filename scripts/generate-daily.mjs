@@ -344,7 +344,7 @@ async function getDailyResearch(date,events){
   const reason=cleanText(error?.message||error,360);
   console.warn("Live browser research unavailable after retries; proceeding with an explicitly unverified research dossier: "+reason);
   const dossier="LIVE WEB RESEARCH UNAVAILABLE for "+date+". No current form, H2H, standings, injury, suspension, rotation, schedule or news claims have been independently verified. Treat all such information as UNKNOWN. Product stages may assess only supplied market prices and fixture metadata; do not invent football facts or cite nonexistent sources.";
-  await saveResearch(date,dossier,[]);
+  // Do not cache this fallback: a later workflow rerun should retry live research.
   return {dossier,citations:[]};
  }
  const dossier=research.choices?.[0]?.message?.content||"";
@@ -384,7 +384,7 @@ async function askGroqProduct(type,candidates,events,research){
   prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: build a combination with decimal combined odds of AT LEAST 10.00. Use as many different fixtures as genuinely needed; there is no fixed selection count and you may go beyond 10 matches. Use only one market per fixture and never repeat a fixture. Every individual selection must have odds of at least 1.20 (never use 1.0xx or other sub-1.20 odds to build the total). Prefer the strongest defensible high-probability outcomes, not simply the shortest prices. Keep adding well-supported selections until combined odds reach at least 10.00. Do not force the target with weak picks; if no defensible combination reaches 10.00, return safe_picks=null and explain why. Never pad.","Eligible candidate rows:",JSON.stringify(safeRows)].concat(common.filter(line=>line!=="Candidate rows:"&&line!==JSON.stringify(candidateRows))).join("\n\n");
  }
  console.log("Groq independent product stage: "+type+" ("+candidateRows.length+" candidates).");
- const result=await groqRequest({model,messages:[{role:"user",content:prompt}],reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:completion,temperature:0.2},"product "+type);
+ const result=await groqRequest({model,messages:[{role:"user",content:prompt}],response_format:{type:"json_object"},reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:completion,temperature:0.2},"product "+type);
  const content=result.choices?.[0]?.message?.content||"";
  const jsonText=extractGroqJson(content);
  if(!jsonText)throw new Error("Groq did not return a complete JSON object for "+type+".");
