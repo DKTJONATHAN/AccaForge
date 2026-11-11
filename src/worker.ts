@@ -7,6 +7,7 @@ import App from "./App";
 import type { AccasResponse } from "./types";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { resultsApi } from "./results";
+import { SITE_ORIGIN } from "./site-origin";
 
 interface Env {
   DB: D1Database;
@@ -27,7 +28,6 @@ interface MatchRow extends SelectionRow {
   publish_date:string; headline:string;
 }
 
-const SITE_ORIGIN = "https://accaforge.eu.cc";
 const htmlEntities:Record<string,string> = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
 const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => htmlEntities[char] || char);
 const safeJson = (value:unknown) => String(JSON.stringify(value ?? null)).replace(/</g,"\\u003c");
