@@ -287,27 +287,39 @@ async function groqRequest(body,label){
  for(let attempt=1;attempt<=3;attempt++){
   try{
    let response,payload,responseText;
+   const requestBody={...body};
+   if(label==="shared web research"&&attempt>1){
+    requestBody.temperature=attempt===2?0.7:0.4;
+    console.warn("Retrying Groq browser research with temperature "+requestBody.temperature+" after a parsing failure.");
+   }
    for(let keyAttempt=0;keyAttempt<groqKeys.length;keyAttempt++){
     const keyIndex=(groqKeyCursor+keyAttempt)%groqKeys.length;
-    response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(180000)});
+    response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(180000)});
     responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
     if(![401,403,429].includes(response.status)||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
     console.warn("Groq key slot "+(keyIndex+1)+" returned HTTP "+response.status+" during "+label+"; rotating.");
    }
    console.log("Groq "+label+" direct from GitHub Actions: HTTP "+response.status);
    if(response.ok)return payload;
-   const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1200);
+   const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1600);
    lastError=new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
    if([401,403,429].includes(response.status))throw lastError;
-   if(response.status<500&&response.status!==408)throw lastError;
-  }catch(error){lastError=error;if(attempt===3)break;console.warn("Groq attempt "+attempt+" failed during "+label+"; retrying.");await new Promise(resolve=>setTimeout(resolve,attempt*5000));}
+   const parseFailure=label==="shared web research"&&/parsing failed|could not be parsed|failed_generation/i.test(detail);
+   if(response.status<500&&response.status!==408&&!parseFailure)throw lastError;
+  }catch(error){
+   lastError=error;
+   const retryable=error?.message?.includes("HTTP 400")&&label==="shared web research"&&/parsing failed|could not be parsed|failed_generation/i.test(error.message);
+   if(attempt===3||(!retryable&&error?.message?.includes("HTTP 4")))break;
+   console.warn("Groq attempt "+attempt+" failed during "+label+": "+cleanText(error?.message||error,500));
+   await new Promise(resolve=>setTimeout(resolve,attempt*5000));
+  }
  }
  throw lastError||new Error("Groq request failed during "+label);
 }
 async function verifyGroqAccess(){
  const payload=await groqRequest({
   model, messages:[{role:"user",content:"Reply with the single word READY."}],
-  max_completion_tokens:256,temperature:0,reasoning_effort:"low"
+  max_completion_tokens:256,temperature:0.2,reasoning_effort:"low"
  },"preflight");
  const content=payload.choices?.[0]?.message?.content||"";
  if(!content.trim())throw new Error("Groq preflight returned no usable response after trying configured keys. No Odds API fixtures were requested.");
@@ -325,9 +337,18 @@ async function getDailyResearch(date,events){
   JSON.stringify(fixtureRows)
  ].join("\n\n");
  console.log("Shared Groq research: "+fixtureRows.length+" fixtures.");
- const research=await groqRequest({model,messages:[{role:"user",content:researchPrompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:3000,temperature:1,reasoning_effort:"low"},"shared web research");
+ let research;
+ try{
+  research=await groqRequest({model,messages:[{role:"user",content:researchPrompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:2200,temperature:1,reasoning_effort:"low"},"shared web research");
+ }catch(error){
+  const reason=cleanText(error?.message||error,360);
+  console.warn("Live browser research unavailable after retries; proceeding with an explicitly unverified research dossier: "+reason);
+  const dossier="LIVE WEB RESEARCH UNAVAILABLE for "+date+". No current form, H2H, standings, injury, suspension, rotation, schedule or news claims have been independently verified. Treat all such information as UNKNOWN. Product stages may assess only supplied market prices and fixture metadata; do not invent football facts or cite nonexistent sources.";
+  await saveResearch(date,dossier,[]);
+  return {dossier,citations:[]};
+ }
  const dossier=research.choices?.[0]?.message?.content||"";
- if(!dossier.trim())throw new Error("Groq browser research returned no evidence dossier. No product stages can be responsibly generated.");
+ if(!dossier.trim())throw new Error("Groq browser research returned no evidence dossier.");
  const citations=research.choices?.[0]?.message?.citations||[];
  await saveResearch(date,dossier,citations);
  console.log("Saved shared research dossier; citation metadata entries: "+citations.length+"; dossier characters: "+dossier.length+".");
