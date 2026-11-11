@@ -8,7 +8,8 @@
     "build": "node scripts/download-media.mjs && tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty",
-    "generate:daily": "node scripts/generate-daily.mjs"
+    "generate:daily": "node scripts/generate-daily.mjs",
+    "verify:seo": "node scripts/verify-seo.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",
