@@ -255,6 +255,19 @@ export default {
       return getHealth({ request, env });
     }
     if (url.pathname.startsWith("/api/")) return Response.json({ error: "Not found." }, { status: 404 });
+    if (url.pathname === "/sitemap.xml") {
+      if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
+      const staticPaths=["/","/daily","/recent","/results","/competitions","/safe-picks","/super-5","/super-10","/all-matches","/about","/contact","/terms","/privacy","/cookies","/responsible-gambling","/editorial-policy","/image-credits","/sure-tips","/football-betting-tips","/accumulator-tips","/football-predictions-kenya","/btts-predictions","/over-under-goals-predictions","/premier-league-tips"];
+      const entries=staticPaths.map(path=>"<url><loc>"+escapeHtml(SITE_ORIGIN+path)+"</loc></url>");
+      try {
+        const editions=(await env.DB.prepare("SELECT id FROM accas WHERE status='published' AND publish_date >= date('now','-30 days') ORDER BY publish_date DESC").all<{id:string}>()).results||[];
+        for(const edition of editions) if(edition.id) entries.push("<url><loc>"+escapeHtml(SITE_ORIGIN+"/accumulators/"+encodeURIComponent(edition.id))+"</loc></url>");
+      } catch(error) {
+        console.error("AccaForge sitemap could not read published editions.",error);
+      }
+      const body='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+entries.join("\n")+'\n</urlset>';
+      return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"application/xml; charset=utf-8","Cache-Control":"public, max-age=300, s-maxage=300","X-Content-Type-Options":"nosniff"}});
+    }
     if (url.pathname === "/robots.txt") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
       const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\n";
