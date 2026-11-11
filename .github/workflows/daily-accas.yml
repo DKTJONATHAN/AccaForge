@@ -3,7 +3,7 @@ name: AccaForge Scheduled Jobs
 on:
   schedule:
     - cron: "10 0 * * *" # 3:10 AM Africa/Nairobi - results refresh
-    - cron: "10 6 * * *" # 9:10 AM Africa/Nairobi - daily generation
+    - cron: "0 6 * * *" # 9:00 AM Africa/Nairobi - daily generation
   workflow_dispatch:
     inputs:
       task:
@@ -47,7 +47,7 @@ jobs:
         run: node scripts/refresh-results.mjs
 
       - name: Backup refresh of yesterday's results before daily generation
-        if: (github.event_name == 'schedule' && github.event.schedule == '10 6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'generate')
+        if: (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') || (github.event_name == 'workflow_dispatch' && inputs.task == 'generate')
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -84,7 +84,7 @@ jobs:
         run: node scripts/generate-daily.mjs
 
       - name: Discover team and competition artwork for today and yesterday (GitHub → D1)
-        if: (github.event_name == 'schedule' && (github.event.schedule == '10 0 * * *' || github.event.schedule == '10 6 * * *')) || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'results' || inputs.task == 'enrich'))
+        if: (github.event_name == 'schedule' && (github.event.schedule == '10 0 * * *' || github.event.schedule == '0 6 * * *')) || (github.event_name == 'workflow_dispatch' && (inputs.task == 'generate' || inputs.task == 'results' || inputs.task == 'enrich'))
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
