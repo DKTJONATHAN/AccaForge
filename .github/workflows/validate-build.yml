@@ -24,5 +24,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Check daily generator JavaScript syntax
         run: node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs && node --check scripts/refresh-results.mjs
+      - name: Validate SEO verification scripts
+        run: node --check scripts/verify-seo.mjs && bash -n scripts/verify-seo.sh
       - name: Type-check and build
         run: npm run build
