@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty",
     "generate:daily": "node scripts/generate-daily.mjs",
-    "verify:seo": "node scripts/verify-seo.mjs"
+    "verify:seo": "bash scripts/verify-seo.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",
