@@ -46,7 +46,7 @@ type ResultsPayload={date:string;windowDays?:number;needsOddsApiSecret?:boolean;
 async function loadResults():Promise<ResultsPayload>{const response=await fetch("/api/results");if(!response.ok)throw new Error("Could not load the published results archive.");return response.json();}
 
 type TrackRow={key:string;label:string;total:number;won:number;lost:number;void:number;pending:number;pass:number;settled:number;averageOdds:number|null;profit:number;roi:number|null;firstDate:string|null;lastDate:string|null};
-type TrackRecordPayload={summary:TrackRow;byFormat:TrackRow[];byMarket:TrackRow[];byMonth:TrackRow[];coverage:{firstDate:string|null;lastDate:string|null;trackedDays:number;lastSettledAt:string|null};methodology:{stake:number;profit:string;roi:string;accuracy:string;scope:string}};
+export type TrackRecordPayload={summary:TrackRow;byFormat:TrackRow[];byMarket:TrackRow[];byMonth:TrackRow[];coverage:{firstDate:string|null;lastDate:string|null;trackedDays:number;lastSettledAt:string|null};methodology:{stake:number;profit:string;roi:string;accuracy:string;scope:string}};
 async function loadTrackRecord():Promise<TrackRecordPayload>{const response=await fetch("/api/track-record");if(!response.ok)throw new Error("Could not load the historical track record.");return response.json();}
 const pct=(value:number|null)=>value===null?"—":(value>0?"+":"")+value.toFixed(1)+"%";
 const unit=(value:number)=>((value>0?"+":"")+value.toFixed(2)+" units");
