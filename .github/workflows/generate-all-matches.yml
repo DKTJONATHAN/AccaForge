@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ["AccaForge Generate Super 10"]
     types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +16,7 @@ concurrency:
 
 jobs:
   generate:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
