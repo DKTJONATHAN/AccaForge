@@ -915,3 +915,60 @@ html,body,.app{background:var(--page)}
   .home-board-stage .home-board-preview{padding:13px 11px 11px}
   .home-board-stage .board-card-top h2{font-size:21px}
 }
+
+
+/* Mobile contrast correction: the intro is content, not a dark banner */
+@media(max-width:760px){
+  .home-page{padding-top:10px}
+  .home-hero{
+    display:block;
+    min-height:0;
+    margin:0;
+    padding:10px 0 15px;
+    border:0;
+    border-radius:0;
+    background:transparent!important;
+    background-image:none!important;
+    box-shadow:none!important;
+    color:#142b20!important;
+  }
+  .home-copy{max-width:100%}
+  .home-kicker{
+    color:#087b4a!important;
+    margin:0 0 8px;
+    font-size:8px;
+    line-height:1.4;
+    letter-spacing:.12em;
+  }
+  .home-copy h1{
+    max-width:17ch;
+    margin:0;
+    color:#10251b!important;
+    font-size:clamp(31px,8vw,36px);
+    line-height:1.02;
+    letter-spacing:-.45px;
+    text-shadow:none!important;
+  }
+  .home-copy>p{
+    max-width:46ch;
+    margin:8px 0 0;
+    color:#53645b!important;
+    font-size:12px;
+    line-height:1.45;
+  }
+  .home-hero .hero-actions{display:none}
+  .home-hero .home-date{display:none}
+  .home-board-stage{margin:0;padding:0}
+  .home-board-stage .home-board-preview{
+    border:1px solid #d9e5dc;
+    border-top:3px solid #07834f;
+    border-radius:13px;
+    background:#fff;
+    box-shadow:0 6px 18px rgba(9,39,25,.055);
+  }
+}
+@media(max-width:380px){
+  .home-hero{padding-top:8px;padding-bottom:12px}
+  .home-copy h1{font-size:30px}
+  .home-copy>p{font-size:11px}
+}
