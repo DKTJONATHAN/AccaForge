@@ -5,7 +5,6 @@ on:
     workflows: ["AccaForge Generate Super 10"]
     types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
