@@ -711,3 +711,65 @@ html,body,.app{background:var(--page)}
  .home-league-strip img{width:17px;height:17px}
 }
 @media(prefers-reduced-motion:reduce){.hero-league-float{animation:none}}
+
+
+/* Mobile homepage: compact intro first, daily odds card immediately beneath */
+@media(max-width:760px){
+  .home-hero{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:14px;
+    padding:18px 0 22px;
+    min-height:0;
+  }
+  .home-copy{max-width:none}
+  .home-kicker{font-size:9px;letter-spacing:.12em}
+  .home-copy h1{
+    max-width:15ch;
+    margin-top:7px;
+    font-size:clamp(29px,8vw,37px);
+    line-height:1;
+    letter-spacing:-.35px;
+  }
+  .home-copy>p{
+    max-width:48ch;
+    margin-top:9px;
+    font-size:12px;
+    line-height:1.45;
+    display:-webkit-box;
+    -webkit-box-orient:vertical;
+    -webkit-line-clamp:2;
+    overflow:hidden;
+  }
+  .home-copy .hero-actions{display:none}
+  .home-date{margin-top:10px;font-size:10px;gap:6px}
+  .home-board-stage{
+    width:100%;
+    padding:0;
+    margin:0;
+  }
+  .home-league-burst{display:none}
+  .home-board-stage .home-board-preview{
+    width:100%;
+    padding:16px 15px 13px;
+    border-radius:14px;
+    box-shadow:0 8px 22px rgba(15,35,25,.1);
+  }
+  .home-board-stage .board-card-top{align-items:center;gap:8px}
+  .home-board-stage .board-card-top h2{font-size:20px;line-height:1.05}
+  .home-board-stage .board-card-note{margin:7px 0 4px;font-size:10px;line-height:1.4}
+  .home-board-stage .preview-row{min-height:58px}
+  .home-board-stage .preview-row strong{font-size:13px}
+  .home-board-stage .preview-row small{font-size:10px}
+  .home-board-stage .preview-row b{font-size:16px}
+  .home-league-strip{margin:9px 0 0;padding:7px 9px}
+}
+@media(max-width:380px){
+  .home-hero{gap:12px;padding-top:15px}
+  .home-copy h1{font-size:29px}
+  .home-copy>p{font-size:11px}
+  .home-board-stage .home-board-preview{padding:14px 12px 12px}
+  .home-board-stage .board-card-top h2{font-size:18px}
+  .home-league-strip>span{max-width:none;white-space:nowrap}
+}
