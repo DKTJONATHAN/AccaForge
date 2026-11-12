@@ -192,9 +192,28 @@ export default function App({initialData,initialContent,initialTrackRecord,today
  let page:React.ReactNode;
  if(pathname==="/"){
   page=<main className="page-shell home-page">
-   <section className="home-hero">
-    <div className="home-copy"><span className="home-kicker">FOOTBALL PICKS · EAST AFRICA TIME</span><h1>Today’s football picks. Clear reasoning.</h1><p>See the fixtures, markets and odds behind every published AccaForge selection. Open the board and judge each pick for yourself.</p><div className="hero-actions"><a className="button button-primary" href="/daily">View today’s picks <ArrowUpRight size={16}/></a><a className="text-link" href="/results">Check yesterday’s results</a></div><div className="home-date"><CalendarDays size={15}/><strong>{displayDate}</strong><span className={todaysAccas.length?"home-live":"home-awaiting"}><i/>{todaysAccas.length?todaysAccas.length+" editions published":"Waiting for today’s editions"}</span></div></div>
-    <div className="home-board-stage"><div className="home-league-burst" aria-hidden="true">{leagues.map((league,index)=><span className={"hero-league-float hero-league-float-"+(index+1)} key={league.key}><img src={leagueBadges[league.key]||league.logo} alt=""/></span>)}</div><div className="home-board-preview"><div className="board-card-top"><div><span className="board-eyebrow">THE DAILY BOARD</span><h2>What’s published today</h2></div><span className={todaysAccas.length?"board-status is-live":"board-status"}><i/>{todaysAccas.length?"LIVE":"NOT YET LIVE"}</span></div><p className="board-card-note">{data?.updatedAt?"Last refreshed "+kenyaTime(data.updatedAt)+" EAT":"Published editions appear here after the daily update."}</p>{products.map(([type,label,caption,path])=>{const item=todaysAccas.find(acca=>acca.product_type===type);return <a className="preview-row" href={path} key={type}><span><strong>{label}</strong><small>{item?item.selections.length+(type==="all_matches"?" fixtures":" selections"):caption}</small></span><b>{item?(type==="all_matches"?item.selections.length+" fixtures":item.actual_odds.toFixed(2)):"—"}</b><ArrowUpRight size={15}/></a>;})}<a className="preview-all" href="/daily">See all today’s picks <ArrowUpRight size={15}/></a><div className="home-league-strip"><span>EUROPE’S BIG STAGES</span><div>{leagues.slice(0,6).map(league=><img key={league.key} src={leagueBadges[league.key]||league.logo} alt={league.name} title={league.name} loading="lazy"/>)}</div></div></div></div>
+   <section className="home-hero" aria-labelledby="home-title">
+    <div className="home-copy">
+     <span className="home-kicker">ACCAFORGE DAILY · {displayDate.toUpperCase()}</span>
+     <h1 id="home-title">The day’s football board, at a glance.</h1>
+     <p>Four researched formats. Clear markets, individual prices and the reasoning behind each selection.</p>
+     <div className="hero-actions">
+      <a className="button button-primary" href="/daily">Explore today’s board <ArrowUpRight size={16}/></a>
+      <a className="text-link" href="/results">Review results</a>
+     </div>
+     <div className="home-date"><CalendarDays size={14}/><strong>{displayDate}</strong><span className={todaysAccas.length?"home-live":"home-awaiting"}><i/>{todaysAccas.length?todaysAccas.length+" editions published":"Today’s editions not published yet"}</span></div>
+    </div>
+   </section>
+   <section className="home-board-stage" aria-labelledby="daily-board-title">
+    <div className="home-board-preview">
+     <div className="board-card-top">
+      <div><span className="board-eyebrow">TODAY’S EDITIONS</span><h2 id="daily-board-title">Choose your format</h2></div>
+      <span className={todaysAccas.length?"board-status is-live":"board-status"}><i/>{todaysAccas.length?"PUBLISHED":"UPDATING"}</span>
+     </div>
+     <p className="board-card-note">{data?.updatedAt?"Board refreshed "+kenyaTime(data.updatedAt)+" EAT":"Published editions appear here after the daily update."}</p>
+     <div className="home-edition-grid">{products.map(([type,label,caption,path])=>{const item=todaysAccas.find(acca=>acca.product_type===type);return <a className="preview-row" href={path} key={type}><span><strong>{label}</strong><small>{item?item.selections.length+(type==="all_matches"?" fixtures":" selections"):caption}</small></span><b>{item?(type==="all_matches"?item.selections.length+" fixtures":item.actual_odds.toFixed(2)):"—"}</b><ArrowUpRight size={15}/></a>;})}</div>
+     <a className="preview-all" href="/daily">View full daily analysis <ArrowUpRight size={15}/></a>
+    </div>
    </section>
    <section className="home-latest"><div className="section-heading"><div><h2>Latest published editions</h2><p>Choose a format to inspect its fixtures and selections</p></div><a className="text-link" href="/recent">Browse archive <ArrowUpRight size={15}/></a></div>{status||<div className="edition-links">{todaysAccas.slice(0,4).map(acca=><EditionLink key={acca.id} acca={acca}/>)}{!todaysAccas.length&&<p className="muted-copy">No editions have been published yet. Check the daily board later.</p>}</div>}</section>
    <section className="home-news"><div className="section-heading"><div><h2>Latest football news</h2><p>Daily headlines from football publishers, saved to the AccaForge cache</p></div><span className="news-updated">Daily update</span></div>{contentData?.news?.length?<div className="news-grid">{contentData.news.slice(0,6).map(item=><article className="news-card" key={item.id}><a className="news-card-link" href={item.url} target="_blank" rel="noopener noreferrer">{item.image_url&&<img src={item.image_url} alt="" loading="lazy"/>}<div className="news-card-copy"><span>{item.source} · {new Date(item.published_at).toLocaleDateString("en-KE",{day:"numeric",month:"short"})}</span><strong>{item.title}</strong><small>Read original story <ArrowUpRight size={13}/></small></div></a>{item.image_credit&&<div className="news-image-credit">Photo: {item.image_credit}{item.image_source_url&&<> · <a href={item.image_source_url} target="_blank" rel="noopener noreferrer">Source</a></>}{item.image_license_url&&<> · <a href={item.image_license_url} target="_blank" rel="noopener noreferrer">{item.image_license||"Licence"}</a></>}</div>}</article>)}</div>:<div className="news-empty">Football headlines will appear after the first scheduled daily refresh.</div>}</section>
