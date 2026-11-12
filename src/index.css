@@ -1061,8 +1061,8 @@ html,body,.app{background:var(--page)}
     linear-gradient(90deg,rgba(3,35,24,.88) 0%,rgba(3,43,29,.68) 44%,rgba(3,43,29,.12) 100%),
     url('/hero-background.jpeg')!important;
   background-repeat:no-repeat,no-repeat!important;
-  background-position:center,center!important;
-  background-size:cover,contain!important;
+  background-position:center,right center!important;
+  background-size:cover,auto 100%!important;
 }
 .home-hero .home-copy{max-width:540px;z-index:2}
 .home-hero .home-hero-scene{display:none!important}
