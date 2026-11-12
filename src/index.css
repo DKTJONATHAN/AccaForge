@@ -1062,7 +1062,7 @@ html,body,.app{background:var(--page)}
     url('/hero-background.jpeg')!important;
   background-repeat:no-repeat,no-repeat!important;
   background-position:center,right center!important;
-  background-size:cover,auto 100%!important;
+  background-size:cover,contain!important;
 }
 .home-hero .home-copy{max-width:540px;z-index:2}
 .home-hero .home-hero-scene{display:none!important}
