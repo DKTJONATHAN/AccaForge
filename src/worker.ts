@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
+import type { ResultsPayload } from "./App";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { getTrackRecord, resultsApi, trackRecordApi } from "./results";
 import { SITE_ORIGIN } from "./site-origin";
@@ -180,11 +181,13 @@ async function renderHome(request:Request,env:Env){
     console.error("AccaForge SSR data response could not be parsed.",error);
   }
   try { initialContent=await getCachedContent(env); } catch(error) { console.error("AccaForge cached media could not be read during SSR.",error); }
+  let initialResults:ResultsPayload|undefined;
+  if(pathname==="/results"){try{const response=await resultsApi(env);if(response.ok)initialResults=await response.json() as ResultsPayload;}catch(error){console.error("AccaForge results could not be read during SSR.",error);}}
   let initialTrackRecord:Awaited<ReturnType<typeof getTrackRecord>>|undefined;
   if(pathname==="/track-record"){try{initialTrackRecord=await getTrackRecord(env);}catch(error){console.error("AccaForge track record could not be read during SSR.",error);}}
   const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
   const todayLabel=new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
-  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,initialContent,initialTrackRecord,todayLabel,pathname}));
+  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,initialContent,initialResults,initialTrackRecord,todayLabel,pathname}));
   const stream=await renderToReadableStream(app);
   await stream.allReady;
   const rendered=await new Response(stream).text();
@@ -230,7 +233,7 @@ async function renderHome(request:Request,env:Env){
     .replace(/<meta name="twitter:url" content="[^"]*"/,'<meta name="twitter:url" content="'+escapeHtml(canonical)+'"')
     .replace(/<link rel="canonical" href="[^"]*"/,'<link rel="canonical" href="'+escapeHtml(canonical)+'"')
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,"<script type=\"application/ld+json\">"+safeJson(graph)+"</script>");
-  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,initialContent,initialTrackRecord,todayLabel,pathname})+"</script>";
+  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,initialContent,initialResults,initialTrackRecord,todayLabel,pathname})+"</script>";
   if(!/<div id="root">\s*<\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
   html=html.replace(/<div id="root">\s*<\/div>/,rootMarkup);
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
