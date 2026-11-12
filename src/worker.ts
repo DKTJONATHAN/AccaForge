@@ -225,7 +225,7 @@ async function renderHome(request:Request,env:Env){
     .replace(/<meta name="twitter:url" content="[^"]*"/,'<meta name="twitter:url" content="'+escapeHtml(canonical)+'"')
     .replace(/<link rel="canonical" href="[^"]*"/,'<link rel="canonical" href="'+escapeHtml(canonical)+'"')
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,"<script type=\"application/ld+json\">"+safeJson(graph)+"</script>");
-  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,initialContent,todayLabel,pathname})+"</script>";
+  const rootMarkup="<div id=\"root\">"+rendered+"</div><script id=\"accaforge-ssr-data\" type=\"application/json\">"+safeJson({initialData,initialContent,initialTrackRecord,todayLabel,pathname})+"</script>";
   if(!/<div id="root">\s*<\/div>/.test(html))throw new Error("The built HTML shell is missing the React root element.");
   html=html.replace(/<div id="root">\s*<\/div>/,rootMarkup);
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"public, max-age=0, s-maxage=60, stale-while-revalidate=120","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
