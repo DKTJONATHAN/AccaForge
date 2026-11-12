@@ -1,0 +1,40 @@
+name: AccaForge Enrich Football Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Discover artwork for today's fixtures and yesterday's results, then cache it in Cloudflare"
+        required: true
+        type: choice
+        options:
+          - "yes"
+        default: "yes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-enrich-football
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    name: Discover club crests and competition artwork
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out AccaForge
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Discover team and competition artwork for today and yesterday
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: node scripts/enrich-football-data.mjs
