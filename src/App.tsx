@@ -203,6 +203,49 @@ export default function App({initialData,initialContent,initialTrackRecord,today
      </div>
      <div className="home-date"><CalendarDays size={14}/><strong>{displayDate}</strong><span className={todaysAccas.length?"home-live":"home-awaiting"}><i/>{todaysAccas.length?todaysAccas.length+" editions published":"Today’s editions not published yet"}</span></div>
     </div>
+    <div className="home-hero-scene" aria-hidden="true">
+     <span className="scene-caption">THE NEXT BIG MOMENT</span>
+     <svg className="football-action-art" viewBox="0 0 440 230" role="presentation">
+      <defs>
+       <linearGradient id="goalFrame" x1="0" x2="1"><stop offset="0" stopColor="#d8f3df"/><stop offset="1" stopColor="#ffffff"/></linearGradient>
+       <linearGradient id="keeperKit" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#ffcf58"/><stop offset="1" stopColor="#f28a2e"/></linearGradient>
+       <radialGradient id="ballShade"><stop stopColor="#fff"/><stop offset="1" stopColor="#dce7e1"/></radialGradient>
+       <filter id="ballShadow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
+      </defs>
+      <path d="M22 190 Q150 158 250 185 T430 184" fill="none" stroke="#b7e6c6" strokeWidth="2" opacity=".35"/>
+      <path d="M44 205 Q180 172 278 199 T430 195" fill="none" stroke="#b7e6c6" strokeWidth="1" opacity=".22"/>
+      <g className="scene-goal">
+       <path d="M245 63 L405 63 L405 196 L245 196 Z" fill="#e7f6eb" fillOpacity=".12" stroke="url(#goalFrame)" strokeWidth="7" strokeLinejoin="round"/>
+       <path d="M263 68 V191 M285 66 V192 M307 66 V192 M329 66 V192 M351 66 V192 M373 66 V192 M395 66 V192 M248 90 H402 M248 116 H402 M248 142 H402 M248 168 H402" stroke="#d9f2df" strokeWidth="1.2" opacity=".46"/>
+       <path d="M244 63 L229 73 V195 M405 63 L420 73 V195" fill="none" stroke="#bde9c9" strokeWidth="2" opacity=".55"/>
+      </g>
+      <g className="scene-keeper">
+       <path d="M305 146 L280 164 L257 173" fill="none" stroke="#f4bd83" strokeWidth="13" strokeLinecap="round"/>
+       <path d="M281 163 L258 176 L248 169" fill="none" stroke="#132c23" strokeWidth="8" strokeLinecap="round"/>
+       <path d="M312 142 L334 163 L351 174" fill="none" stroke="#f4bd83" strokeWidth="12" strokeLinecap="round"/>
+       <path d="M334 163 L353 174 L364 166" fill="none" stroke="#132c23" strokeWidth="8" strokeLinecap="round"/>
+       <path d="M303 117 Q324 106 339 124 L332 157 Q312 166 292 150 Z" fill="url(#keeperKit)" stroke="#ffe1a5" strokeWidth="2"/>
+       <path d="M309 126 L329 146 M325 122 L305 149" stroke="#fff0c8" strokeWidth="3" opacity=".7"/>
+       <path d="M302 120 L283 103 L268 92" fill="none" stroke="#f4bd83" strokeWidth="11" strokeLinecap="round"/>
+       <path d="M268 92 L257 81" fill="none" stroke="#f7f7ec" strokeWidth="10" strokeLinecap="round"/>
+       <path d="M336 125 L354 105 L369 95" fill="none" stroke="#f4bd83" strokeWidth="11" strokeLinecap="round"/>
+       <path d="M369 95 L381 88" fill="none" stroke="#f7f7ec" strokeWidth="10" strokeLinecap="round"/>
+       <circle cx="319" cy="104" r="11" fill="#b9784d"/>
+       <path d="M309 101 Q319 87 330 99" fill="#152b23"/>
+       <path d="M300 155 L284 183 L269 194 M328 155 L344 179 L359 189" fill="none" stroke="#132c23" strokeWidth="10" strokeLinecap="round"/>
+       <path d="M269 194 L253 196 M359 189 L374 192" stroke="#f3f0df" strokeWidth="7" strokeLinecap="round"/>
+      </g>
+      <path d="M90 104 Q151 58 223 85" fill="none" stroke="#c9f2d4" strokeWidth="3" strokeDasharray="5 8" strokeLinecap="round" opacity=".8"/>
+      <path d="M91 104 L106 99 L101 114" fill="none" stroke="#c9f2d4" strokeWidth="2" opacity=".8"/>
+      <ellipse cx="218" cy="113" rx="17" ry="6" fill="#001c12" opacity=".28" filter="url(#ballShadow)"/>
+      <g className="scene-ball" transform="translate(218 98)">
+       <circle r="14" fill="url(#ballShade)" stroke="#d5e8dc" strokeWidth="1.5"/>
+       <path d="M0 -6 L6 -2 L4 5 L-4 5 L-6 -2 Z M0 -6 L0 -13 M6 -2 L13 1 M4 5 L7 12 M-4 5 L-12 8 M-6 -2 L-13 -6" fill="#20352b" stroke="#20352b" strokeWidth="2" strokeLinejoin="round"/>
+      </g>
+      <path d="M38 210 H420" stroke="#d8f2df" strokeWidth="2" opacity=".42"/>
+     </svg>
+     <span className="scene-ground-glow"/>
+    </div>
    </section>
    <section className="home-board-stage" aria-labelledby="daily-board-title">
     <div className="home-board-preview">
