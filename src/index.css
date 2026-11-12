@@ -595,3 +595,70 @@ button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #087
  .competition-feature-card{padding:16px}
  .competition-method-grid{grid-template-columns:1fr}
 }
+
+/* Shared AccaForge editorial design system — carried across every app route */
+:root{--page:#f3f6f4;--surface:#fff;--surface-raised:#edf3ef;--line:#dbe5de;--navy:#071b18;--ink:#142923;--secondary:#465b52;--muted:#687b72;--emerald:#07834f;--emerald-dark:#075f3a}
+html,body,.app{background:var(--page)}
+.site-header{background:rgba(243,246,244,.96);backdrop-filter:blur(14px)}
+.desktop-nav a:hover,.desktop-nav .nav-active{color:var(--emerald-dark);border-color:#0a9a5e}
+.page-shell:not(.home-page){padding-top:28px}
+.page-heading{position:relative;isolation:isolate;overflow:hidden;min-height:210px;align-items:center;margin:0 0 34px;padding:clamp(25px,4.5vw,48px);border:0;border-radius:19px;background:linear-gradient(118deg,#071b18 0%,#0b3028 58%,#08764c 100%)}
+.page-heading:after{content:"";position:absolute;z-index:-1;right:-70px;top:-145px;width:360px;height:360px;border:1px solid rgba(190,255,220,.2);border-radius:50%;box-shadow:0 0 0 34px rgba(190,255,220,.035),0 0 0 70px rgba(190,255,220,.025)}
+.page-heading>div:first-child{max-width:760px}
+.page-heading .eyebrow{display:block;margin-bottom:10px;color:#9be2bd;font:700 9px var(--mono);letter-spacing:.13em}
+.page-heading h1{color:#fff;font-size:clamp(38px,4.8vw,58px);line-height:.99;letter-spacing:-.8px}
+.page-heading p{color:#d7e5e2;font-size:14px;line-height:1.75;max-width:68ch}
+.page-heading-aside{position:relative;z-index:1;padding:10px 13px;border:1px solid rgba(210,255,228,.24);border-radius:9px;background:rgba(255,255,255,.08);color:#e5f5eb}
+.page-heading-aside .updated{color:#e5f5eb}
+.section-heading{align-items:flex-end;margin-bottom:19px}
+.section-heading h2{font-size:clamp(27px,3vw,35px);letter-spacing:-.35px}
+.section-heading p{line-height:1.65}
+.page-shell:not(.competitions-page) .section-heading>div>.eyebrow{display:block;margin-bottom:7px;color:var(--emerald-dark);font:700 9px var(--mono);letter-spacing:.1em}
+.home-page{padding-top:28px}
+.home-hero{min-height:0;gap:36px;padding:clamp(25px,4vw,46px);border:0;border-radius:20px;background:linear-gradient(118deg,#071b18 0%,#0b3028 58%,#08764c 100%);color:#fff}
+.home-copy h1{color:#fff;font-size:clamp(46px,5.3vw,70px)}
+.home-copy>p{color:#d7e5e2}
+.home-kicker{color:#9be2bd}
+.home-date{color:#d7e5e2}
+.home-board-preview{border:1px solid rgba(220,255,235,.18);border-radius:14px;background:rgba(3,17,19,.72);box-shadow:0 16px 42px rgba(0,0,0,.16)}
+.button-primary{background:var(--emerald-dark)}
+.button-primary:hover{background:#08794b}
+.text-link,.product-row-result,.edition-link-value,.archive-price,.archive-open{color:var(--emerald-dark)}
+.page-shell:not(.competitions-page) .acca-detail,.page-shell:not(.competitions-page) .panel,.page-shell:not(.competitions-page) .state-panel,.page-shell:not(.competitions-page) .news-empty,.page-shell:not(.competitions-page) .results-setup-notice{border:1px solid var(--line);border-radius:15px;background:#fff;box-shadow:0 8px 26px rgba(9,39,25,.045)}
+.acca-detail{overflow:hidden}
+.acca-summary{background:linear-gradient(145deg,#fff,#f3f8f4)}
+.product-list,.edition-links,.archive-list{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(9,39,25,.035)}
+.product-row,.edition-link,.archive-row{padding-left:18px;padding-right:18px;border-color:#e8eee9}
+.product-row:hover,.edition-link:hover,.archive-row:hover{background:#f1f7f3}
+.results-summary>div{border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 6px 18px rgba(9,39,25,.035)}
+.result-card{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 6px 20px rgba(9,39,25,.035)}
+.results-list{gap:10px}
+.standings-card,.news-card,.home-seo,.format-guide{border-radius:15px}
+.news-card{overflow:hidden;border:1px solid var(--line);background:#fff;box-shadow:0 8px 24px rgba(9,39,25,.04)}
+.news-card-link img{width:100%;height:170px;object-fit:cover}
+.home-seo{margin-top:44px;padding:clamp(22px,4vw,38px);border:1px solid var(--line);background:linear-gradient(145deg,#fff,#f4f8f5);box-shadow:0 8px 26px rgba(9,39,25,.04)}
+.home-seo-intro .eyebrow{color:var(--emerald-dark)}
+.home-seo-grid article{border:1px solid #dfe9e2;border-radius:11px;background:rgba(255,255,255,.82);padding:17px}
+.format-guide{margin-top:30px}
+.format-guide .home-seo-grid article{min-height:140px}
+.site-footer{border-color:var(--line)}
+.footer-links a:hover{color:var(--emerald-dark)}
+.mobile-dock{background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-color:var(--line)}
+.mobile-dock a.active{color:var(--emerald-dark)}
+.modal-mark{background:#e8f4ec;color:var(--emerald-dark)}
+@media(max-width:760px){
+ .page-shell:not(.home-page){padding-top:17px}
+ .page-heading{min-height:0;align-items:flex-start;flex-direction:column;gap:15px;margin-bottom:26px;padding:24px 20px;border-radius:15px}
+ .page-heading:after{right:-160px;top:-175px;width:290px;height:290px}
+ .page-heading h1{font-size:clamp(37px,9vw,47px);max-width:12ch}
+ .page-heading p{font-size:12px;line-height:1.7}
+ .page-heading-aside{align-self:flex-start}
+ .home-page{padding-top:17px}
+ .home-hero{grid-template-columns:1fr;gap:22px;padding:23px 19px;border-radius:15px}
+ .home-copy h1{font-size:clamp(42px,10vw,53px);max-width:11ch}
+ .home-copy>p{font-size:13px;line-height:1.7}
+ .home-board-preview{padding:17px 14px 13px}
+ .home-seo{margin-top:30px;padding:19px 15px}
+ .result-card{border-radius:11px}
+ .product-row,.edition-link,.archive-row{padding-left:13px;padding-right:13px}
+}
