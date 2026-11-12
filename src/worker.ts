@@ -275,7 +275,8 @@ export default {
       return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"public, max-age=300","X-Content-Type-Options":"nosniff"}});
     }
     const requestedPath=url.pathname.replace(/\\/$/,"") || "/";
-    const staticPage=staticPages[requestedPath] || editorialPages[requestedPath];
+    const formatRoutes=["/safe-picks","/super-5","/super-10","/all-matches"];
+    const staticPage=staticPages[requestedPath] || (formatRoutes.includes(requestedPath) ? undefined : editorialPages[requestedPath]);
     if (staticPage) return renderPage({...staticPage,path:url.pathname.replace(/\/$/,"")},url.origin);
     const leagueMatch=url.pathname.match(/^\/leagues\/(soccer_[a-z0-9_]+)\/?$/);
     if(leagueMatch){
