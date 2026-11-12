@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: accaforge-generate-all-matches
+  group: accaforge-product-generation
   cancel-in-progress: false
 
 jobs:
@@ -40,9 +40,6 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
           GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
-          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
