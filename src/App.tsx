@@ -195,7 +195,7 @@ export default function App({initialData,initialContent,initialTrackRecord,today
    <section className="home-hero" aria-labelledby="home-title">
     <div className="home-copy">
      <span className="home-kicker">ACCAFORGE DAILY · {displayDate.toUpperCase()}</span>
-     <h1 id="home-title">The day’s football board, at a glance.</h1>
+     <h1 id="home-title">Today’s football picks, clearly.</h1>
      <p>Four researched formats. Clear markets, individual prices and the reasoning behind each selection.</p>
      <div className="hero-actions">
       <a className="button button-primary" href="/daily">Explore today’s board <ArrowUpRight size={16}/></a>
