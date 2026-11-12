@@ -773,3 +773,145 @@ html,body,.app{background:var(--page)}
   .home-board-stage .board-card-top h2{font-size:18px}
   .home-league-strip>span{max-width:none;white-space:nowrap}
 }
+
+
+/* Homepage redesign: compact editorial intro, then a distinct daily editions panel */
+.home-page{padding-top:30px}
+.home-hero{
+  display:block;
+  min-height:0;
+  padding:22px 0 24px;
+  margin:0;
+  border:0;
+}
+.home-copy{max-width:760px}
+.home-kicker{
+  margin:0 0 9px;
+  color:#087b4a;
+  font-size:9px;
+  letter-spacing:.15em;
+}
+.home-copy h1{
+  max-width:18ch;
+  color:#0b2119;
+  font-size:clamp(36px,4.3vw,54px);
+  line-height:.99;
+  letter-spacing:-.7px;
+}
+.home-copy>p{
+  max-width:58ch;
+  margin:12px 0 0;
+  color:#52645a;
+  font-size:14px;
+  line-height:1.55;
+}
+.home-hero .hero-actions{margin-top:17px;gap:18px}
+.home-hero .hero-actions .button{min-height:42px;border-radius:7px}
+.home-hero .home-date{
+  margin-top:13px;
+  gap:8px 12px;
+  color:#65756c;
+  font-size:10px;
+}
+.home-board-stage{
+  width:100%;
+  max-width:940px;
+  margin:0 0 6px;
+  padding:0;
+}
+.home-board-stage .home-board-preview{
+  width:100%;
+  padding:23px 25px 19px;
+  border:1px solid #d9e5dc;
+  border-top:3px solid #07834f;
+  border-radius:14px;
+  background:#fff;
+  color:#142923;
+  box-shadow:0 9px 28px rgba(9,39,25,.055);
+}
+.home-board-stage .board-card-top{align-items:center}
+.home-board-stage .board-eyebrow{margin-bottom:5px;font-size:9px}
+.home-board-stage .board-card-top h2{font-size:29px;letter-spacing:-.2px}
+.home-board-stage .board-card-note{margin:8px 0 15px;color:#687b72;font-size:11px}
+.home-edition-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+}
+.home-edition-grid .preview-row{
+  min-height:69px;
+  grid-template-columns:minmax(0,1fr) auto 16px;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid #e5ece7;
+  border-radius:9px;
+  background:#f8faf8;
+  transition:background .15s,border-color .15s,transform .15s;
+}
+.home-edition-grid .preview-row:hover{
+  transform:translateY(-1px);
+  border-color:#b8d5c3;
+  background:#f0f7f2;
+}
+.home-edition-grid .preview-row strong{color:#183126;font-size:13px}
+.home-edition-grid .preview-row small{color:#718078;font-size:10px;line-height:1.35}
+.home-edition-grid .preview-row b{color:#087b4a;font-size:16px}
+.home-edition-grid .preview-row svg{color:#87958d}
+.home-board-stage .preview-all{
+  justify-content:flex-start;
+  margin-top:2px;
+  padding-top:13px;
+  color:#087b4a;
+  font-size:11px;
+}
+.home-latest{padding-top:42px}
+.home-league-burst,.home-league-strip{display:none!important}
+@media(max-width:760px){
+  .home-page{padding-top:12px}
+  .home-hero{padding:13px 0 17px}
+  .home-copy{max-width:none}
+  .home-kicker{margin-bottom:7px;font-size:8px;letter-spacing:.13em}
+  .home-copy h1{
+    max-width:16ch;
+    font-size:clamp(30px,8.2vw,37px);
+    line-height:1;
+    letter-spacing:-.45px;
+  }
+  .home-copy>p{
+    max-width:48ch;
+    margin-top:8px;
+    font-size:12px;
+    line-height:1.48;
+  }
+  .home-hero .hero-actions{margin-top:12px;gap:13px}
+  .home-hero .hero-actions .button{min-height:39px;padding:0 13px;font-size:11px}
+  .home-hero .hero-actions .text-link{font-size:10px;padding:6px 0}
+  .home-hero .home-date{margin-top:9px;font-size:9px;gap:6px 9px}
+  .home-board-stage{max-width:none;margin:0}
+  .home-board-stage .home-board-preview{
+    padding:15px 13px 12px;
+    border-radius:12px;
+    box-shadow:0 6px 18px rgba(9,39,25,.05);
+  }
+  .home-board-stage .board-card-top h2{font-size:23px}
+  .home-board-stage .board-status{padding:6px 8px;font-size:8px}
+  .home-board-stage .board-card-note{margin:6px 0 11px;font-size:9px}
+  .home-edition-grid{grid-template-columns:1fr;gap:7px}
+  .home-edition-grid .preview-row{
+    min-height:57px;
+    padding:8px 10px;
+    grid-template-columns:minmax(0,1fr) auto 15px;
+  }
+  .home-edition-grid .preview-row strong{font-size:12px}
+  .home-edition-grid .preview-row small{font-size:9px}
+  .home-edition-grid .preview-row b{font-size:15px}
+  .home-board-stage .preview-all{padding-top:10px;font-size:10px}
+  .home-latest{padding-top:27px}
+}
+@media(max-width:380px){
+  .home-page{padding-left:15px;padding-right:15px}
+  .home-copy h1{font-size:30px}
+  .home-copy>p{font-size:11px}
+  .home-board-stage .home-board-preview{padding:13px 11px 11px}
+  .home-board-stage .board-card-top h2{font-size:21px}
+}
