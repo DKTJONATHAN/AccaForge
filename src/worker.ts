@@ -316,7 +316,7 @@ export default {
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
     const appPath=url.pathname.replace(/\/+$/,"")||"/";
-    if (["/","/daily","/recent","/results","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
+    if (["/","/daily","/recent","/results","/track-record","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
     if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
       return env.ASSETS.fetch(request);
     }
