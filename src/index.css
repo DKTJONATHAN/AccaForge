@@ -972,3 +972,76 @@ html,body,.app{background:var(--page)}
   .home-copy h1{font-size:30px}
   .home-copy>p{font-size:11px}
 }
+
+
+/* Homepage hero: compact football moment contained in the green card */
+.home-hero{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.02fr) minmax(280px,.98fr);
+  align-items:center;
+  gap:18px;
+  min-height:0;
+  margin:0 0 18px;
+  padding:22px 26px!important;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.12)!important;
+  border-radius:18px!important;
+  background:linear-gradient(112deg,#073b2b 0%,#087b4d 58%,#0b6844 100%)!important;
+  box-shadow:0 12px 30px rgba(5,53,33,.16);
+  color:#fff;
+}
+.home-copy{position:relative;z-index:2;max-width:520px}
+.home-copy .home-kicker{color:#b8efd0!important}
+.home-copy h1{max-width:13ch;color:#fff!important;font-size:clamp(32px,4vw,48px);line-height:.99;letter-spacing:-.8px}
+.home-copy>p{max-width:42ch;color:#e0f3e7!important;font-size:13px;line-height:1.55}
+.home-hero .hero-actions{display:flex;align-items:center;gap:16px;margin-top:15px}
+.home-hero .hero-actions .button{background:#f1fff5;color:#075b38;border:0}
+.home-hero .hero-actions .text-link{color:#e2f6e9}
+.home-hero .home-date{color:#c5ead2}
+.home-hero-scene{
+  position:relative;
+  align-self:stretch;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:190px;
+  overflow:hidden;
+  border-radius:13px;
+  background:radial-gradient(ellipse at 72% 68%,rgba(146,226,165,.2),transparent 56%),linear-gradient(135deg,rgba(1,35,23,.14),rgba(1,35,23,.02));
+}
+.scene-caption{position:absolute;top:13px;right:15px;color:rgba(230,255,238,.68);font:700 8px/1.2 var(--mono);letter-spacing:.16em}
+.football-action-art{position:relative;z-index:1;display:block;width:100%;max-width:440px;height:auto;max-height:210px;overflow:visible}
+.scene-ball{transform-box:fill-box;transform-origin:center;animation:hero-ball-flight 2.4s ease-in-out infinite}
+.scene-keeper{transform-box:fill-box;transform-origin:center;animation:hero-keeper-dive 2.4s ease-in-out infinite}
+.scene-ground-glow{position:absolute;right:5%;bottom:9%;width:65%;height:15px;border-radius:50%;background:rgba(173,239,187,.16);filter:blur(13px)}
+@keyframes hero-ball-flight{0%,12%{transform:translate(-24px,15px) scale(.88)}58%,100%{transform:translate(25px,-8px) scale(1)}}
+@keyframes hero-keeper-dive{0%,15%{transform:translate(8px,8px) rotate(0)}60%,100%{transform:translate(-8px,-7px) rotate(-5deg)}}
+@media(max-width:760px){
+ .home-page{padding-top:10px}
+ .home-hero{
+  grid-template-columns:minmax(0,1fr) minmax(118px,.78fr);
+  gap:5px;
+  align-items:center;
+  margin:0 0 13px;
+  padding:15px 13px!important;
+  border-radius:14px!important;
+ }
+ .home-copy{min-width:0}
+ .home-copy .home-kicker{margin-bottom:7px;font-size:7px;letter-spacing:.1em}
+ .home-copy h1{max-width:11ch;font-size:clamp(23px,6.6vw,31px);line-height:1.02;letter-spacing:-.45px}
+ .home-copy>p{max-width:28ch;margin-top:7px;font-size:10px;line-height:1.38}
+ .home-hero .hero-actions,.home-hero .home-date{display:none}
+ .home-hero-scene{min-height:112px;border-radius:10px}
+ .scene-caption{top:7px;right:7px;font-size:6px;letter-spacing:.1em}
+ .football-action-art{width:125%;max-width:none;max-height:130px;transform:translateX(2%)}
+}
+@media(max-width:390px){
+ .home-hero{grid-template-columns:minmax(0,1fr) minmax(104px,.72fr);padding:13px 10px!important}
+ .home-copy h1{font-size:23px}
+ .home-copy>p{font-size:9px}
+ .home-hero-scene{min-height:100px}
+}
+@media(prefers-reduced-motion:reduce){
+ .scene-ball,.scene-keeper{animation:none}
+}
