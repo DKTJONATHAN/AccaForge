@@ -1045,3 +1045,37 @@ html,body,.app{background:var(--page)}
 @media(prefers-reduced-motion:reduce){
  .scene-ball,.scene-keeper{animation:none}
 }
+
+
+/* AccaForge homepage hero artwork — preserve the complete source image */
+.home-hero{
+  position:relative;
+  display:flex!important;
+  align-items:center;
+  min-height:280px;
+  padding:30px 34px!important;
+  overflow:hidden;
+  isolation:isolate;
+  background-color:#073b2b!important;
+  background-image:
+    linear-gradient(90deg,rgba(3,35,24,.88) 0%,rgba(3,43,29,.68) 44%,rgba(3,43,29,.12) 100%),
+    url('/Gemini_Generated_Image_hba8rqhba8rqhba8.jpeg')!important;
+  background-repeat:no-repeat,no-repeat!important;
+  background-position:center,center!important;
+  background-size:cover,contain!important;
+}
+.home-hero .home-copy{max-width:540px;z-index:2}
+.home-hero .home-hero-scene{display:none!important}
+@media(max-width:760px){
+  .home-hero{
+    min-height:230px;
+    padding:22px 18px!important;
+    background-image:
+      linear-gradient(90deg,rgba(3,35,24,.84) 0%,rgba(3,43,29,.56) 58%,rgba(3,43,29,.16) 100%),
+      url('/Gemini_Generated_Image_hba8rqhba8rqhba8.jpeg')!important;
+    background-size:cover,contain!important;
+    background-position:center,center!important;
+  }
+  .home-hero .home-copy h1{max-width:13ch;font-size:clamp(27px,7.4vw,36px)}
+  .home-hero .home-copy>p{max-width:34ch;font-size:11px}
+}
