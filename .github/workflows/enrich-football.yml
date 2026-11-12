@@ -1,6 +1,10 @@
 name: AccaForge Enrich Football Data
 
 on:
+  workflow_run:
+    workflows: ["AccaForge Generate All Matches"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       confirm:
@@ -20,6 +24,7 @@ concurrency:
 
 jobs:
   enrich:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     name: Discover club crests and competition artwork
     runs-on: ubuntu-latest
     timeout-minutes: 30
