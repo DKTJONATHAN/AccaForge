@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/repair-missing-products.yml"
+      - "scripts/generate-daily.mjs"
   workflow_dispatch:
 
 permissions:
