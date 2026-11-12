@@ -153,7 +153,7 @@ function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
 }
-export default function App({initialData,initialContent,todayLabel,pathname="/"}:{initialData?:AccasResponse;initialContent?:SiteContent;initialTrackRecord?:TrackRecordPayload;todayLabel?:string;pathname?:string}){
+export default function App({initialData,initialContent,initialTrackRecord,todayLabel,pathname="/"}:{initialData?:AccasResponse;initialContent?:SiteContent;initialTrackRecord?:TrackRecordPayload;todayLabel?:string;pathname?:string}){
  void React;
  const [ageOk,setAgeOk]=useState<boolean|null>(null);
  const [archiveDate,setArchiveDate]=useState("all");
