@@ -64,7 +64,7 @@ function SiteHeader({pathname}:{pathname:string}){
  const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/results","Results"],["/track-record","Track record"],["/competitions","Competitions"],["/guides","Guides"]];
  return <>
   <header className="site-header">
-   <a className="brand" href="/" aria-label="AccaForge home"><img className="brand-logo" src="/logo%20(4).png" alt="AccaForge" /></a>
+   <a className="brand" href="/" aria-label="AccaForge home"><img className="brand-logo" src="/logo%20(4).png" alt="AccaForge"/></a>
    <nav className="desktop-nav" aria-label="Main navigation">{links.map(([href,label])=><a key={href} className={pathname===href?"nav-active":""} href={href}>{label}</a>)}</nav>
    <button className="icon-button mobile-menu-button" onClick={()=>setMenuOpen(value=>!value)} aria-label="Toggle navigation menu" aria-expanded={menuOpen}>{menuOpen?<X size={19}/>:<Menu size={19}/>}</button>
    {menuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation">{links.map(([href,label])=><a key={href} href={href} onClick={()=>setMenuOpen(false)}>{label}</a>)}<a href="/responsible-gambling" onClick={()=>setMenuOpen(false)}>Responsible play</a></nav>}
@@ -79,7 +79,7 @@ function SiteHeader({pathname}:{pathname:string}){
 }
 function SiteFooter(){
  return <footer className="site-footer">
-  <div className="footer-brand-group"><a className="footer-brand" href="/">AccaForge</a><span>Football analysis, fixtures and daily editions.</span></div>
+  <div className="footer-brand-group"><a className="footer-brand" href="/" aria-label="AccaForge home"><img className="footer-logo" src="/logo%20(4).png" alt="AccaForge"/></a><span>Football analysis, fixtures and daily editions.</span></div>
   <nav className="footer-links" aria-label="Company and legal links"><a href="/about">About</a><a href="/contact">Contact</a><a href="/editorial-policy">Editorial policy</a><a href="/guides">Football guides</a><a href="/track-record">Track record</a><a href="/responsible-gambling">Responsible play</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/image-credits">Image credits</a></nav>
   <span className="footer-note">18+ · Information and entertainment only · Gamble responsibly</span>
  </footer>;
