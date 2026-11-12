@@ -6,7 +6,7 @@ import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
-import { resultsApi } from "./results";
+import { resultsApi, trackRecordApi } from "./results";
 import { SITE_ORIGIN } from "./site-origin";
 import { editorialPages } from "./editorial";
 
@@ -236,6 +236,10 @@ export default {
     if (url.pathname === "/api/accas") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getAccas({ request, env });
+    }
+    if (url.pathname === "/api/track-record") {
+      if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
+      return trackRecordApi(env);
     }
     if (url.pathname === "/api/results") {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
