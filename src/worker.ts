@@ -8,6 +8,7 @@ import type { AccasResponse } from "./types";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
 import { resultsApi } from "./results";
 import { SITE_ORIGIN } from "./site-origin";
+import { editorialPages } from "./editorial";
 
 interface Env {
   DB: D1Database;
@@ -257,7 +258,7 @@ export default {
     if (url.pathname.startsWith("/api/")) return Response.json({ error: "Not found." }, { status: 404 });
     if (url.pathname === "/sitemap.xml") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-      const staticPaths=["/","/daily","/recent","/results","/competitions","/safe-picks","/super-5","/super-10","/all-matches","/about","/contact","/terms","/privacy","/cookies","/responsible-gambling","/editorial-policy","/image-credits","/sure-tips","/football-betting-tips","/accumulator-tips","/football-predictions-kenya","/btts-predictions","/over-under-goals-predictions","/premier-league-tips"];
+      const staticPaths=["/","/daily","/recent","/results","/competitions","/safe-picks","/super-5","/super-10","/all-matches","/about","/contact","/terms","/privacy","/cookies","/responsible-gambling","/editorial-policy","/image-credits","/sure-tips","/football-betting-tips","/accumulator-tips","/football-predictions-kenya","/btts-predictions","/over-under-goals-predictions","/premier-league-tips",...Object.keys(editorialPages)];
       const entries=staticPaths.map(path=>"<url><loc>"+escapeHtml(SITE_ORIGIN+path)+"</loc></url>");
       try {
         const editions=(await env.DB.prepare("SELECT id FROM accas WHERE status='published' AND publish_date >= date('now','-30 days') ORDER BY publish_date DESC").all<{id:string}>()).results||[];
@@ -273,7 +274,8 @@ export default {
       const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\n";
       return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"public, max-age=300","X-Content-Type-Options":"nosniff"}});
     }
-    const staticPage=staticPages[url.pathname.replace(/\/$/,"") || "/"];
+    const requestedPath=url.pathname.replace(/\\/$/,"") || "/";
+    const staticPage=staticPages[requestedPath] || editorialPages[requestedPath];
     if (staticPage) return renderPage({...staticPage,path:url.pathname.replace(/\/$/,"")},url.origin);
     const leagueMatch=url.pathname.match(/^\/leagues\/(soccer_[a-z0-9_]+)\/?$/);
     if(leagueMatch){
