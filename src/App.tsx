@@ -63,7 +63,7 @@ function SiteHeader({pathname}:{pathname:string}){
 function SiteFooter(){
  return <footer className="site-footer">
   <div className="footer-brand-group"><a className="footer-brand" href="/">AccaForge</a><span>Football analysis, fixtures and daily editions.</span></div>
-  <nav className="footer-links" aria-label="Company and legal links"><a href="/about">About</a><a href="/contact">Contact</a><a href="/editorial-policy">Editorial policy</a><a href="/responsible-gambling">Responsible play</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/image-credits">Image credits</a></nav>
+  <nav className="footer-links" aria-label="Company and legal links"><a href="/about">About</a><a href="/contact">Contact</a><a href="/editorial-policy">Editorial policy</a><a href="/guides">Football guides</a><a href="/responsible-gambling">Responsible play</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/image-credits">Image credits</a></nav>
   <span className="footer-note">18+ · Information and entertainment only · Gamble responsibly</span>
  </footer>;
 }
