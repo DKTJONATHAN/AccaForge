@@ -161,7 +161,8 @@ async function matchPage(eventId:string,env:Env,origin:string){
 }
 
 async function renderHome(request:Request,env:Env){
-  const pathname=new URL(request.url).pathname.replace(/\/$/,"")||"/";
+  const rawPathname=new URL(request.url).pathname;
+  const pathname=rawPathname.endsWith("/")?(rawPathname.slice(0,-1)||"/"):rawPathname;
   const dataUrl=new URL("/api/accas?days=3",request.url);
   const dataRequest=new Request(dataUrl,{headers:request.headers});
   const dataResponse=await getAccas({request:dataRequest,env});
