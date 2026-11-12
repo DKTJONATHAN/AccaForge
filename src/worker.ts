@@ -161,7 +161,7 @@ async function matchPage(eventId:string,env:Env,origin:string){
 }
 
 async function renderHome(request:Request,env:Env){
-  const pathname=new URL(request.url).pathname.replace(/\\/$/,"")||"/";
+  const pathname=new URL(request.url).pathname.replace(/\/$/,"")||"/";
   const dataUrl=new URL("/api/accas?days=3",request.url);
   const dataRequest=new Request(dataUrl,{headers:request.headers});
   const dataResponse=await getAccas({request:dataRequest,env});
@@ -178,8 +178,7 @@ async function renderHome(request:Request,env:Env){
   if(pathname==="/track-record"){try{initialTrackRecord=await getTrackRecord(env);}catch(error){console.error("AccaForge track record could not be read during SSR.",error);}}
   const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
   const todayLabel=new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
-  const pathname=new URL(request.url).pathname.replace(/\/$/,"")||"/";
-  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,initialContent,todayLabel,pathname}));
+  const app=createElement(QueryClientProvider,{client},createElement(App,{initialData,initialContent,initialTrackRecord,todayLabel,pathname}));
   const stream=await renderToReadableStream(app);
   await stream.allReady;
   const rendered=await new Response(stream).text();
