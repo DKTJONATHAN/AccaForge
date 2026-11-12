@@ -260,7 +260,7 @@ export default function App({initialData,initialContent,initialTrackRecord,today
    </section>
    <section className="competition-all">
     <div className="section-heading"><div><span className="eyebrow">THE FULL PICTURE</span><h2>Every competition has a different story</h2><p>Browse the full coverage set through editorial cards rather than a plain directory.</p></div></div>
-    <div className="competition-card-grid">{leagueDirectory.map((league,index)=>{const profile=profileFor(league.key);const table=leagueTables[league.key]||[];const logo=leagueBadges[league.key]||league.logo;const href=competitionPaths[league.key]||"/leagues/"+league.key;return <article className="competition-card" key={league.key}>
+    <div className="competition-card-grid">{leagueDirectory.map(league=>{const profile=profileFor(league.key);const table=leagueTables[league.key]||[];const logo=leagueBadges[league.key]||league.logo;const href=competitionPaths[league.key]||"/leagues/"+league.key;return <article className="competition-card" key={league.key}>
       <div className="competition-card-identity">{logo?<img src={logo} alt="" loading="lazy"/>:<span className="league-mark">{league.name.slice(0,2).toUpperCase()}</span>}<span><small>{profile.region}</small><strong>{league.name}</strong></span></div>
       <p>{profile.intro}</p><div className="competition-card-focus"><strong>Assessment lens</strong><span>{profile.focus}</span></div>
       <div className="competition-card-data"><span>{table.length?table.length+" clubs · table available":"Standings not available"}</span><span>{editionCounts[league.key]||0} recent edition fixtures</span></div>
