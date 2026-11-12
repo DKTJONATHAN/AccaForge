@@ -6,7 +6,7 @@ import { renderToReadableStream } from "react-dom/server";
 import App from "./App";
 import type { AccasResponse } from "./types";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
-import { resultsApi, trackRecordApi } from "./results";
+import { getTrackRecord, resultsApi, trackRecordApi } from "./results";
 import { SITE_ORIGIN } from "./site-origin";
 import { editorialPages } from "./editorial";
 
@@ -161,6 +161,7 @@ async function matchPage(eventId:string,env:Env,origin:string){
 }
 
 async function renderHome(request:Request,env:Env){
+  const pathname=new URL(request.url).pathname.replace(/\\/$/,"")||"/";
   const dataUrl=new URL("/api/accas?days=3",request.url);
   const dataRequest=new Request(dataUrl,{headers:request.headers});
   const dataResponse=await getAccas({request:dataRequest,env});
@@ -173,6 +174,8 @@ async function renderHome(request:Request,env:Env){
     console.error("AccaForge SSR data response could not be parsed.",error);
   }
   try { initialContent=await getCachedContent(env); } catch(error) { console.error("AccaForge cached media could not be read during SSR.",error); }
+  let initialTrackRecord:Awaited<ReturnType<typeof getTrackRecord>>|undefined;
+  if(pathname==="/track-record"){try{initialTrackRecord=await getTrackRecord(env);}catch(error){console.error("AccaForge track record could not be read during SSR.",error);}}
   const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
   const todayLabel=new Date().toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi",weekday:"long",day:"numeric",month:"long"});
   const pathname=new URL(request.url).pathname.replace(/\/$/,"")||"/";
