@@ -402,7 +402,7 @@ async function askGroqProduct(type,candidates,events,research){
  }else if(type==="super_10"){
   prompt=["Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 10: choose 2 or more selections with combined decimal odds between 9.50 and 10.50 inclusive, targeting 10.00. Different markets from the same fixture may be used, but never repeat an exact candidate/outcome. Every selection must be evidence-supported. Return super_10=null if no defensible combination meets the range; do not pad."].concat(common).join("\n\n");
  }else{
-  const safeRows=candidateRows.filter(row=>Number(row[6])>=1.20);
+  const safeRows=candidateRows.filter(row=>Number(row[6])>=1.01&&Number(row[6])<=1.50);
   prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, exactly one selection per match. Every individual decimal price must be from 1.01 to 1.50 inclusive. The supplied eligible candidate list contains at most ONE candidate per fixture; choose exactly 10 distinct candidate IDs from 10 distinct event IDs. Do not repeat, invent, or alter a candidate. If fewer than 10 eligible fixtures exist, or fewer than 10 defensible selections are available, return safe_picks=null and explain why. Never pad with unsupported picks.","Eligible candidate rows:",JSON.stringify(safeRows)].concat(common.filter(line=>line!=="Candidate rows:"&&line!==JSON.stringify(candidateRows))).join("\n\n");
  }
  console.log("Groq independent product stage: "+type+" ("+candidateRows.length+" candidates).");
@@ -427,9 +427,9 @@ function validateProducts(result,candidates,events){
  const attempt=(name,build)=>{try{const product=build();if(product)products.push(product);}catch(error){console.warn(name+" withheld; other valid products can still publish: "+cleanText(error?.message||error,260));}};
  attempt("Safe Picks",()=>{
   if(!Array.isArray(result.safe_picks?.selections))return null;
-  if(result.safe_picks.selections.length<1)throw new Error("Safe Picks must contain at least one selection.");
-  const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,1.20,Number.POSITIVE_INFINITY));
-  if(new Set(selected.map(item=>item.event_id)).size!==selected.length)throw new Error("Safe Picks must use a different fixture for every selection, with only one market per match.");
+  if(result.safe_picks.selections.length!==10)throw new Error("Safe Picks must contain exactly 10 selections.");
+  const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,1.01,1.50));
+  if(new Set(selected.map(item=>item.event_id)).size!==10)throw new Error("Safe Picks must use exactly 10 different fixtures, with only one market per match.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
   return {product_type:"safe_picks",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Evidence-led selections across different fixtures, with every individual price between 1.01 and 1.50.",selections:selected};
  });
