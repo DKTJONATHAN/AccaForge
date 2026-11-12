@@ -1,0 +1,35 @@
+name: AccaForge Refresh Results
+
+on:
+  schedule:
+    - cron: "10 0 * * *" # 03:10 AM Africa/Nairobi
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-refresh-results
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Refresh yesterday's results
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
+          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
+          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
+          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
+        run: node scripts/refresh-results.mjs
