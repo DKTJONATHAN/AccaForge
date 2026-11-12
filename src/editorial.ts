@@ -6,7 +6,7 @@ export interface EditorialPage {
 }
 
 const guideLinks = `
-<p>Continue learning: <a href="/guides/decimal-odds-explained">decimal odds</a> · <a href="/guides/implied-probability">implied probability</a> · <a href="/guides/how-accumulators-work">accumulators</a> · <a href="/guides/football-form-analysis">football form</a>.</p>`;
+<p>Continue learning: <a href="/guides/decimal-odds-explained">decimal odds</a> · <a href="/guides/implied-probability">implied probability</a> · <a href="/guides/how-accumulators-work">accumulators</a> · <a href="/guides/combined-accumulator-odds">combined odds</a> · <a href="/guides/football-form-analysis">football form</a> · <a href="/guides/why-football-predictions-fail">prediction uncertainty</a>.</p>`;
 
 export const editorialPages: Record<string, EditorialPage> = {
   "/guides": {
@@ -22,10 +22,17 @@ export const editorialPages: Record<string, EditorialPage> = {
 <li><a href="/guides/double-chance-betting">Double chance explained</a><small>How 1X, X2 and 12 cover two of the three match outcomes.</small></li>
 <li><a href="/guides/over-under-goals">Over and under goals</a><small>Goal lines, settlement and match context.</small></li>
 <li><a href="/guides/btts-explained">Both Teams to Score (BTTS)</a><small>What GG YES and GG NO mean and what they do not tell you.</small></li>
+<li><a href="/guides/draw-no-bet">Draw no bet</a><small>How draw protection, void outcomes and settlement work.</small></li>
+<li><a href="/guides/asian-handicap">Asian handicap</a><small>Whole, half and quarter-goal lines explained.</small></li>
 </ul><h2>Accumulator fundamentals</h2><ul class="list">
 <li><a href="/guides/how-accumulators-work">How football accumulators work</a><small>Legs, combined odds, settlement and compounded risk.</small></li>
+<li><a href="/guides/combined-accumulator-odds">Combined accumulator odds</a><small>How individual decimal prices multiply into a total price.</small></li>
+<li><a href="/guides/accumulator-probability">Accumulator probability</a><small>Why every leg matters and how correlation affects estimates.</small></li>
 </ul><h2>Match assessment</h2><ul class="list">
 <li><a href="/guides/football-form-analysis">How to assess football form</a><small>Recent results, opponent strength, home and away splits and context.</small></li>
+<li><a href="/guides/home-away-football-analysis">Home and away analysis</a><small>Compare venue performance without overvaluing small samples.</small></li>
+<li><a href="/guides/football-statistics-explained">Football statistics explained</a><small>Goals, shots, clean sheets and other performance indicators.</small></li>
+<li><a href="/guides/why-football-predictions-fail">Why football predictions fail</a><small>Variance, match events, data gaps and uncertainty.</small></li>
 </ul><p class="notice">Educational information only. Football outcomes are uncertain. AccaForge is not a bookmaker and does not accept bets. 18+ only.</p>`
   },
   "/guides/decimal-odds-explained": {
