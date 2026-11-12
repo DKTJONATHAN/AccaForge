@@ -1,0 +1,40 @@
+name: Restore Generate Script
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download last known good generate-daily.mjs
+        run: |
+          curl -sL "https://raw.githubusercontent.com/DKTJONATHAN/AccaForge/fe407b8efc1a4d23b60770dac56c38978a85cab7/scripts/generate-daily.mjs" -o scripts/generate-daily.mjs
+          wc -c scripts/generate-daily.mjs
+
+      - name: Apply PRODUCT_TYPES filter
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          path = Path("scripts/generate-daily.mjs")
+          text = path.read_text()
+          old = ''' const research=await getDailyResearch(date,events);\n const stages=["super_5","all_matches","super_10","safe_picks"];\n let failures=0;\n for(let index=0;index<stages.length;index++){\n  const type=stages[index];\n  const completed=await runProductStage(date,type,candidates,events,research);\n  if(!completed)failures++;\n  if(index<stages.length-1){\n   console.log("Pausing 65 seconds before the next independent Groq product stage to respect free-tier TPM limits.");\n   await new Promise(resolve=>setTimeout(resolve,65000));\n  }\n }\n const statuses=await d1("SELECT product_type,status,error FROM generation_runs WHERE publish_date=? ORDER BY product_type",[date]);\n console.log("Daily product-stage summary: "+JSON.stringify(statuses));\n if(failures===stages.length)throw new Error("All four product stages failed or were withheld. The daily odds snapshot and per-stage status remain saved for retry.");\n}'''
+          new = ''' const research=await getDailyResearch(date,events);\n const allStages=["safe_picks","super_5","super_10","all_matches"];\n const requested=String(env.PRODUCT_TYPES||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean);\n const stages=requested.length?allStages.filter(type=>requested.includes(type)):allStages;\n if(!stages.length)throw new Error("PRODUCT_TYPES did not match any known product. Use safe_picks, super_5, super_10, and/or all_matches.");\n console.log("Product stages selected for this run: "+stages.join(", ")+".");\n let failures=0;\n for(let index=0;index<stages.length;index++){\n  const type=stages[index];\n  const completed=await runProductStage(date,type,candidates,events,research);\n  if(!completed)failures++;\n  if(index<stages.length-1){\n   console.log("Pausing 65 seconds before the next independent Groq product stage to respect free-tier TPM limits.");\n   await new Promise(resolve=>setTimeout(resolve,65000));\n  }\n }\n const statuses=await d1("SELECT product_type,status,error FROM generation_runs WHERE publish_date=? ORDER BY product_type",[date]);\n console.log("Daily product-stage summary: "+JSON.stringify(statuses));\n if(failures===stages.length)throw new Error("All requested product stages failed or were withheld. The daily odds snapshot and per-stage status remain saved for retry.");\n}'''
+          if old not in text:
+              raise SystemExit("Target block not found in generate-daily.mjs")
+          path.write_text(text.replace(old, new, 1))
+          print("PRODUCT_TYPES patch applied", path.stat().st_size)
+          PY
+
+      - name: Commit restored script
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/generate-daily.mjs
+          git commit -m "fix: restore generate-daily.mjs with PRODUCT_TYPES support" || echo "No changes"
+          git push
