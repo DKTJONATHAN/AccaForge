@@ -67,7 +67,7 @@ async function loadAccas():Promise<AccasResponse>{
  return response.json();
 }
 function PageHeading({title,description,aside}:{title:string;description:string;aside?:React.ReactNode}){
- return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div>{aside&&<div className="page-heading-aside">{aside}</div>}</div>;
+ return <div className="page-heading"><div><span className="eyebrow">ACCAFORGE · FOOTBALL ANALYSIS</span><h1>{title}</h1><p>{description}</p></div>{aside&&<div className="page-heading-aside">{aside}</div>}</div>;
 }
 function SiteHeader({pathname}:{pathname:string}){
  const [menuOpen,setMenuOpen]=useState(false);
