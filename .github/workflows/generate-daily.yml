@@ -1,0 +1,58 @@
+name: AccaForge Generate Daily
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 09:00 AM Africa/Nairobi
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-generate-daily
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Backup refresh of yesterday's results
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
+          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
+          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
+          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
+        run: node scripts/refresh-results.mjs
+
+      - name: Generate and publish daily accumulators
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
+          ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
+          ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
+          ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
+          GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
+          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
+          ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
+          ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
+          ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
+        run: node scripts/generate-daily.mjs
