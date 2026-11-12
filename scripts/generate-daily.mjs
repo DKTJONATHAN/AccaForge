@@ -21,7 +21,7 @@ if(!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Ac
 if(!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
 let oddsKeyCursor=0,groqKeyCursor=0,lastGroqRequestAt=0;
 const GROQ_MIN_INTERVAL_MS=65000;
-const GROQ_MAX_TOTAL_TOKENS=6000;
+const GROQ_MAX_TOTAL_TOKENS=5500;
 async function waitForGroqSlot(){const wait=Math.max(0,GROQ_MIN_INTERVAL_MS-(Date.now()-lastGroqRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastGroqRequestAt=Date.now();}
 async function oddsFetch(input){
  const target=new URL(input);
@@ -287,7 +287,7 @@ function buildCandidates(events){
 }
 async function groqRequest(body,label){
  const requestBody={...body};
- const estimatedInputTokens=Math.ceil(JSON.stringify(requestBody).length/3);
+ const estimatedInputTokens=Math.ceil(JSON.stringify(requestBody).length/2.5);
  const reservedOutputTokens=Number(requestBody.max_completion_tokens||requestBody.max_tokens||0);
  const estimatedTotalTokens=estimatedInputTokens+reservedOutputTokens;
  if(estimatedTotalTokens>GROQ_MAX_TOTAL_TOKENS)throw new Error("Groq request blocked before sending: estimated "+estimatedTotalTokens+" tokens exceeds the "+GROQ_MAX_TOTAL_TOKENS+"-token safety budget for the 8,000 TPM account limit. Reduce the batch size.");
