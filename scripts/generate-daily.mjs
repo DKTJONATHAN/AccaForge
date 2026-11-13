@@ -70,7 +70,13 @@ async function ensureSchema(){
  if(!selectionColumns.some(column=>column.name==="selection_status"))await d1("ALTER TABLE selections ADD COLUMN selection_status TEXT NOT NULL DEFAULT 'PICK'");
  if(!selectionColumns.some(column=>column.name==="probability"))await d1("ALTER TABLE selections ADD COLUMN probability REAL NOT NULL DEFAULT 0");
  if(!selectionColumns.some(column=>column.name==="implied_probability"))await d1("ALTER TABLE selections ADD COLUMN implied_probability REAL NOT NULL DEFAULT 0");
- await d1("UPDATE accas SET product_type='legacy' WHERE product_type='safe_picks' AND target_odds IN (10,15,20)");
+ // Recover recent Safe Picks editions mislabelled by the old broad migration.
+ // Safe Picks also has target_odds=10, so identify it by its invariant: exactly ten
+ // distinct fixtures, with every selection priced from 1.01 through 1.50.
+ await d1("UPDATE accas SET product_type='safe_picks' WHERE product_type='legacy' AND target_odds=10 AND publish_date >= date('now','-2 days') AND (SELECT COUNT(*) FROM selections WHERE acca_id=accas.id)=10 AND (SELECT COUNT(DISTINCT event_id) FROM selections WHERE acca_id=accas.id)=10 AND (SELECT MIN(odds) FROM selections WHERE acca_id=accas.id)>=1.01 AND (SELECT MAX(odds) FROM selections WHERE acca_id=accas.id)<=1.50");
+ // Only classify old editions outside the live three-day window as legacy.
+ // Never run the old target_odds-only rule against current Safe Picks editions.
+ await d1("UPDATE accas SET product_type='legacy' WHERE product_type='safe_picks' AND target_odds IN (10,15,20) AND publish_date < date('now','-2 days')");
 }
 
 const SNAPSHOT_CHUNK_CHARS=70000;
