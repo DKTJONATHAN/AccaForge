@@ -16,6 +16,9 @@ async function d1(sql,params=[]){
 }
 function apiKeys(names){return [...new Set(names.flatMap(name=>(env[name]||"").split(",")).map(value=>value.trim()).filter(Boolean))];}
 const oddsKeys=apiKeys(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"]);
+// IMPORTANT: Groq credentials are stored in GitHub Secrets named GEMINI_API_KEY, GEMINI_API_KEY1, GEMINI_API_KEY2.
+// The workflow files map those legacy secret names to GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2.
+// Do not rename these environment-variable names or assume the GitHub secret names are Gemini keys.
 const groqKeys=apiKeys(["GROQ_API_KEY","GROQ_API_KEY1","GROQ_API_KEY2"]);
 if(!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
 if(!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
