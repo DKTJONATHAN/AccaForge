@@ -1,0 +1,34 @@
+/* AccaForge UX hardening: accessible interaction states and reduced-motion support. */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible {
+  outline: 3px solid #087b4a;
+  outline-offset: 3px;
+}
+:where(button,a,.icon-button,.mobile-dock a) {
+  -webkit-tap-highlight-color: rgba(8,123,74,.14);
+}
+:where(button,.icon-button,.mobile-menu a,.mobile-dock a,.details-toggle) {
+  touch-action: manipulation;
+}
+.selection-row {
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.selection-row:focus-within {
+  background: #f3f8f5;
+}
+.selection-pass .pick-label,
+.pick-default {
+  border: 1px solid #d9e0e8;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (max-width: 380px) {
+  .page-shell { padding-left: 14px; padding-right: 14px; }
+  .site-header { padding-left: 14px; padding-right: 14px; }
+}
