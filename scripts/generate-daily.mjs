@@ -381,12 +381,12 @@ async function askGroqProduct(type,candidates,events,research){
  const commonPrompt=[...common,"Candidate rows:",JSON.stringify(shortlist)];let prompt,maxCompletion=1000;
  if(type==="super_5")prompt=["Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 5: exactly five picks from five different fixtures. No combined-odds target or arbitrary individual-odds ceiling. No padding.",...commonPrompt].join("\n\n");
  else if(type==="super_10")prompt=["Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 10: choose 2 or more selections with combined odds between 9.50 and 10.50 inclusive. Never repeat an exact candidate. Return null if no defensible combination meets the range; do not pad.",...commonPrompt].join("\n\n");
- else {const safe=shortlist.filter(x=>Number(x[6])>=1.01&&Number(x[6])<=1.50);prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every price 1.01 to 1.50 inclusive. If fewer than 10 defensible fixtures exist, return null; never pad.","Eligible candidate rows:",JSON.stringify(safe),...common].join("\n\n");}
+ else {const safe=shortlist.filter(x=>Number(x[6])>=1.01&&Number(x[6])<=1.50);if(safe.length<10){console.warn("Safe Picks preflight: only "+safe.length+" eligible fixtures have prices between 1.01 and 1.50; ten are required.");return {safe_picks:null,safe_picks_reason:"Only "+safe.length+" distinct fixtures have eligible prices between 1.01 and 1.50; exactly 10 are required."};}maxCompletion=1800;prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every price 1.01 to 1.50 inclusive. If fewer than 10 defensible fixtures exist, return null; never pad.","Eligible candidate rows:",JSON.stringify(safe),...common].join("\n\n");}
  console.log("Groq "+type+": shortlisted "+shortlist.length+" of "+rows.length+" candidate rows.");
  return callGroqJson(prompt,type,maxCompletion);
 }
 
-function validateProducts(result,candidates,events){
+function validateProducts(result,candidates,events,onlyType=null){
  const lookup=new Map(candidates.map(item=>[item.candidate_id,item]));
  const products=[];
  const validateSelection=(entry,allowedMin=1.01,allowedMax=Number.POSITIVE_INFINITY)=>{
@@ -397,7 +397,7 @@ function validateProducts(result,candidates,events){
   if(!Number.isFinite(probability)||probability<=0||probability>=100)throw new Error("Every PICK needs a model-estimated probability between 0 and 100.");
   return {...candidate,probability,note:cleanText(entry.note,260),selection_status:"PICK",implied_probability:Number((100/candidate.odds).toFixed(2))};
  };
- const attempt=(name,build)=>{try{const product=build();if(product)products.push(product);}catch(error){console.warn(name+" withheld; other valid products can still publish: "+cleanText(error?.message||error,260));}};
+ const attempt=(name,build)=>{if(onlyType&&onlyType!==({"Safe Picks":"safe_picks","Super 5":"super_5","Super 10":"super_10","All-Matches Challenge":"all_matches"}[name]))return;try{const product=build();if(product)products.push(product);}catch(error){console.warn(name+" withheld; other valid products can still publish: "+cleanText(error?.message||error,260));}};
  attempt("Safe Picks",()=>{
   if(!Array.isArray(result.safe_picks?.selections))return null;
   if(result.safe_picks.selections.length!==10)throw new Error("Safe Picks must contain exactly 10 selections.");
@@ -474,7 +474,7 @@ async function runProductStage(date,type,candidates,events,research){
  await setStageStatus(date,type,"running",{started_at:new Date().toISOString()});
  try{
   const result=await askGroqProduct(type,candidates,events,research);
-  const validated=validateProducts(result,candidates,events).filter(item=>item.product_type===type);
+  const validated=validateProducts(result,candidates,events,type).filter(item=>item.product_type===type);
   if(!validated.length){
    const reason=type==="safe_picks"?cleanText(result.safe_picks_reason,300):"The AI response did not produce a product that passed all validation rules.";
    await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:reason});
