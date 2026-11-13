@@ -20,8 +20,9 @@ const oddsKeys=apiKeys(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY
 // The workflow files map those legacy secret names to GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2.
 // Do not rename these environment-variable names or assume the GitHub secret names are Gemini keys.
 const groqKeys=apiKeys(["GROQ_API_KEY","GROQ_API_KEY1","GROQ_API_KEY2"]);
-if(!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
-if(!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
+const migrateOnly=String(env.MIGRATE_ONLY||"").toLowerCase()==="true";
+if(!migrateOnly&&!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
+if(!migrateOnly&&!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
 let oddsKeyCursor=0,groqKeyCursor=0,lastGroqRequestAt=0;
 const GROQ_MIN_INTERVAL_MS=65000;
 const GROQ_MAX_TOTAL_TOKENS=5500;
