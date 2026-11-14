@@ -50,7 +50,7 @@ Never use `VITE_` prefixes for secrets and never commit API keys.
 - .github/workflows/refresh-results.yml refreshes yesterday's scores at **03:10 Africa/Nairobi**.
 - .github/workflows/generate-safe-picks.yml starts the daily fixture, research and distillation pipeline at **09:00 Africa/Nairobi**.
 - On completion, product workflows continue in order: **Super 5 → Super 10 → All-Matches**. A withheld or failed product does not stop later product stages.
-- Each product workflow supports manual dispatch with an optional publish_date (YYYY-MM-DD). Use the same date to resume D1 research/distillation checkpoints and unfinished All-Matches batches. Do not change the date when resuming a partially completed run.
+- Each product workflow supports manual dispatch with an optional publish_date (YYYY-MM-DD). The selected date is stored in D1 and automatically propagated through the chained Super 5, Super 10 and All-Matches workflows. Use the same date to resume D1 research/distillation checkpoints and unfinished All-Matches batches.
 - GitHub scheduled jobs are best-effort and can start a little later during high platform load.
 
 
