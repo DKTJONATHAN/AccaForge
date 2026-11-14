@@ -579,7 +579,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
    if(!first)first=parsedChunk.all_matches;
    merged.push(...parsedChunk.all_matches.fixtures);
   }
-  return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged}};
+  return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged},__allowed_candidate_ids:rows.map(row=>row[0])};
  }
  const limit=type==="safe_picks"?20:24;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
@@ -604,11 +604,14 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every individual price must be 1.01 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible fixtures cannot meet both conditions, return null; never pad or weaken the rules.","Distilled evidence:",JSON.stringify(evidence),"Eligible distilled candidate rows:",JSON.stringify(safe),...common].join("\n\n");
  }
  console.log("Groq "+type+": shortlisted "+shortlist.length+" of "+rows.length+" distilled candidate rows.");
- return callGroqJson(prompt,type,maxCompletion);
+ const generated=await callGroqJson(prompt,type,maxCompletion);
+ generated.__allowed_candidate_ids=shortlist.map(row=>row[0]);
+ return generated;
 }
 
 function validateProducts(result,candidates,events,onlyType=null){
- const lookup=new Map(candidates.map(item=>[item.candidate_id,item]));
+ const allowedIds=Array.isArray(result?.__allowed_candidate_ids)?new Set(result.__allowed_candidate_ids):new Set(candidates.map(item=>item.candidate_id));
+ const lookup=new Map(candidates.filter(item=>allowedIds.has(item.candidate_id)).map(item=>[item.candidate_id,item]));
  const products=[];
  const validateSelection=(entry,allowedMin=1.01,allowedMax=Number.POSITIVE_INFINITY)=>{
   const candidate=lookup.get(entry?.candidate_id);
