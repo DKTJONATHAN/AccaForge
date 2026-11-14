@@ -51,8 +51,8 @@ jobs:
           ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
           ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
           ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
-# IMPORTANT: Groq API credentials are stored in legacy-named GitHub Secrets GEMINI_API_KEY, GEMINI_API_KEY1, GEMINI_API_KEY2.
-          # These secrets contain Groq keys and MUST map to GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2 below.
+# IMPORTANT: Groq API credentials are stored in legacy-named GitHub Secrets GEMINI_API_KEY through GEMINI_API_KEY4.
+          # These secrets contain Groq keys and MUST map to GROQ_API_KEY through GROQ_API_KEY4 below.
           # Do not rename either side unless the GitHub Secrets and scripts are deliberately migrated together.
           GROQ_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
