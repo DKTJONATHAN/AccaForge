@@ -28,6 +28,8 @@ In GitHub → AccaForge → Settings → Secrets and variables → Actions, add:
 | `GEMINI_API_KEY` | Your Groq API key (legacy secret name; value must be a Groq key) |
 | `GEMINI_API_KEY1` | Optional second Groq API key (same legacy naming) |
 | `GEMINI_API_KEY2` | Optional third Groq API key (same legacy naming) |
+| `GEMINI_API_KEY3` | Optional fourth Groq API key (same legacy naming) |
+| `GEMINI_API_KEY4` | Optional fifth Groq API key (same legacy naming) |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Account D1 Edit permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 | `D1_DATABASE_ID` | The ID of the accaforge D1 database |
@@ -40,7 +42,7 @@ Optional Actions variables:
 
 The daily generator discovers every active soccer competition exposed by your Odds API account. It first lists all fixtures on the requested Africa/Nairobi calendar date using the quota-free `/events` endpoint, then fetches odds for those exact event IDs. It does not impose a rolling-hour or multi-day lookahead and does not restrict discovery to a hand-picked league list. The Odds API can only return competitions and fixtures included in your subscription tier and current feed.
 
-Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if the combined primary market request is unsupported, or fewer than 24 eligible prices / 12 distinct fixtures are found, the fallback scan checks additional markets across the fixture slate and can consume substantially more credits. A successful broad primary-market request avoids this extra scan. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Groq browser search is performed in the AI research stage and is subject to Groq model/tool usage limits. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if the combined primary market request is unsupported, or fewer than 24 eligible prices / 12 distinct fixtures are found, the fallback scan checks additional markets across the fixture slate and can consume substantially more credits. A successful broad primary-market request avoids this extra scan. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Groq browser search is performed in the AI research stage and is subject to Groq model/tool usage limits. Up to five Groq credentials can be configured through the legacy `GEMINI_API_KEY` through `GEMINI_API_KEY4` secret names. Multiple keys in the same Groq organisation do not increase the organisation TPM quota; the generator retains a shared 65-second request interval and rotates credentials for authentication failures only. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
 
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
