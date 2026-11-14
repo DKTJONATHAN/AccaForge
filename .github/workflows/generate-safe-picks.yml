@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 6 * * *" # 09:00 AM Africa/Nairobi
   workflow_dispatch:
+    inputs:
+      publish_date:
+        description: "Publication date to resume or generate (YYYY-MM-DD; blank uses today in Nairobi)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -59,4 +64,5 @@ jobs:
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
           ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
+          PUBLISH_DATE: ${{ inputs.publish_date }}
         run: node scripts/generate-daily.mjs
