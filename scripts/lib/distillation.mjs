@@ -1,16 +1,26 @@
 const VALID_STATUSES = new Set(["RETAINED", "REJECTED", "NEEDS_REVIEW"]);
 
 export function shardFixtures(events, candidates, options = {}) {
-  const size = Math.max(1, Number(options.size) || 6);
-  const maxCandidatesPerFixture = Math.max(1, Number(options.maxCandidatesPerFixture) || 6);
+  const maxFixtures = Math.max(1, Number(options.size) || 6);
+  const maxCandidatesPerFixture = Math.max(1, Number(options.maxCandidatesPerFixture) || 8);
+  const maxEstimatedTotalTokens = Math.max(1000, Number(options.maxEstimatedTotalTokens) || 5000);
+  const reservedTokens = Math.max(0, Number(options.reservedTokens) || 1100);
+  const promptOverheadTokens = Math.max(0, Number(options.promptOverheadTokens) || 1200);
+  const maxPayloadTokens = Math.max(200, maxEstimatedTotalTokens - reservedTokens - promptOverheadTokens);
   const byEvent = new Map();
   for (const candidate of candidates || []) {
     if (!byEvent.has(candidate.event_id)) byEvent.set(candidate.event_id, []);
     byEvent.get(candidate.event_id).push(candidate);
   }
   const shards = [];
-  for (let offset = 0; offset < events.length; offset += size) {
-    const fixtures = events.slice(offset, offset + size).map((event) => ({
+  let current = [];
+  const flush = () => {
+    if (!current.length) return;
+    shards.push({ chunk_index: shards.length, fixtures: current });
+    current = [];
+  };
+  for (const event of events) {
+    const fixture = {
       event_id: event.id,
       sport_key: event.sport_key,
       commence_time: event.commence_time,
@@ -23,9 +33,16 @@ export function shardFixtures(events, candidates, options = {}) {
         .map(({ candidate_id, market_name, selection_name, odds, bookmaker }) => ({
           candidate_id, market_name, selection_name, odds, bookmaker
         }))
-    }));
-    shards.push({ chunk_index: shards.length, fixtures });
+    };
+    const proposed = [...current, fixture];
+    const estimatedPayloadTokens = Math.ceil(JSON.stringify(proposed).length / 2.5);
+    if (current.length && (current.length >= maxFixtures || estimatedPayloadTokens > maxPayloadTokens)) flush();
+    current.push(fixture);
+    if (Math.ceil(JSON.stringify(current).length / 2.5) > maxPayloadTokens) {
+      throw new Error("A single fixture exceeds the configured distillation token budget; reduce candidate detail before dispatch.");
+    }
   }
+  flush();
   return shards;
 }
 
