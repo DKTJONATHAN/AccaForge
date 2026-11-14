@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --pretty",
     "generate:daily": "node scripts/generate-daily.mjs",
     "verify:seo": "bash scripts/verify-seo.sh",
-    "test:unit": "node --test scripts/lib/*.test.mjs"
+    "test:unit": "node --test scripts/lib/*.test.mjs",
+    "test": "node --test scripts/lib/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",
