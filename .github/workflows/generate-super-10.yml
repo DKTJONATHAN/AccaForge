@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_date:
-        description: "Publication date to resume or generate (YYYY-MM-DD; blank uses today in Nairobi)"
+        description: "Publication date to resume (YYYY-MM-DD; blank follows the active D1 pipeline date, or today if none is active)"
         required: false
         type: string
 
