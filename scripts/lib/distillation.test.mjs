@@ -56,3 +56,26 @@ test("global merge deduplicates candidates and preserves complete fixture covera
   assert.ok(merged.candidates.every((candidate) => candidate.distillation_confidence === 80));
   assert.throws(() => mergeDistillationChunks(results.slice(0, 1), events, candidates), /every fixture/);
 });
+
+test("token-aware sharding splits oversized fixture groups without losing coverage", () => {
+  const largeCandidates = events.flatMap((event) => [0, 1, 2].map((n) => ({
+    event_id: event.id, candidate_id: event.id + "-large-" + n, odds: 1.2 + n,
+    market_name: "M".repeat(180), selection_name: "S".repeat(180), bookmaker: "B".repeat(40)
+  })));
+  const shards = shardFixtures(events, largeCandidates, {
+    size: 6, maxCandidatesPerFixture: 3, maxEstimatedTotalTokens: 1500,
+    reservedTokens: 300, promptOverheadTokens: 300
+  });
+  assert.ok(shards.length > 2);
+  assert.deepEqual(shards.flatMap((shard) => shard.fixtures.map((fixture) => fixture.event_id)), events.map((event) => event.id));
+});
+
+test("retained candidates must include a non-empty evidence rationale", () => {
+  const shard = shardFixtures(events.slice(0, 1), candidates, { size: 1 })[0];
+  assert.throws(() => validateDistillationChunk({
+    fixtures: [{
+      event_id: "event-0", status: "RETAINED",
+      candidates: [{ candidate_id: "event-0-candidate-0", confidence: 75, rationale: " " }]
+    }]
+  }, shard), /evidence rationale/);
+});
