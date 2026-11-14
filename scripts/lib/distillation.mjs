@@ -53,11 +53,9 @@ export function validateDistillationChunk(payload, shard) {
       if (!Number.isFinite(confidence) || confidence < 1 || confidence > 99) {
         throw new Error("Distillation confidence must be between 1 and 99.");
       }
-      retained.push({
-        candidate_id: candidate.candidate_id,
-        confidence,
-        rationale: String(item.rationale || "").replace(/[<>\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 240)
-      });
+      const rationale = String(item.rationale || "").replace(/[<>\\u0000-\\u001f]/g, "").replace(/\\s+/g, " ").trim().slice(0, 240);
+      if (!rationale) throw new Error("Every retained candidate needs an evidence rationale.");
+      retained.push({ candidate_id: candidate.candidate_id, confidence, rationale });
     }
     if (entry.status === "RETAINED" && retained.length === 0) {
       throw new Error("A retained fixture must contain at least one validated candidate.");
