@@ -306,10 +306,10 @@ function buildCandidates(events){
   const highest=values.slice().sort((a,b)=>b.odds-a.odds)[0];
   if(highest&&!chosen.some(item=>item.candidate_id===highest.candidate_id))chosen.push(highest);
   for(const item of values.slice().sort((a,b)=>a.odds-b.odds)){
-   if(chosen.length>=6)break;
+   if(chosen.length>=8)break;
    if(!chosen.some(existing=>existing.candidate_id===item.candidate_id))chosen.push(item);
   }
-  candidates.push(...chosen.slice(0,6));
+  candidates.push(...chosen.slice(0,8));
  }
  // Keep the full supplied price spectrum while retaining coverage across the daily fixture slate.
  return candidates.sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
@@ -409,7 +409,7 @@ async function callGroqJson(prompt,label,maxCompletion){
  try{return JSON.parse(jsonText)}catch{throw new Error("Groq returned malformed JSON for "+label+".");}
 }
 async function getDailyDistillation(date,events,candidates,research){
- const shards=shardFixtures(events,candidates,{size:6,maxCandidatesPerFixture:6});
+ const shards=shardFixtures(events,candidates,{size:6,maxCandidatesPerFixture:8,maxEstimatedTotalTokens:5000,reservedTokens:1100,promptOverheadTokens:1200});
  const existing=await d1("SELECT chunk_index,input_hash,fixture_ids,status,result_json,error FROM daily_distillation_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  const stored=new Map(existing.map(row=>[Number(row.chunk_index),row]));
  await d1("DELETE FROM daily_distillation_chunks WHERE publish_date=? AND chunk_index>=?",[date,shards.length]);
