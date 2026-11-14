@@ -474,7 +474,12 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
  const byEvent=new Map();
  for(const item of candidates){if(!byEvent.has(item.event_id))byEvent.set(item.event_id,[]);byEvent.get(item.event_id).push(item);}
  let stage=candidates;
- if(type==="safe_picks")stage=[...byEvent.values()].map(items=>items.filter(x=>x.odds>=1.01&&x.odds<=1.50).sort((a,b)=>(b.distillation_confidence||0)-(a.distillation_confidence||0)||Math.abs(a.odds-1.35)-Math.abs(b.odds-1.35)||a.odds-b.odds)[0]).filter(Boolean);
+ if(type==="safe_picks")stage=[...byEvent.values()].flatMap(items=>{
+  const eligible=items.filter(x=>x.odds>=1.01&&x.odds<=1.50);
+  const best=eligible.slice().sort((a,b)=>(b.distillation_confidence||0)-(a.distillation_confidence||0)||Math.abs(a.odds-1.35)-Math.abs(b.odds-1.35))[0];
+  const higher=eligible.slice().sort((a,b)=>b.odds-a.odds||(b.distillation_confidence||0)-(a.distillation_confidence||0))[0];
+  return [...new Map([best,higher].filter(Boolean).map(item=>[item.candidate_id,item])).values()];
+ });
  else if(type==="super_5")stage=[...byEvent.values()].flatMap(items=>{
   const sorted=[...items].sort((a,b)=>a.odds-b.odds);
   const chosen=[sorted.find(x=>x.odds>=1.80)||sorted[0],sorted.find(x=>x.odds>=2.50)||sorted[Math.floor((sorted.length-1)/2)],sorted.at(-1)];
@@ -493,7 +498,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   await d1("DELETE FROM daily_product_chunks WHERE publish_date=? AND product_type='all_matches' AND chunk_index>=?",[publishDate,Math.ceil(events.length/batchSize)]);
   for(let offset=0;offset<events.length;offset+=batchSize){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
-   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,80)}));
+   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,60)}));
    const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(batch[0]?.id));
    const researchText=researchChunk?.dossier||research.dossier.slice(0,1200);
    const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText}));
@@ -543,7 +548,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   }
   return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged}};
  }
- const limit=type==="safe_picks"?32:36;
+ const limit=type==="safe_picks"?40:36;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
  const shortlist=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0)).slice(0,limit);
  const evidence=shortlist.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:evidenceById.get(row[0])?.rationale||""}));
