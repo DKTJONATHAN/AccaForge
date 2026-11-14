@@ -394,7 +394,7 @@ async function getDailyResearch(date,events){
   let normalized=null,chunkCitations=[],lastError=null;
   for(let attempt=1;attempt<=2;attempt++){
    try{
-    const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:900,temperature:0.4,reasoning_effort:"low"},"shared web research batch "+(chunkIndex+1));
+    const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",response_format:{type:"json_object"},max_completion_tokens:900,temperature:0.4,reasoning_effort:"low"},"shared web research batch "+(chunkIndex+1));
     const content=result.choices?.[0]?.message?.content||"",jsonText=extractGroqJson(content);
     if(!jsonText)throw new Error("Groq research did not return the required fixture-keyed JSON.");
     normalized=normalizeResearchPayload(JSON.parse(jsonText),batch);
