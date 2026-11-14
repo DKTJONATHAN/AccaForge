@@ -79,6 +79,7 @@ async function ensureSchema(){
  "CREATE TABLE IF NOT EXISTS daily_research_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,fixture_ids TEXT NOT NULL,status TEXT NOT NULL,dossier TEXT,citations TEXT NOT NULL DEFAULT '[]',error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
  "CREATE TABLE IF NOT EXISTS daily_distillation_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,input_hash TEXT NOT NULL,fixture_ids TEXT NOT NULL,status TEXT NOT NULL,result_json TEXT,error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
  "CREATE TABLE IF NOT EXISTS daily_product_chunks (publish_date TEXT NOT NULL,product_type TEXT NOT NULL,chunk_index INTEGER NOT NULL,input_hash TEXT NOT NULL,status TEXT NOT NULL,result_json TEXT,error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,product_type,chunk_index))",
+ "CREATE TABLE IF NOT EXISTS pipeline_control (id TEXT PRIMARY KEY,publish_date TEXT NOT NULL,updated_at TEXT NOT NULL)",
  "CREATE TABLE IF NOT EXISTS generation_runs (publish_date TEXT NOT NULL,product_type TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,started_at TEXT,completed_at TEXT,acca_id TEXT,error TEXT,PRIMARY KEY(publish_date,product_type))"
  ];
  for(const statement of statements)await d1(statement);
@@ -725,14 +726,21 @@ async function runProductStage(date,type,candidates,events,research,distillation
  }
 }
 async function main(){
- const date=String(env.PUBLISH_DATE||kenyaDate()).trim();
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date)throw new Error("PUBLISH_DATE must be a valid YYYY-MM-DD calendar date.");
- console.log("AccaForge daily generation starting for "+date+" (Africa/Nairobi).");
+ let date=String(env.PUBLISH_DATE||kenyaDate()).trim();
+ console.log("AccaForge daily generation starting (Africa/Nairobi).");
  await ensureSchema();
  if(String(env.MIGRATE_ONLY||"").toLowerCase()==="true"){
   console.log("D1 schema migration completed. MIGRATE_ONLY is enabled; no Groq or Odds API requests were made.");
   return;
  }
+ const requestedStage=String(env.PRODUCT_TYPES||"").trim().toLowerCase();
+ if(!env.PUBLISH_DATE&&requestedStage&&requestedStage!=="safe_picks"){
+  const control=await d1("SELECT publish_date FROM pipeline_control WHERE id='daily' AND julianday(updated_at)>=julianday('now','-1 day')");
+  if(control[0]?.publish_date){date=String(control[0].publish_date);console.log("Resuming the chained product pipeline for the shared publication date "+date+".");}
+ }
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date)throw new Error("PUBLISH_DATE must be a valid YYYY-MM-DD calendar date.");
+ await d1("INSERT INTO pipeline_control (id,publish_date,updated_at) VALUES ('daily',?,?) ON CONFLICT(id) DO UPDATE SET publish_date=excluded.publish_date,updated_at=excluded.updated_at",[date,new Date().toISOString()]);
+ console.log("AccaForge daily generation starting for "+date+" (Africa/Nairobi).");
  await pruneDailyData(date);
  let snapshot=await loadDailySnapshot(date);
  if(!snapshot){
