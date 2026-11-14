@@ -23,10 +23,23 @@ const groqKeys=apiKeys(["GROQ_API_KEY","GROQ_API_KEY1","GROQ_API_KEY2","GROQ_API
 const migrateOnly=String(env.MIGRATE_ONLY||"").toLowerCase()==="true";
 if(!migrateOnly&&!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
 if(!migrateOnly&&!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
-let oddsKeyCursor=0,groqKeyCursor=0,lastGroqRequestAt=0;
+let oddsKeyCursor=0,groqKeyCursor=0,lastGroqRequestAt=0,groqCooldownUntil=0;
 const GROQ_MIN_INTERVAL_MS=65000;
 const GROQ_MAX_TOTAL_TOKENS=5500;
-async function waitForGroqSlot(){const wait=Math.max(0,GROQ_MIN_INTERVAL_MS-(Date.now()-lastGroqRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastGroqRequestAt=Date.now();}
+async function waitForGroqSlot(){
+ const intervalReadyAt=lastGroqRequestAt+GROQ_MIN_INTERVAL_MS;
+ const wait=Math.max(0,intervalReadyAt,groqCooldownUntil)-Date.now();
+ if(wait>0)await new Promise(resolve=>setTimeout(resolve,wait));
+ lastGroqRequestAt=Date.now();
+}
+function groqRetryAfterMs(response){
+ const value=response.headers.get("retry-after");
+ if(!value)return GROQ_MIN_INTERVAL_MS;
+ const seconds=Number(value);
+ if(Number.isFinite(seconds))return Math.max(1000,seconds*1000);
+ const date=Date.parse(value);
+ return Number.isFinite(date)?Math.max(1000,date-Date.now()):GROQ_MIN_INTERVAL_MS;
+}
 async function oddsFetch(input){
  const target=new URL(input);
  if(target.hostname!=="api.the-odds-api.com"||!target.pathname.startsWith("/v4/"))throw new Error("Blocked unexpected Odds API destination.");
@@ -310,19 +323,21 @@ async function groqRequest(body,label){
  let lastError;
  for(let attempt=1;attempt<=3;attempt++){
   try{
-   let response,payload,responseText;
+   let response,payload,responseText,keySlotUsed=0;
    if(label.startsWith("shared web research")&&attempt>1)requestBody.temperature=attempt===2?0.7:0.4;
    for(let keyAttempt=0;keyAttempt<groqKeys.length;keyAttempt++){
     const keyIndex=(groqKeyCursor+keyAttempt)%groqKeys.length;
+    keySlotUsed=keyIndex+1;
     await waitForGroqSlot();
     response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(180000)});
     responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
     if(![401,403].includes(response.status)||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
     console.warn("Groq key slot "+(keyIndex+1)+" returned HTTP "+response.status+" during "+label+"; rotating credentials.");
    }
-   console.log("Groq "+label+": HTTP "+response.status+"; estimated request budget "+estimatedTotalTokens+"/"+GROQ_MAX_TOTAL_TOKENS+" tokens.");
+   console.log("Groq "+label+": HTTP "+response.status+"; credential slot "+keySlotUsed+"/"+groqKeys.length+"; estimated request budget "+estimatedTotalTokens+"/"+GROQ_MAX_TOTAL_TOKENS+" tokens.");
    if(response.ok)return payload;
    const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1600);
+   if(response.status===429)groqCooldownUntil=Math.max(groqCooldownUntil,Date.now()+groqRetryAfterMs(response));
    lastError=new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
    if([401,403].includes(response.status))throw lastError;
    if(!(response.status===429||response.status===408||response.status>=500))throw lastError;
