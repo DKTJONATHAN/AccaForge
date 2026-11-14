@@ -30,8 +30,8 @@ export function shardFixtures(events, candidates, options = {}) {
         .slice()
         .sort((a, b) => a.odds - b.odds || a.candidate_id.localeCompare(b.candidate_id))
         .slice(0, maxCandidatesPerFixture)
-        .map(({ candidate_id, market_name, selection_name, odds, bookmaker }) => ({
-          candidate_id, market_name, selection_name, odds, bookmaker
+        .map(({ candidate_id, market_name, selection_name, odds }) => ({
+          candidate_id, market_name, selection_name, odds
         }))
     };
     const proposed = [...current, fixture];
