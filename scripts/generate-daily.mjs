@@ -472,17 +472,19 @@ async function getDailyDistillation(date,events,candidates,research){
    "Research dossier for this shard:",researchText,"Research citation metadata:",JSON.stringify(researchCitations)
   ].join("\n\n");
   let normalized=null,lastError=null;
-  for(let attempt=1;attempt<=2;attempt++){
-   try{
-    const parsed=await callGroqJson(prompt,"candidate distillation chunk "+(index+1),1100);
-    normalized=validateDistillationChunk(parsed,shard);
-    if(/LIVE WEB RESEARCH UNAVAILABLE/i.test(researchText)){
-     normalized.fixtures=normalized.fixtures.map(item=>({event_id:item.event_id,status:"NEEDS_REVIEW",candidates:[],reason:"Live research was unavailable for this fixture shard; no positive selection can be justified."}));
+  if(/LIVE WEB RESEARCH UNAVAILABLE/i.test(researchText)){
+   normalized={fixtures:shard.fixtures.map(item=>({event_id:item.event_id,status:"NEEDS_REVIEW",candidates:[],reason:"Live research was unavailable for this fixture shard; no positive selection can be justified."}))};
+   console.warn("Distillation chunk "+(index+1)+" marked NEEDS_REVIEW without an AI call because its research checkpoint is unavailable.");
+  }else{
+   for(let attempt=1;attempt<=2;attempt++){
+    try{
+     const parsed=await callGroqJson(prompt,"candidate distillation chunk "+(index+1),1100);
+     normalized=validateDistillationChunk(parsed,shard);
+     break;
+    }catch(error){
+     lastError=error;
+     if(attempt<2)console.warn("Distillation chunk "+(index+1)+" will retry once after validation/model failure: "+cleanText(error?.message||error,300));
     }
-    break;
-   }catch(error){
-    lastError=error;
-    if(attempt<2)console.warn("Distillation chunk "+(index+1)+" will retry once after validation/model failure: "+cleanText(error?.message||error,300));
    }
   }
   if(!normalized){
