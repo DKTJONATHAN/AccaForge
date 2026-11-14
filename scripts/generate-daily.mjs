@@ -481,7 +481,7 @@ async function getDailyDistillation(date,events,candidates,research){
   ].join("\n\n");
   let normalized=null,lastError=null;
   if(/LIVE WEB RESEARCH UNAVAILABLE/i.test(researchText)){
-   normalized={fixtures:shard.fixtures.map(item=>({event_id:item.event_id,status:"NEEDS_REVIEW",candidates:[],reason:"Live research was unavailable for this fixture shard; no positive selection can be justified."}))};
+   normalized={fixtures:shard.fixtures.map(item=>({event_id:item.event_id,status:item.candidates.length?"NEEDS_REVIEW":"REJECTED",candidates:[],reason:item.candidates.length?"Live research was unavailable for this fixture shard; no positive selection can be justified.":"No eligible market prices were collected for this fixture."}))};
    console.warn("Distillation chunk "+(index+1)+" marked NEEDS_REVIEW without an AI call because its research checkpoint is unavailable.");
   }else{
    for(let attempt=1;attempt<=2;attempt++){
