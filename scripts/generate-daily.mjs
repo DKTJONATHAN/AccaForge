@@ -100,7 +100,7 @@ async function ensureSchema(){
 
 const SNAPSHOT_CHUNK_CHARS=70000;
 async function storeDailySnapshot(date,events,candidates){
- const serialized=JSON.stringify({version:1,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
+ const serialized=JSON.stringify({version:2,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
  const chunks=[];
  for(let offset=0;offset<serialized.length;offset+=SNAPSHOT_CHUNK_CHARS)chunks.push(serialized.slice(offset,offset+SNAPSHOT_CHUNK_CHARS));
  await d1("INSERT INTO daily_snapshots (publish_date,status,fixture_count,candidate_count,chunk_count,collected_at,error) VALUES (?,?,?,?,?,?,NULL) ON CONFLICT(publish_date) DO UPDATE SET status=excluded.status,fixture_count=excluded.fixture_count,candidate_count=excluded.candidate_count,chunk_count=excluded.chunk_count,collected_at=excluded.collected_at,error=NULL",[date,"collecting",events.length,candidates.length,chunks.length,new Date().toISOString()]);
@@ -115,7 +115,15 @@ async function loadDailySnapshot(date){
  const chunks=await d1("SELECT payload FROM odds_snapshot_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  if(chunks.length!==Number(rows[0].chunk_count))throw new Error("The saved D1 odds snapshot is incomplete; refusing to use partial data.");
  const parsed=JSON.parse(chunks.map(row=>row.payload).join(""));
- if(parsed.version!==1||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
+ if(parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
+ if(parsed.version===1){
+  // Rebuild the legacy capped candidate list from the original raw bookmaker payload; no Odds API credits are consumed.
+  const candidates=buildCandidates(parsed.events);
+  await storeDailySnapshot(date,parsed.events,candidates);
+  console.log("Upgraded the legacy odds snapshot to version 2 from its stored raw fixture markets; no Odds API requests were made.");
+  return {version:2,publish_date:date,collection_time:parsed.collection_time,events:parsed.events,candidates};
+ }
+ if(parsed.version!==2)throw new Error("The saved D1 odds snapshot uses an unsupported version.");
  console.log("Reusing the immutable D1 odds snapshot for "+date+"; no Odds API requests will be made.");
  return parsed;
 }
