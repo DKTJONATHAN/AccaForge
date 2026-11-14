@@ -52,6 +52,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
           GROQ_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+          GROQ_API_KEY3: ${{ secrets.GEMINI_API_KEY3 }}
+          GROQ_API_KEY4: ${{ secrets.GEMINI_API_KEY4 }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
