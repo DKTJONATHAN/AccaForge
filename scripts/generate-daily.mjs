@@ -327,8 +327,8 @@ function buildCandidates(events){
 async function groqRequest(body,label){
  const requestBody={...body};
  const estimatedInputTokens=Math.ceil(JSON.stringify(requestBody).length/2.5);
- const reservedOutputTokens=Number(requestBody.max_completion_tokens||requestBody.max_tokens||0); const estimatedTotalTokens=estimatedInputTokens+reservedOutputTokens;
- if(estimatedTotalTokens>GROQ_MAX_TOTAL_TOKENS)throw new Error("Groq request blocked before sending: estimated "+estimatedTotalTokens+" tokens exceeds the "+GROQ_MAX_TOTAL_TOKENS+"-token safety budget for the 8,000 TPM account limit. Reduce the batch size.");
+ const reservedOutputTokens=Number(requestBody.max_completion_tokens||requestBody.max_tokens||0);
+ const estimatedTotalTokens=estimatedInputTokens+reservedOutputTokens; if(estimatedTotalTokens>GROQ_MAX_TOTAL_TOKENS)throw new Error("Groq request blocked before sending: estimated "+estimatedTotalTokens+" tokens exceeds the "+GROQ_MAX_TOTAL_TOKENS+"-token safety budget for the 8,000 TPM account limit. Reduce the batch size.");
  let lastError;
  for(let attempt=1;attempt<=3;attempt++){
   try{
