@@ -703,6 +703,8 @@ async function runProductStage(date,type,candidates,events,research,distillation
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
  if(existing?.status==="published"&&!forceRegenerate.has(type)){console.log("Skipping "+type+": already published for "+date+".");return true;}
  if(existing?.status==="published"&&forceRegenerate.has(type))console.log("Force-regenerating "+type+" for "+date+"; the previous published edition remains live unless a new edition passes validation.");
+ await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND status='building' AND product_type=?)",[date,type]);
+ await d1("DELETE FROM accas WHERE publish_date=? AND status='building' AND product_type=?",[date,type]);
  await setStageStatus(date,type,"running",{started_at:new Date().toISOString()});
  try{
   const result=await askGroqProduct(type,candidates,events,research,distillation,date);
