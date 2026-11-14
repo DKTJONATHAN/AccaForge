@@ -58,6 +58,11 @@ export function validateDistillationChunk(payload, shard) {
     seen.add(entry.event_id);
     if (!VALID_STATUSES.has(entry.status)) throw new Error("Distillation returned an invalid fixture status.");
     if (!Array.isArray(entry.candidates)) throw new Error("Each distillation fixture must include a candidates array.");
+    if (fixture.candidates.length === 0) {
+      if (entry.candidates.length) throw new Error("Distillation invented a candidate for a fixture with no eligible prices.");
+      normalized.push({ event_id: entry.event_id, status: "REJECTED", candidates: [], reason: "No eligible market prices were collected for this fixture." });
+      continue;
+    }
     const allowed = new Map(fixture.candidates.map((candidate) => [candidate.candidate_id, candidate]));
     const used = new Set();
     const retained = [];
