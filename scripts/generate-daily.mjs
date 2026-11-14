@@ -574,6 +574,7 @@ function validateProducts(result,candidates,events,onlyType=null){
   const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,1.01,1.50));
   if(new Set(selected.map(item=>item.event_id)).size!==10)throw new Error("Safe Picks must use exactly 10 different fixtures, with only one market per match.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
+  if(combined<10)throw new Error("Safe Picks combined odds must be at least 10.00; received "+combined.toFixed(2)+".");
   return {product_type:"safe_picks",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Evidence-led selections across different fixtures, with every individual price between 1.01 and 1.50.",selections:selected};
  });
  attempt("Super 5",()=>{
@@ -638,14 +639,14 @@ async function saveAccas(products,publishDate){
  console.log("Published "+products.map(item=>item.product_type).join(", ")+ " for "+publishDate+"; retained the latest three calendar days.");
 }
 
-async function runProductStage(date,type,candidates,events,research){
+async function runProductStage(date,type,candidates,events,research,distillation){
  const existing=await getStageStatus(date,type);
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
  if(existing?.status==="published"&&!forceRegenerate.has(type)){console.log("Skipping "+type+": already published for "+date+".");return true;}
  if(existing?.status==="published"&&forceRegenerate.has(type))console.log("Force-regenerating "+type+" for "+date+"; the previous published edition remains live unless a new edition passes validation.");
  await setStageStatus(date,type,"running",{started_at:new Date().toISOString()});
  try{
-  const result=await askGroqProduct(type,candidates,events,research);
+  const result=await askGroqProduct(type,candidates,events,research,distillation);
   const validated=validateProducts(result,candidates,events,type).filter(item=>item.product_type===type);
   if(!validated.length){
    const reason=type==="safe_picks"?cleanText(result.safe_picks_reason,300):"The AI response did not produce a product that passed all validation rules.";
@@ -666,7 +667,8 @@ async function runProductStage(date,type,candidates,events,research){
  }
 }
 async function main(){
- const date=kenyaDate();
+ const date=String(env.PUBLISH_DATE||kenyaDate()).trim();
+ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||new Date(date+"T00:00:00Z").toISOString().slice(0,10)!==date)throw new Error("PUBLISH_DATE must be a valid YYYY-MM-DD calendar date.");
  console.log("AccaForge daily generation starting for "+date+" (Africa/Nairobi).");
  await ensureSchema();
  if(String(env.MIGRATE_ONLY||"").toLowerCase()==="true"){
@@ -687,6 +689,9 @@ async function main(){
  if(!events.length||!candidates.length)throw new Error("The saved daily odds snapshot contains no usable fixtures or market candidates.");
  console.log("Using "+events.length+" fixtures and "+candidates.length+" candidate prices from the immutable "+date+" D1 snapshot.");
  const research=await getDailyResearch(date,events);
+ const distillation=await getDailyDistillation(date,events,candidates,research);
+ const distilledCandidates=distillation.candidates;
+ console.log("Product allocation pool: "+distilledCandidates.length+" validated candidates from "+distillation.fixtures.filter(item=>item.status==="RETAINED").length+" retained fixtures.");
  const allStages=["safe_picks","super_5","super_10","all_matches"];
  const requested=String(env.PRODUCT_TYPES||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean);
  const stages=requested.length?allStages.filter(type=>requested.includes(type)):allStages;
@@ -695,7 +700,7 @@ async function main(){
  let failures=0;
  for(let index=0;index<stages.length;index++){
   const type=stages[index];
-  const completed=await runProductStage(date,type,candidates,events,research);
+  const completed=await runProductStage(date,type,distilledCandidates,events,research,distillation);
   if(!completed)failures++;
   if(index<stages.length-1){
    console.log("Pausing 65 seconds before the next independent Groq product stage to respect free-tier TPM limits.");
