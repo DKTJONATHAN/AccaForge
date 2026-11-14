@@ -328,8 +328,7 @@ async function groqRequest(body,label){
  const requestBody={...body};
  const estimatedInputTokens=Math.ceil(JSON.stringify(requestBody).length/2.5);
  const reservedOutputTokens=Number(requestBody.max_completion_tokens||requestBody.max_tokens||0);
- const estimatedTotalTokens=estimatedInputTokens+reservedOutputTokens;
- if(estimatedTotalTokens>GROQ_MAX_TOTAL_TOKENS)throw new Error("Groq request blocked before sending: estimated "+estimatedTotalTokens+" tokens exceeds the "+GROQ_MAX_TOTAL_TOKENS+"-token safety budget for the 8,000 TPM account limit. Reduce the batch size.");
+ const estimatedTotalTokens=estimatedInputTokens+reservedOutputTokens; if(estimatedTotalTokens>GROQ_MAX_TOTAL_TOKENS)throw new Error("Groq request blocked before sending: estimated "+estimatedTotalTokens+" tokens exceeds the "+GROQ_MAX_TOTAL_TOKENS+"-token safety budget for the 8,000 TPM account limit. Reduce the batch size.");
  let lastError;
  for(let attempt=1;attempt<=3;attempt++){
   try{
@@ -447,7 +446,7 @@ async function callGroqJson(prompt,label,maxCompletion){
  try{return JSON.parse(jsonText)}catch{throw new Error("Groq returned malformed JSON for "+label+".");}
 }
 async function getDailyDistillation(date,events,candidates,research){
- const shards=shardFixtures(events,candidates,{size:6,maxCandidatesPerFixture:8,maxEstimatedTotalTokens:5000,reservedTokens:1100,promptOverheadTokens:1200});
+ const shards=shardFixtures(events,candidates,{size:4,maxCandidatesPerFixture:8,maxEstimatedTotalTokens:5000,reservedTokens:1600,promptOverheadTokens:1200});
  const existing=await d1("SELECT chunk_index,input_hash,fixture_ids,status,result_json,error FROM daily_distillation_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  const stored=new Map(existing.map(row=>[Number(row.chunk_index),row]));
  await d1("DELETE FROM daily_distillation_chunks WHERE publish_date=? AND chunk_index>=?",[date,shards.length]);
@@ -486,7 +485,7 @@ async function getDailyDistillation(date,events,candidates,research){
   }else{
    for(let attempt=1;attempt<=2;attempt++){
     try{
-     const parsed=await callGroqJson(prompt,"candidate distillation chunk "+(index+1),1100);
+     const parsed=await callGroqJson(prompt,"candidate distillation chunk "+(index+1),1600);
      normalized=validateDistillationChunk(parsed,shard);
      break;
     }catch(error){
