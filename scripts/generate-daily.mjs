@@ -312,7 +312,7 @@ function buildCandidates(events){
   candidates.push(...chosen.slice(0,6));
  }
  // Keep the full supplied price spectrum while retaining coverage across the daily fixture slate.
- return candidates.sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time)).slice(0,450);
+ return candidates.sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
 }
 async function groqRequest(body,label){
  const requestBody={...body};
@@ -489,7 +489,7 @@ async function askGroqProduct(type,candidates,events,research,distillation){
   const merged=[];let first=null;const batchSize=6;
   for(let offset=0;offset<events.length;offset+=batchSize){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
-   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:evidenceById.get(row[0])?.rationale||""}));
+   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,80)}));
    const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(batch[0]?.id));
    const researchText=researchChunk?.dossier||research.dossier.slice(0,1200);
    const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText}));
@@ -497,13 +497,14 @@ async function askGroqProduct(type,candidates,events,research,distillation){
    const validateBatch=(parsed)=>{
     const entries=parsed?.all_matches?.fixtures;
     if(!Array.isArray(entries)||entries.length!==batch.length)throw new Error("All-Matches chunk must return exactly one row per fixture.");
-    const expected=new Set(batch.map(item=>item.id)),seen=new Set(),allowed=new Map(batchRows.map(row=>[row[0],row[1]]));
+    const expected=new Set(batch.map(item=>item.id)),seen=new Set(),allowed=new Map(batchRows.map(row=>[row[0],row[1]])),distilledStatus=new Map(distillation.fixtures.map(item=>[item.event_id,item.status]));
     const normalized=[];
     for(const entry of entries){
      if(!expected.has(entry?.event_id))throw new Error("All-Matches chunk returned an unknown fixture.");
      if(seen.has(entry.event_id))throw new Error("All-Matches chunk duplicated a fixture.");
      seen.add(entry.event_id);
      if(entry.status==="PICK"){
+      if(distilledStatus.get(entry.event_id)!=="RETAINED")throw new Error("All-Matches cannot PICK a fixture that distillation rejected or flagged for review.");
       if(!entry.candidate_id||allowed.get(entry.candidate_id)!==entry.event_id)throw new Error("All-Matches PICK must reference a candidate belonging to that fixture.");
       const probability=Number(entry.probability);
       if(!Number.isFinite(probability)||probability<=0||probability>=100)throw new Error("All-Matches PICK probability must be between 0 and 100.");
@@ -522,7 +523,7 @@ async function askGroqProduct(type,candidates,events,research,distillation){
     catch(error){console.warn("Cached All-Matches chunk "+(chunkIndex+1)+" failed validation and will be recomputed: "+cleanText(error?.message||error,220));}
    }
    if(!parsedChunk){
-    const prompt=["Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}.","Return exactly one result for every fixture in this batch. Use PASS if no candidate survived distillation or no defensible selection exists. Never invent a candidate ID. Do not omit fixtures.","Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),...common,"Batch research:",researchText,"Distillation evidence:",JSON.stringify(batchEvidence),"Candidate rows:",JSON.stringify(batchRows)].join("\n\n");
+    const prompt=["Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}.","Return exactly one result for every fixture in this batch. Use PASS if no candidate survived distillation or no defensible selection exists. Never invent a candidate ID. Do not omit fixtures.","Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),...common,"Batch research:",researchText,"Distillation fixture statuses:",JSON.stringify(batch.map(item=>({event_id:item.id,status:distilledStatus.get(item.id)||"NEEDS_REVIEW"}))),"Distillation evidence:",JSON.stringify(batchEvidence),"Candidate rows:",JSON.stringify(batchRows)].join("\n\n");
     try{
      const generated=await callGroqJson(prompt,"all_matches batch "+(chunkIndex+1),850);
      parsedChunk=validateBatch(generated);
@@ -538,7 +539,7 @@ async function askGroqProduct(type,candidates,events,research,distillation){
   }
   return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged}};
  }
- const limit=type==="safe_picks"?60:36;
+ const limit=type==="safe_picks"?32:36;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
  const shortlist=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0)).slice(0,limit);
  const evidence=shortlist.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:evidenceById.get(row[0])?.rationale||""}));
@@ -550,7 +551,7 @@ async function askGroqProduct(type,candidates,events,research,distillation){
   const safe=shortlist.filter(x=>Number(x[6])>=1.01&&Number(x[6])<=1.50);
   if(safe.length<10||new Set(safe.map(x=>x[1])).size<10){console.warn("Safe Picks preflight: only "+safe.length+" eligible distinct fixtures have prices between 1.01 and 1.50; ten are required.");return {safe_picks:null,safe_picks_reason:"Only "+safe.length+" distinct fixtures have eligible distilled prices between 1.01 and 1.50; exactly 10 are required."};}
   maxCompletion=1400;
-  prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every individual price must be 1.01 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible fixtures cannot meet both conditions, return null; never pad or weaken the rules.","Eligible distilled candidate rows:",JSON.stringify(safe),...common].join("\n\n");
+  prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every individual price must be 1.01 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible fixtures cannot meet both conditions, return null; never pad or weaken the rules.","Distilled evidence:",JSON.stringify(evidence),"Eligible distilled candidate rows:",JSON.stringify(safe),...common].join("\n\n");
  }
  console.log("Groq "+type+": shortlisted "+shortlist.length+" of "+rows.length+" distilled candidate rows.");
  return callGroqJson(prompt,type,maxCompletion);
