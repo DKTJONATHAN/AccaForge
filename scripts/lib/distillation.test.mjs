@@ -79,3 +79,12 @@ test("retained candidates must include a non-empty evidence rationale", () => {
     }]
   }, shard), /evidence rationale/);
 });
+
+test("fixtures without any priced candidates are deterministically rejected", () => {
+  const shard = shardFixtures(events.slice(0, 1), [], { size: 1 })[0];
+  const normalized = validateDistillationChunk({
+    fixtures: [{ event_id: "event-0", status: "RETAINED", candidates: [], reason: "" }]
+  }, shard);
+  assert.equal(normalized.fixtures[0].status, "REJECTED");
+  assert.deepEqual(normalized.fixtures[0].candidates, []);
+});
