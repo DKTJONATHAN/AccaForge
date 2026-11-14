@@ -681,8 +681,6 @@ async function saveAccas(products,publishDate){
   }
  }
  await d1("UPDATE accas SET status='published' WHERE id IN ("+newIds.map(()=>"?").join(",")+")",newIds);
- const productTypes=products.map(item=>item.product_type);
- const typePlaceholders=productTypes.map(()=>"?").join(",");
  const idPlaceholders=newIds.map(()=>"?").join(",");
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND product_type IN ("+typePlaceholders+") AND id NOT IN ("+idPlaceholders+"))",[publishDate,...productTypes,...newIds]);
  await d1("DELETE FROM accas WHERE publish_date=? AND product_type IN ("+typePlaceholders+") AND id NOT IN ("+idPlaceholders+")",[publishDate,...productTypes,...newIds]);
