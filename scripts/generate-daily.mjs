@@ -354,8 +354,8 @@ async function groqRequest(body,label){
 async function getDailyResearch(date,events){
  const cached=await loadResearch(date);
  const existingChunks=await d1("SELECT chunk_index,fixture_ids,status,dossier,citations FROM daily_research_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
- // Preserve legacy cached dossiers when no resumable shard records exist.
- if(cached?.dossier&&!existingChunks.length){console.log("Reusing the saved legacy research dossier for "+date+".");return {...cached,researchChunks:[]};
+ // Legacy aggregate dossiers cannot be safely mapped to individual fixtures; rebuild them as resumable shards.
+ if(cached?.dossier&&!existingChunks.length)console.log("Legacy research dossier has no fixture-level shard provenance; refreshing it into resumable D1 chunks before distillation.");
  const fixtureRows=events.map(event=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:cleanText(event.home_team,90),away_team:cleanText(event.away_team,90)}));
  const dossierParts=[],citations=[],researchChunks=[],batchSize=6,stored=new Map(existingChunks.map(row=>[Number(row.chunk_index),row]));
  const batchCount=Math.ceil(fixtureRows.length/batchSize);
