@@ -3,7 +3,21 @@ name: AccaForge Generate Safe Picks
 on:
   schedule:
     - cron: "0 6 * * *" # 09:00 AM Africa/Nairobi
+  push:
+    branches: [main]
+    paths:
+      - "scripts/generate-daily.mjs"
+      - "scripts/lib/**"
+      - ".github/workflows/generate-safe-picks.yml"
+      - ".github/workflows/generate-super-5.yml"
+      - ".github/workflows/generate-super-10.yml"
+      - ".github/workflows/generate-all-matches.yml"
   workflow_dispatch:
+    inputs:
+      publish_date:
+        description: "Publication date to resume or generate (YYYY-MM-DD; blank uses today in Nairobi)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -15,7 +29,7 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,15 +60,18 @@ jobs:
           ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
           ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
           ODDSAPI_KEY3: ${{ secrets.ODDSAPI_KEY3 }}
-# IMPORTANT: Groq API credentials are stored in legacy-named GitHub Secrets GEMINI_API_KEY, GEMINI_API_KEY1, GEMINI_API_KEY2.
-          # These secrets contain Groq keys and MUST map to GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2 below.
+# IMPORTANT: Groq API credentials are stored in legacy-named GitHub Secrets GEMINI_API_KEY through GEMINI_API_KEY4.
+          # These secrets contain Groq keys and MUST map to GROQ_API_KEY through GROQ_API_KEY4 below.
           # Do not rename either side unless the GitHub Secrets and scripts are deliberately migrated together.
           GROQ_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
           GROQ_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+          GROQ_API_KEY3: ${{ secrets.GEMINI_API_KEY3 }}
+          GROQ_API_KEY4: ${{ secrets.GEMINI_API_KEY4 }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL }}
           ODDS_REGIONS: ${{ vars.ODDS_REGIONS }}
           ODDS_MARKETS: ${{ vars.ODDS_MARKETS }}
           ODDS_FALLBACK_MARKETS: ${{ vars.ODDS_FALLBACK_MARKETS }}
           ODDS_SPORT_KEYS: ${{ vars.ODDS_SPORT_KEYS }}
+          PUBLISH_DATE: ${{ inputs.publish_date }}
         run: node scripts/generate-daily.mjs
