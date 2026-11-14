@@ -419,7 +419,7 @@ async function getDailyDistillation(date,events,candidates,research){
  for(const shard of shards){
   const index=shard.chunk_index;
   const fixtureIds=shard.fixtures.map(item=>item.event_id);
-  const researchChunk=research.researchChunks?.find(item=>item.chunk_index===index);
+  const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(shard.fixtures[0]?.event_id));
   const researchText=researchChunk?.dossier||research.dossier.slice(0,1600);
   const inputHash=makeId(JSON.stringify({fixtures:shard.fixtures,research:researchText}));
   const previous=stored.get(index);
