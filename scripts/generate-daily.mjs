@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { apiKeys } from "./lib/api-keys.mjs";
+import { shardFixtures, validateDistillationChunk, mergeDistillationChunks } from "./lib/distillation.mjs";
 
 const env=process.env;
 const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
@@ -62,6 +63,8 @@ async function ensureSchema(){
  "CREATE TABLE IF NOT EXISTS odds_snapshot_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
  "CREATE TABLE IF NOT EXISTS daily_research (publish_date TEXT PRIMARY KEY,dossier TEXT NOT NULL,citations TEXT NOT NULL,created_at TEXT NOT NULL)",
  "CREATE TABLE IF NOT EXISTS daily_research_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,fixture_ids TEXT NOT NULL,status TEXT NOT NULL,dossier TEXT,citations TEXT NOT NULL DEFAULT '[]',error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
+ "CREATE TABLE IF NOT EXISTS daily_distillation_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,input_hash TEXT NOT NULL,fixture_ids TEXT NOT NULL,status TEXT NOT NULL,result_json TEXT,error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
+ "CREATE TABLE IF NOT EXISTS daily_product_chunks (publish_date TEXT NOT NULL,product_type TEXT NOT NULL,chunk_index INTEGER NOT NULL,input_hash TEXT NOT NULL,status TEXT NOT NULL,result_json TEXT,error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,product_type,chunk_index))",
  "CREATE TABLE IF NOT EXISTS generation_runs (publish_date TEXT NOT NULL,product_type TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,started_at TEXT,completed_at TEXT,acca_id TEXT,error TEXT,PRIMARY KEY(publish_date,product_type))"
  ];
  for(const statement of statements)await d1(statement);
@@ -120,6 +123,9 @@ async function pruneDailyData(date){
  await d1("DELETE FROM odds_snapshot_chunks WHERE publish_date < date(?, '-2 days')",[date]);
  await d1("DELETE FROM daily_snapshots WHERE publish_date < date(?, '-2 days')",[date]);
  await d1("DELETE FROM daily_research WHERE publish_date < date(?, '-2 days')",[date]);
+ await d1("DELETE FROM daily_research_chunks WHERE publish_date < date(?, '-2 days')",[date]);
+ await d1("DELETE FROM daily_distillation_chunks WHERE publish_date < date(?, '-2 days')",[date]);
+ await d1("DELETE FROM daily_product_chunks WHERE publish_date < date(?, '-2 days')",[date]);
  await d1("DELETE FROM generation_runs WHERE publish_date < date(?, '-2 days')",[date]);
  await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date < date(?, '-2 days'))",[date]);
  await d1("DELETE FROM accas WHERE publish_date < date(?, '-2 days')",[date]);
@@ -334,17 +340,20 @@ async function getDailyResearch(date,events){
  const cached=await loadResearch(date);
  const existingChunks=await d1("SELECT chunk_index,fixture_ids,status,dossier,citations FROM daily_research_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  // Preserve legacy cached dossiers when no resumable shard records exist.
- if(cached?.dossier&&!existingChunks.length){console.log("Reusing the saved legacy research dossier for "+date+".");return cached;}
+ if(cached?.dossier&&!existingChunks.length){console.log("Reusing the saved legacy research dossier for "+date+".");return {...cached,researchChunks:[]};
  const fixtureRows=events.map(event=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:cleanText(event.home_team,90),away_team:cleanText(event.away_team,90)}));
- const dossierParts=[],citations=[],batchSize=6,stored=new Map(existingChunks.map(row=>[Number(row.chunk_index),row]));
+ const dossierParts=[],citations=[],researchChunks=[],batchSize=6,stored=new Map(existingChunks.map(row=>[Number(row.chunk_index),row]));
  const batchCount=Math.ceil(fixtureRows.length/batchSize);
+ await d1("DELETE FROM daily_research_chunks WHERE publish_date=? AND chunk_index>=?",[date,batchCount]);
  console.log("Shared Groq research: "+fixtureRows.length+" fixtures in "+batchCount+" resumable chunks of "+batchSize+"; chunks run serially to respect the shared organisation TPM limit.");
  for(let offset=0;offset<fixtureRows.length;offset+=batchSize){
   const chunkIndex=Math.floor(offset/batchSize),batch=fixtureRows.slice(offset,offset+batchSize),fixtureIds=JSON.stringify(batch.map(item=>item.event_id));
   const previous=stored.get(chunkIndex);
   if(previous?.status==="completed"&&previous.fixture_ids===fixtureIds&&previous.dossier){
    dossierParts.push(previous.dossier);
-   citations.push(...JSON.parse(previous.citations||"[]"));
+   const savedCitations=JSON.parse(previous.citations||"[]");
+   citations.push(...savedCitations);
+   researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:previous.dossier,citations:savedCitations});
    console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" reused from D1.");
    continue;
   }
@@ -355,13 +364,13 @@ async function getDailyResearch(date,events){
    if(!dossier.trim())throw new Error("Groq browser research returned an empty dossier.");
    const chunkCitations=result.choices?.[0]?.message?.citations||[];
    await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'completed',?,?,NULL,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='completed',dossier=excluded.dossier,citations=excluded.citations,error=NULL,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,dossier,JSON.stringify(chunkCitations),new Date().toISOString()]);
-   dossierParts.push(dossier);citations.push(...chunkCitations);
+   dossierParts.push(dossier);citations.push(...chunkCitations);researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier,citations:chunkCitations});
    console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" saved to D1.");
   }catch(error){
    const message=cleanText(error?.message||error,350),names=batch.map(item=>item.home_team+" vs "+item.away_team).join("; ");
    const fallback="LIVE WEB RESEARCH UNAVAILABLE for: "+names+". Current form, H2H, standings, injuries, suspensions, rotation, schedule and news are unverified; do not infer or invent them.";
    await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'failed',?, '[]',?,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='failed',dossier=excluded.dossier,citations='[]',error=excluded.error,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,fallback,message,new Date().toISOString()]);
-   dossierParts.push(fallback);
+   dossierParts.push(fallback);researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:fallback,citations:[]});
    console.warn("Research chunk "+(chunkIndex+1)+" unavailable and marked for retry: "+message);
   }
  }
@@ -370,7 +379,7 @@ async function getDailyResearch(date,events){
  if(Number(failed[0]?.count||0)===0)await saveResearch(date,dossier,citations);
  else console.warn("Research dossier remains resumable: "+failed[0].count+" chunk(s) failed; successful chunks are retained and failed chunks will be retried on the next run.");
  console.log("Research dossier assembled; citations "+citations.length+"; characters "+dossier.length+".");
- return {dossier,citations};
+ return {dossier,citations,researchChunks:researchChunks.sort((a,b)=>a.chunk_index-b.chunk_index)};
 }
 function extractGroqJson(content){
  const start=content.indexOf("{");if(start<0)return null;
