@@ -58,6 +58,7 @@ const regions=env.ODDS_REGIONS||"uk";
 const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
 console.log("Groq model selected: "+model+" (shared research + four independent product stages).");
+console.log("Groq credential slots configured: "+groqKeys.length+"; requests rotate across configured keys under one shared organisation rate limiter.");
 
 function kenyaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
 function cleanText(value,max=180){return String(value??"").replace(/[<>\u0000-\u001f]/g,"").replace(/\s+/g," ").trim().slice(0,max);}
