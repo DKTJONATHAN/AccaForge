@@ -325,10 +325,10 @@ async function groqRequest(body,label){
   try{
    let response,payload,responseText,keySlotUsed=0;
    if(label.startsWith("shared web research")&&attempt>1)requestBody.temperature=attempt===2?0.7:0.4;
+   await waitForGroqSlot();
    for(let keyAttempt=0;keyAttempt<groqKeys.length;keyAttempt++){
     const keyIndex=(groqKeyCursor+keyAttempt)%groqKeys.length;
     keySlotUsed=keyIndex+1;
-    await waitForGroqSlot();
     response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(180000)});
     responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
     if(![401,403].includes(response.status)||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
