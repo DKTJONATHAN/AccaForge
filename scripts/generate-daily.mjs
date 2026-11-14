@@ -61,6 +61,7 @@ async function ensureSchema(){
  "CREATE TABLE IF NOT EXISTS daily_snapshots (publish_date TEXT PRIMARY KEY,status TEXT NOT NULL,fixture_count INTEGER NOT NULL DEFAULT 0,candidate_count INTEGER NOT NULL DEFAULT 0,chunk_count INTEGER NOT NULL DEFAULT 0,collected_at TEXT,error TEXT)",
  "CREATE TABLE IF NOT EXISTS odds_snapshot_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
  "CREATE TABLE IF NOT EXISTS daily_research (publish_date TEXT PRIMARY KEY,dossier TEXT NOT NULL,citations TEXT NOT NULL,created_at TEXT NOT NULL)",
+ "CREATE TABLE IF NOT EXISTS daily_research_chunks (publish_date TEXT NOT NULL,chunk_index INTEGER NOT NULL,fixture_ids TEXT NOT NULL,status TEXT NOT NULL,dossier TEXT,citations TEXT NOT NULL DEFAULT '[]',error TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(publish_date,chunk_index))",
  "CREATE TABLE IF NOT EXISTS generation_runs (publish_date TEXT NOT NULL,product_type TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,started_at TEXT,completed_at TEXT,acca_id TEXT,error TEXT,PRIMARY KEY(publish_date,product_type))"
  ];
  for(const statement of statements)await d1(statement);
@@ -331,27 +332,44 @@ async function groqRequest(body,label){
 
 async function getDailyResearch(date,events){
  const cached=await loadResearch(date);
- if(cached?.dossier){console.log("Reusing the saved research dossier for "+date+".");return cached;}
+ const existingChunks=await d1("SELECT chunk_index,fixture_ids,status,dossier,citations FROM daily_research_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
+ // Preserve legacy cached dossiers when no resumable shard records exist.
+ if(cached?.dossier&&!existingChunks.length){console.log("Reusing the saved legacy research dossier for "+date+".");return cached;}
  const fixtureRows=events.map(event=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:cleanText(event.home_team,90),away_team:cleanText(event.away_team,90)}));
- const dossierParts=[],citations=[],batchSize=6;
- console.log("Shared Groq research: "+fixtureRows.length+" fixtures in batches of "+batchSize+" for TPM protection.");
+ const dossierParts=[],citations=[],batchSize=6,stored=new Map(existingChunks.map(row=>[Number(row.chunk_index),row]));
+ const batchCount=Math.ceil(fixtureRows.length/batchSize);
+ console.log("Shared Groq research: "+fixtureRows.length+" fixtures in "+batchCount+" resumable chunks of "+batchSize+"; chunks run serially to respect the shared organisation TPM limit.");
  for(let offset=0;offset<fixtureRows.length;offset+=batchSize){
-  const batch=fixtureRows.slice(offset,offset+batchSize);
-  const prompt=["Research ONLY these football fixtures using current web sources; do not choose bets or estimate odds.","For each match, research recent form, home/away performance, table context, credible injuries/suspensions/rotation, rest/schedule and matchup trends. Prefer official clubs/leagues and established reporting. Never invent facts; mark unavailable information unverified. Include source names, URLs and dates when possible.","Return a concise dossier, maximum 35 words per fixture. Nairobi date "+date+".",JSON.stringify(batch)].join("\n\n");
+  const chunkIndex=Math.floor(offset/batchSize),batch=fixtureRows.slice(offset,offset+batchSize),fixtureIds=JSON.stringify(batch.map(item=>item.event_id));
+  const previous=stored.get(chunkIndex);
+  if(previous?.status==="completed"&&previous.fixture_ids===fixtureIds&&previous.dossier){
+   dossierParts.push(previous.dossier);
+   citations.push(...JSON.parse(previous.citations||"[]"));
+   console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" reused from D1.");
+   continue;
+  }
+  const prompt=["Research ONLY these football fixtures using current web sources; do not choose bets or estimate odds.","For each match, research recent form, home/away performance, table context, credible injuries/suspensions/rotation, rest/schedule and matchup trends. Prefer official clubs/leagues and established reporting. Never invent facts; mark unavailable information unverified.","Return a concise dossier, maximum 35 words per fixture. Nairobi date "+date+".",JSON.stringify(batch)].join("\n\n");
   try{
-   const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:650,temperature:0.5,reasoning_effort:"low"},"shared web research batch "+(Math.floor(offset/batchSize)+1));
+   const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:650,temperature:0.5,reasoning_effort:"low"},"shared web research batch "+(chunkIndex+1));
    const dossier=result.choices?.[0]?.message?.content||"";
    if(!dossier.trim())throw new Error("Groq browser research returned an empty dossier.");
-   dossierParts.push(dossier);citations.push(...(result.choices?.[0]?.message?.citations||[]));
+   const chunkCitations=result.choices?.[0]?.message?.citations||[];
+   await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'completed',?,?,NULL,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='completed',dossier=excluded.dossier,citations=excluded.citations,error=NULL,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,dossier,JSON.stringify(chunkCitations),new Date().toISOString()]);
+   dossierParts.push(dossier);citations.push(...chunkCitations);
+   console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" saved to D1.");
   }catch(error){
-   const names=batch.map(item=>item.home_team+" vs "+item.away_team).join("; ");
-   dossierParts.push("LIVE WEB RESEARCH UNAVAILABLE for: "+names+". Current form, H2H, standings, injuries, suspensions, rotation, schedule and news are unverified; do not infer or invent them.");
-   console.warn("Research batch "+(Math.floor(offset/batchSize)+1)+" unavailable; explicitly marking facts unverified: "+cleanText(error?.message||error,350));
+   const message=cleanText(error?.message||error,350),names=batch.map(item=>item.home_team+" vs "+item.away_team).join("; ");
+   const fallback="LIVE WEB RESEARCH UNAVAILABLE for: "+names+". Current form, H2H, standings, injuries, suspensions, rotation, schedule and news are unverified; do not infer or invent them.";
+   await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'failed',?, '[]',?,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='failed',dossier=excluded.dossier,citations='[]',error=excluded.error,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,fallback,message,new Date().toISOString()]);
+   dossierParts.push(fallback);
+   console.warn("Research chunk "+(chunkIndex+1)+" unavailable and marked for retry: "+message);
   }
  }
+ const failed=await d1("SELECT COUNT(*) AS count FROM daily_research_chunks WHERE publish_date=? AND status!='completed'",[date]);
  const dossier=dossierParts.join("\n\n").slice(0,18000);
- await saveResearch(date,dossier,citations);
- console.log("Saved batched research dossier; citations "+citations.length+"; characters "+dossier.length+".");
+ if(Number(failed[0]?.count||0)===0)await saveResearch(date,dossier,citations);
+ else console.warn("Research dossier remains resumable: "+failed[0].count+" chunk(s) failed; successful chunks are retained and failed chunks will be retried on the next run.");
+ console.log("Research dossier assembled; citations "+citations.length+"; characters "+dossier.length+".");
  return {dossier,citations};
 }
 function extractGroqJson(content){
