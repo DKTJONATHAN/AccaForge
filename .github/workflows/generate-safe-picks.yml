@@ -3,6 +3,15 @@ name: AccaForge Generate Safe Picks
 on:
   schedule:
     - cron: "0 6 * * *" # 09:00 AM Africa/Nairobi
+  push:
+    branches: [main]
+    paths:
+      - "scripts/generate-daily.mjs"
+      - "scripts/lib/**"
+      - ".github/workflows/generate-safe-picks.yml"
+      - ".github/workflows/generate-super-5.yml"
+      - ".github/workflows/generate-super-10.yml"
+      - ".github/workflows/generate-all-matches.yml"
   workflow_dispatch:
     inputs:
       publish_date:
