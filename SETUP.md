@@ -47,14 +47,19 @@ Odds API market credits depend on the number of active soccer competitions and m
 Never use `VITE_` prefixes for secrets and never commit API keys.
 
 ## Schedule
-The only workflow, `.github/workflows/daily-accas.yml`, runs at **09:00 Africa/Nairobi** every day. It can also be started manually from GitHub Actions. GitHub scheduled jobs are best-effort and can start a little later during high platform load.
+- .github/workflows/refresh-results.yml refreshes yesterday's scores at **03:10 Africa/Nairobi**.
+- .github/workflows/generate-safe-picks.yml starts the daily fixture, research and distillation pipeline at **09:00 Africa/Nairobi**.
+- On completion, product workflows continue in order: **Super 5 → Super 10 → All-Matches**. A withheld or failed product does not stop later product stages.
+- Each product workflow supports manual dispatch with an optional publish_date (YYYY-MM-DD). Use the same date to resume D1 research/distillation checkpoints and unfinished All-Matches batches. Do not change the date when resuming a partially completed run.
+- GitHub scheduled jobs are best-effort and can start a little later during high platform load.
 
-## Apply the product-board database update without using API credits
-After deploying this version, open GitHub → Actions → **AccaForge Daily Accumulators** → **Run workflow**. Set **migrate_only** to **true**, then start the workflow. This applies the D1 columns needed for product types, PASS rows and probability estimates, then exits before any Groq or Odds API request. The existing daily schedule continues to generate the actual editions normally.
+
+## Database schema
+The generator creates and upgrades its D1 snapshot, research, distillation, product-chunk and generation-status tables before processing. The base application schema remains in migrations/0001_initial_schema.sql; no separate daily-accas workflow is required.
 
 ## Verify
-- Open GitHub Actions and run **AccaForge Daily Accumulators** manually.
-- Confirm that the job completes successfully.
+- Open GitHub Actions and run **AccaForge Generate Safe Picks** manually for the required publication date. The downstream product workflows are triggered automatically after the Safe Picks workflow completes.
+- Confirm that each product workflow completes or records a deliberate withheld status.
 - Open the deployed site and check `/api/health` reports a connected database.
 - Check `/api/accas?days=3` for the latest stored editions.
 
