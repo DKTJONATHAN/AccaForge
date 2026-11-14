@@ -662,6 +662,10 @@ function validateProducts(result,candidates,events,onlyType=null){
  return products;
 }
 async function saveAccas(products,publishDate){
+ const productTypes=products.map(item=>item.product_type);
+ const typePlaceholders=productTypes.map(()=>"?").join(",");
+ await d1("DELETE FROM selections WHERE acca_id IN (SELECT id FROM accas WHERE publish_date=? AND status='building' AND product_type IN ("+typePlaceholders+"))",[publishDate,...productTypes]);
+ await d1("DELETE FROM accas WHERE publish_date=? AND status='building' AND product_type IN ("+typePlaceholders+")",[publishDate,...productTypes]);
  const createdAt=new Date().toISOString();
  const runId=makeId(publishDate+"|"+createdAt);
  const newIds=[];
