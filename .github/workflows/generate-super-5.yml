@@ -23,7 +23,7 @@ jobs:
   generate:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Wait 3 minutes after previous product
         run: sleep 180
