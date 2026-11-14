@@ -546,10 +546,11 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
    const researchCitations=researchChunk?.citations||[];
    const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText,citations:researchCitations}));
    const chunkIndex=Math.floor(offset/batchSize);
+   const distilledStatus=new Map(distillation.fixtures.map(item=>[item.event_id,item.status]));
    const validateBatch=(parsed)=>{
     const entries=parsed?.all_matches?.fixtures;
     if(!Array.isArray(entries)||entries.length!==batch.length)throw new Error("All-Matches chunk must return exactly one row per fixture.");
-    const expected=new Set(batch.map(item=>item.id)),seen=new Set(),allowed=new Map(batchRows.map(row=>[row[0],row[1]])),distilledStatus=new Map(distillation.fixtures.map(item=>[item.event_id,item.status]));
+    const expected=new Set(batch.map(item=>item.id)),seen=new Set(),allowed=new Map(batchRows.map(row=>[row[0],row[1]]));
     const normalized=[];
     for(const entry of entries){
      if(!expected.has(entry?.event_id))throw new Error("All-Matches chunk returned an unknown fixture.");
@@ -591,7 +592,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   }
   return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged},__allowed_candidate_ids:rows.map(row=>row[0])};
  }
- const limit=type==="safe_picks"?20:24;
+ const limit=type==="safe_picks"?20:14;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
  const rankedRows=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0));
  let shortlist;
@@ -604,7 +605,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
  }else shortlist=rankedRows.slice(0,limit);
  const evidence=shortlist.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,160)}));
  const commonPrompt=[...common,"Distilled candidate evidence (confidence is a relative ranking, not a calibrated probability):",JSON.stringify(evidence),"Candidate rows:",JSON.stringify(shortlist)];
- let prompt,maxCompletion=1000;
+ let prompt,maxCompletion=800;
  if(type==="super_5")prompt=["Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}} or {\"super_5\":null}.","SUPER 5 TARGET: exactly five selections from five different fixtures. Their decimal odds MUST multiply to at least 30.00. Prefer a balanced combination, generally several selections around 1.80–3.50, rather than depending on one extreme longshot. Choose the most defensible five-pick combination that reaches 30.00; assess probability and evidence honestly, not just the highest prices. Use only supplied candidate IDs and prices. If no defensible five-selection combination reaches 30.00, return null and explain why in analysis_note. Never pad or lower the target.",...commonPrompt].join("\n\n");
  else if(type==="super_10")prompt=["Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 10: choose 2 or more selections with combined odds between 9.50 and 10.50 inclusive. Never repeat an exact candidate. Return null if no defensible combination meets the range; do not pad.",...commonPrompt].join("\n\n");
  else {
@@ -719,7 +720,7 @@ async function runProductStage(date,type,candidates,events,research,distillation
   const result=await askGroqProduct(type,candidates,events,research,distillation,date);
   const validated=validateProducts(result,candidates,events,type).filter(item=>item.product_type===type);
   if(!validated.length){
-   const reason=type==="safe_picks"?cleanText(result.safe_picks_reason,300):type==="super_5"?cleanText(result.super_5_reason,300):type==="super_10"?cleanText(result.super_10_reason,300):"The AI response did not produce a product that passed all validation rules.";
+   const reason=type==="safe_picks"?(cleanText(result.safe_picks_reason,300)||(Array.isArray(result.safe_picks?.selections)?"The model returned "+result.safe_picks.selections.length+" of the required 10 selections; the product was withheld rather than padded.":"The model did not return a complete 10-selection combination; the product was withheld.")):type==="super_5"?(cleanText(result.super_5_reason,300)||"No defensible five-selection combination passed the Super 5 rules."):type==="super_10"?(cleanText(result.super_10_reason,300)||"No defensible combination passed the Super 10 odds range."):"The AI response did not produce a product that passed all validation rules.";
    await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:reason});
    console.warn(type+" withheld: "+reason);
    return false;
