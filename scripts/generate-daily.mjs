@@ -682,12 +682,12 @@ async function main(){
   const events=await getFootballEvents(date);
   if(!events.length)throw new Error("No football fixtures were listed for "+date+" (Africa/Nairobi).");
   const candidates=buildCandidates(events);
-  if(!candidates.length)throw new Error("No priced market candidates were available for the full "+date+" fixture slate.");
+  if(!candidates.length)console.warn("No priced markets were available; the fixture slate will still be distilled and represented as PASS where appropriate.");
   await storeDailySnapshot(date,events,candidates);
   snapshot={events,candidates};
  }
  const {events,candidates}=snapshot;
- if(!events.length||!candidates.length)throw new Error("The saved daily odds snapshot contains no usable fixtures or market candidates.");
+ if(!events.length)throw new Error("The saved daily odds snapshot contains no eligible fixtures.");
  console.log("Using "+events.length+" fixtures and "+candidates.length+" candidate prices from the immutable "+date+" D1 snapshot.");
  const research=await getDailyResearch(date,events);
  const distillation=await getDailyDistillation(date,events,candidates,research);
