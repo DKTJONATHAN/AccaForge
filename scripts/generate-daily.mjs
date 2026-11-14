@@ -550,7 +550,13 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
  }
  const limit=type==="safe_picks"?40:36;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
- const shortlist=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0)).slice(0,limit);
+ const rankedRows=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0));
+ let shortlist;
+ if(type==="safe_picks"){
+  const firstByFixture=[],alternatives=[],seenFixtures=new Set();
+  for(const row of rankedRows){if(!seenFixtures.has(row[1])){seenFixtures.add(row[1]);firstByFixture.push(row);}else alternatives.push(row);}
+  shortlist=[...firstByFixture.slice(0,limit),...alternatives.slice(0,Math.max(0,limit-Math.min(firstByFixture.length,limit)))];
+ }else shortlist=rankedRows.slice(0,limit);
  const evidence=shortlist.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:evidenceById.get(row[0])?.rationale||""}));
  const commonPrompt=[...common,"Distilled candidate evidence (confidence is a relative ranking, not a calibrated probability):",JSON.stringify(evidence),"Candidate rows:",JSON.stringify(shortlist)];
  let prompt,maxCompletion=1000;
