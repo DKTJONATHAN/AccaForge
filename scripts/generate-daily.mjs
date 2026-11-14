@@ -358,7 +358,7 @@ function normalizeResearchPayload(payload,batch){
   if(!expected.has(item?.event_id))throw new Error("Research chunk returned an unknown fixture ID.");
   if(seen.has(item.event_id))throw new Error("Research chunk duplicated a fixture ID.");
   seen.add(item.event_id);
-  const research=cleanText(item.research,520);
+  const research=cleanText(item.research,300);
   if(!research)throw new Error("Research chunk omitted fixture-level evidence.");
   byId.set(item.event_id,{event_id:item.event_id,research});
  }
@@ -527,7 +527,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   await d1("DELETE FROM daily_product_chunks WHERE publish_date=? AND product_type='all_matches' AND chunk_index>=?",[publishDate,Math.ceil(events.length/batchSize)]);
   for(let offset=0;offset<events.length;offset+=batchSize){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
-   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,60)}));
+   const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,40)}));
    const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(batch[0]?.id));
    const researchText=researchChunk?.dossier||research.dossier.slice(0,1200);
    const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText}));
@@ -577,14 +577,16 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
   }
   return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged}};
  }
- const limit=type==="safe_picks"?40:36;
+ const limit=type==="safe_picks"?20:24;
  const confidenceById=new Map(stage.map(item=>[item.candidate_id,item.distillation_confidence||0]));
  const rankedRows=rows.slice().sort((a,b)=>(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0));
  let shortlist;
  if(type==="safe_picks"){
   const firstByFixture=[],alternatives=[],seenFixtures=new Set();
   for(const row of rankedRows){if(!seenFixtures.has(row[1])){seenFixtures.add(row[1]);firstByFixture.push(row);}else alternatives.push(row);}
-  shortlist=[...firstByFixture.slice(0,limit),...alternatives.slice(0,Math.max(0,limit-Math.min(firstByFixture.length,limit)))];
+  const primaryCount=Math.min(firstByFixture.length,Math.ceil(limit*0.75));
+  const rankedAlternatives=alternatives.sort((a,b)=>Number(b[6])-Number(a[6])||(confidenceById.get(b[0])||0)-(confidenceById.get(a[0])||0));
+  shortlist=[...firstByFixture.slice(0,primaryCount),...rankedAlternatives.slice(0,limit-primaryCount)];
  }else shortlist=rankedRows.slice(0,limit);
  const evidence=shortlist.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:evidenceById.get(row[0])?.rationale||""}));
  const commonPrompt=[...common,"Distilled candidate evidence (confidence is a relative ranking, not a calibrated probability):",JSON.stringify(evidence),"Candidate rows:",JSON.stringify(shortlist)];
