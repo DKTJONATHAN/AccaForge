@@ -445,6 +445,9 @@ async function getDailyDistillation(date,events,candidates,research){
    try{
     const parsed=await callGroqJson(prompt,"candidate distillation chunk "+(index+1),1100);
     normalized=validateDistillationChunk(parsed,shard);
+    if(/LIVE WEB RESEARCH UNAVAILABLE/i.test(researchText)){
+     normalized.fixtures=normalized.fixtures.map(item=>({event_id:item.event_id,status:"NEEDS_REVIEW",candidates:[],reason:"Live research was unavailable for this fixture shard; no positive selection can be justified."}));
+    }
     break;
    }catch(error){
     lastError=error;
