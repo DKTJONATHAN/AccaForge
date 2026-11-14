@@ -351,51 +351,78 @@ async function groqRequest(body,label){
  throw lastError||new Error("Groq request failed during "+label);
 }
 
+function normalizeResearchPayload(payload,batch){
+ if(!Array.isArray(payload?.fixtures)||payload.fixtures.length!==batch.length)throw new Error("Research chunk must return exactly one record per fixture.");
+ const expected=new Set(batch.map(item=>item.event_id)),seen=new Set(),byId=new Map();
+ for(const item of payload.fixtures){
+  if(!expected.has(item?.event_id))throw new Error("Research chunk returned an unknown fixture ID.");
+  if(seen.has(item.event_id))throw new Error("Research chunk duplicated a fixture ID.");
+  seen.add(item.event_id);
+  const research=cleanText(item.research,520);
+  if(!research)throw new Error("Research chunk omitted fixture-level evidence.");
+  byId.set(item.event_id,{event_id:item.event_id,research});
+ }
+ if(seen.size!==batch.length)throw new Error("Research chunk omitted one or more fixtures.");
+ return {fixtures:batch.map(item=>byId.get(item.event_id))};
+}
 async function getDailyResearch(date,events){
  const cached=await loadResearch(date);
  const existingChunks=await d1("SELECT chunk_index,fixture_ids,status,dossier,citations FROM daily_research_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
- // Legacy aggregate dossiers cannot be safely mapped to individual fixtures; rebuild them as resumable shards.
- if(cached?.dossier&&!existingChunks.length)console.log("Legacy research dossier has no fixture-level shard provenance; refreshing it into resumable D1 chunks before distillation.");
+ if(cached?.dossier&&!existingChunks.length)console.log("Legacy research dossier has no fixture-level provenance; refreshing it into resumable D1 chunks.");
  const fixtureRows=events.map(event=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:cleanText(event.home_team,90),away_team:cleanText(event.away_team,90)}));
  const dossierParts=[],citations=[],researchChunks=[],batchSize=6,stored=new Map(existingChunks.map(row=>[Number(row.chunk_index),row]));
  const batchCount=Math.ceil(fixtureRows.length/batchSize);
  await d1("DELETE FROM daily_research_chunks WHERE publish_date=? AND chunk_index>=?",[date,batchCount]);
- console.log("Shared Groq research: "+fixtureRows.length+" fixtures in "+batchCount+" resumable chunks of "+batchSize+"; chunks run serially to respect the shared organisation TPM limit.");
+ console.log("Shared Groq research: "+fixtureRows.length+" fixtures in "+batchCount+" resumable chunks of "+batchSize+"; every record is keyed to its fixture ID.");
  for(let offset=0;offset<fixtureRows.length;offset+=batchSize){
   const chunkIndex=Math.floor(offset/batchSize),batch=fixtureRows.slice(offset,offset+batchSize),fixtureIds=JSON.stringify(batch.map(item=>item.event_id));
   const previous=stored.get(chunkIndex);
   if(previous?.status==="completed"&&previous.fixture_ids===fixtureIds&&previous.dossier){
-   dossierParts.push(previous.dossier);
-   const savedCitations=JSON.parse(previous.citations||"[]");
-   citations.push(...savedCitations);
-   researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:previous.dossier,citations:savedCitations});
-   console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" reused from D1.");
-   continue;
+   try{
+    const normalized=normalizeResearchPayload(JSON.parse(previous.dossier),batch);
+    const savedCitations=JSON.parse(previous.citations||"[]");
+    dossierParts.push(JSON.stringify(normalized));citations.push(...savedCitations);
+    researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:JSON.stringify(normalized),citations:savedCitations});
+    console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" reused from D1.");
+    continue;
+   }catch(error){console.warn("Cached research chunk "+(chunkIndex+1)+" failed fixture-level validation and will be refreshed: "+cleanText(error?.message||error,220));}
   }
-  const prompt=["Research ONLY these football fixtures using current web sources; do not choose bets or estimate odds.","For each match, research recent form, home/away performance, table context, credible injuries/suspensions/rotation, rest/schedule and matchup trends. Prefer official clubs/leagues and established reporting. Never invent facts; mark unavailable information unverified.","Return a concise dossier, maximum 35 words per fixture. Nairobi date "+date+".",JSON.stringify(batch)].join("\n\n");
-  try{
-   const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:650,temperature:0.5,reasoning_effort:"low"},"shared web research batch "+(chunkIndex+1));
-   const dossier=result.choices?.[0]?.message?.content||"";
-   if(!dossier.trim())throw new Error("Groq browser research returned an empty dossier.");
-   const chunkCitations=result.choices?.[0]?.message?.citations||[];
-   await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'completed',?,?,NULL,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='completed',dossier=excluded.dossier,citations=excluded.citations,error=NULL,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,dossier,JSON.stringify(chunkCitations),new Date().toISOString()]);
-   dossierParts.push(dossier);citations.push(...chunkCitations);researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier,citations:chunkCitations});
-   console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" saved to D1.");
-  }catch(error){
-   const message=cleanText(error?.message||error,350),names=batch.map(item=>item.home_team+" vs "+item.away_team).join("; ");
+  const prompt=["Research ONLY these football fixtures using current web sources; do not choose bets, recommend markets or estimate odds.","For each fixture, research recent form, home/away performance, table context, credible injuries/suspensions/rotation, rest/schedule and matchup trends. Prefer official clubs/leagues and established reporting. Never invent facts; if a detail cannot be verified, say so.","Return JSON only: {\"fixtures\":[{\"event_id\":\"exact supplied ID\",\"research\":\"maximum 35 words of sourced, fixture-specific evidence and uncertainty\"}]}","Return exactly one object for every supplied event_id. Copy IDs exactly. Keep each research field concise and distinguish confirmed facts from unverified reports.","Nairobi publication date: "+date+". Fixtures:",JSON.stringify(batch)].join("\n\n");
+  let normalized=null,chunkCitations=[],lastError=null;
+  for(let attempt=1;attempt<=2;attempt++){
+   try{
+    const result=await groqRequest({model,messages:[{role:"user",content:prompt}],tools:[{type:"browser_search"}],tool_choice:"required",max_completion_tokens:900,temperature:0.4,reasoning_effort:"low"},"shared web research batch "+(chunkIndex+1));
+    const content=result.choices?.[0]?.message?.content||"",jsonText=extractGroqJson(content);
+    if(!jsonText)throw new Error("Groq research did not return the required fixture-keyed JSON.");
+    normalized=normalizeResearchPayload(JSON.parse(jsonText),batch);
+    chunkCitations=result.choices?.[0]?.message?.citations||[];
+    break;
+   }catch(error){
+    lastError=error;
+    if(attempt<2)console.warn("Research chunk "+(chunkIndex+1)+" will retry once after output validation failure: "+cleanText(error?.message||error,260));
+   }
+  }
+  if(!normalized){
+   const message=cleanText(lastError?.message||lastError||"Unknown research failure",350),names=batch.map(item=>item.home_team+" vs "+item.away_team).join("; ");
    const fallback="LIVE WEB RESEARCH UNAVAILABLE for: "+names+". Current form, H2H, standings, injuries, suspensions, rotation, schedule and news are unverified; do not infer or invent them.";
    await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'failed',?, '[]',?,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='failed',dossier=excluded.dossier,citations='[]',error=excluded.error,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,fallback,message,new Date().toISOString()]);
    dossierParts.push(fallback);researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:fallback,citations:[]});
-   console.warn("Research chunk "+(chunkIndex+1)+" unavailable and marked for retry: "+message);
+   console.warn("Research chunk "+(chunkIndex+1)+" unavailable and marked for review: "+message);
+   continue;
   }
+  const dossier=JSON.stringify(normalized);
+  await d1("INSERT INTO daily_research_chunks (publish_date,chunk_index,fixture_ids,status,dossier,citations,error,updated_at) VALUES (?,?,?,'completed',?,?,NULL,?) ON CONFLICT(publish_date,chunk_index) DO UPDATE SET fixture_ids=excluded.fixture_ids,status='completed',dossier=excluded.dossier,citations=excluded.citations,error=NULL,updated_at=excluded.updated_at",[date,chunkIndex,fixtureIds,dossier,JSON.stringify(chunkCitations),new Date().toISOString()]);
+  dossierParts.push(dossier);citations.push(...chunkCitations);researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier,citations:chunkCitations});
+  console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" validated and saved to D1.");
  }
  const failed=await d1("SELECT COUNT(*) AS count FROM daily_research_chunks WHERE publish_date=? AND status!='completed'",[date]);
  const dossier=dossierParts.join("\n\n").slice(0,18000);
  if(Number(failed[0]?.count||0)===0)await saveResearch(date,dossier,citations);
- else console.warn("Research dossier remains resumable: "+failed[0].count+" chunk(s) failed; successful chunks are retained and failed chunks will be retried on the next run.");
+ else console.warn("Research dossier remains resumable: "+failed[0].count+" chunk(s) unavailable; successful fixture-level research is retained.");
  console.log("Research dossier assembled; citations "+citations.length+"; characters "+dossier.length+".");
  return {dossier,citations,researchChunks:researchChunks.sort((a,b)=>a.chunk_index-b.chunk_index)};
 }
+
 function extractGroqJson(content){
  const start=content.indexOf("{");if(start<0)return null;
  let depth=0,inString=false,escaped=false;
