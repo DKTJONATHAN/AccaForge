@@ -381,7 +381,8 @@ async function getDailyResearch(date,events){
   if(previous?.status==="completed"&&previous.fixture_ids===fixtureIds&&previous.dossier){
    try{
     const normalized=normalizeResearchPayload(JSON.parse(previous.dossier),batch);
-    const savedCitations=JSON.parse(previous.citations||"[]");
+    const parsedCitations=JSON.parse(previous.citations||"[]");
+    const savedCitations=Array.isArray(parsedCitations)?parsedCitations:[];
     dossierParts.push(JSON.stringify(normalized));citations.push(...savedCitations);
     researchChunks.push({chunk_index:chunkIndex,fixture_ids:batch.map(item=>item.event_id),dossier:JSON.stringify(normalized),citations:savedCitations});
     console.log("Research chunk "+(chunkIndex+1)+"/"+batchCount+" reused from D1.");
@@ -396,7 +397,7 @@ async function getDailyResearch(date,events){
     const content=result.choices?.[0]?.message?.content||"",jsonText=extractGroqJson(content);
     if(!jsonText)throw new Error("Groq research did not return the required fixture-keyed JSON.");
     normalized=normalizeResearchPayload(JSON.parse(jsonText),batch);
-    chunkCitations=result.choices?.[0]?.message?.citations||[];
+    chunkCitations=Array.isArray(result.choices?.[0]?.message?.citations)?result.choices[0].message.citations:[];
     break;
    }catch(error){
     lastError=error;
@@ -449,7 +450,8 @@ async function getDailyDistillation(date,events,candidates,research){
   const fixtureIds=shard.fixtures.map(item=>item.event_id);
   const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(shard.fixtures[0]?.event_id));
   const researchText=researchChunk?.dossier||research.dossier.slice(0,1600);
-  const inputHash=makeId(JSON.stringify({fixtures:shard.fixtures,research:researchText}));
+  const researchCitations=researchChunk?.citations||[];
+  const inputHash=makeId(JSON.stringify({fixtures:shard.fixtures,research:researchText,citations:researchCitations}));
   const previous=stored.get(index);
   if(previous?.status==="completed"&&previous.input_hash===inputHash&&previous.result_json){
    try{
@@ -466,7 +468,7 @@ async function getDailyDistillation(date,events,candidates,research){
    "Use confidence as a relative analyst ranking from 1 to 99, NOT as a calibrated probability. Rationale must be concise and explain the key supporting evidence and uncertainty. Do not prefer a candidate solely because its odds are high.",
    "If there is no usable candidate, return REJECTED with an empty candidates array. If material research is unavailable or the evidence is too incomplete to assess responsibly, return NEEDS_REVIEW with an empty candidates array. Never convert missing information into a positive claim.",
    "Nairobi publication date: "+date+". Fixture shard:",JSON.stringify(shard.fixtures),
-   "Research dossier for this shard:",researchText
+   "Research dossier for this shard:",researchText,"Research citation metadata:",JSON.stringify(researchCitations)
   ].join("\n\n");
   let normalized=null,lastError=null;
   for(let attempt=1;attempt<=2;attempt++){
@@ -531,7 +533,8 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
    const batchEvidence=batchRows.map(row=>({candidate_id:row[0],confidence:evidenceById.get(row[0])?.confidence||0,rationale:(evidenceById.get(row[0])?.rationale||"").slice(0,40)}));
    const researchChunk=research.researchChunks?.find(item=>item.fixture_ids?.includes(batch[0]?.id));
    const researchText=researchChunk?.dossier||research.dossier.slice(0,1200);
-   const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText}));
+   const researchCitations=researchChunk?.citations||[];
+   const inputHash=makeId(JSON.stringify({fixtures:batch.map(x=>({id:x.id,home:x.home_team,away:x.away_team,kickoff:x.commence_time})),candidates:batchRows,evidence:batchEvidence,research:researchText,citations:researchCitations}));
    const chunkIndex=Math.floor(offset/batchSize);
    const validateBatch=(parsed)=>{
     const entries=parsed?.all_matches?.fixtures;
@@ -562,7 +565,7 @@ async function askGroqProduct(type,candidates,events,research,distillation,publi
     catch(error){console.warn("Cached All-Matches chunk "+(chunkIndex+1)+" failed validation and will be recomputed: "+cleanText(error?.message||error,220));}
    }
    if(!parsedChunk){
-    const prompt=["Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}.","Return exactly one result for every fixture in this batch. Use PASS if no candidate survived distillation or no defensible selection exists. Never invent a candidate ID. Do not omit fixtures.","Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),...common,"Batch research:",researchText,"Distillation fixture statuses:",JSON.stringify(batch.map(item=>({event_id:item.id,status:distilledStatus.get(item.id)||"NEEDS_REVIEW"}))),"Distillation evidence:",JSON.stringify(batchEvidence),"Candidate rows:",JSON.stringify(batchRows)].join("\n\n");
+    const prompt=["Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}.","Return exactly one result for every fixture in this batch. Use PASS if no candidate survived distillation or no defensible selection exists. Never invent a candidate ID. Do not omit fixtures.","Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),...common,"Batch research:",researchText,"Batch research citation metadata:",JSON.stringify(researchCitations),"Distillation fixture statuses:",JSON.stringify(batch.map(item=>({event_id:item.id,status:distilledStatus.get(item.id)||"NEEDS_REVIEW"}))),"Distillation evidence:",JSON.stringify(batchEvidence),"Candidate rows:",JSON.stringify(batchRows)].join("\n\n");
     try{
      const generated=await callGroqJson(prompt,"all_matches batch "+(chunkIndex+1),850);
      parsedChunk=validateBatch(generated);
