@@ -23,6 +23,7 @@ test("never uses two selections from the same fixture", () => {
   ]);
   assert.ok(combinations.length > 0);
   assert.ok(combinations.every((combo) => new Set(combo.candidate_ids).size === combo.candidate_ids.length));
+  assert.ok(combinations.every((combo) => !(combo.candidate_ids.includes("a") && combo.candidate_ids.includes("b"))));
   assert.ok(combinations.every((combo) => combo.candidate_ids.length >= 2));
 });
 

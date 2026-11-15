@@ -407,7 +407,7 @@ async function askGroqProduct(type,candidates,events,research){
  let allowedRows=shortlist;
  if(type==="super_10"){
   const initial=generated?.super_10?.selections;
-  const rowById=new Map(rows.map(row=>[row[0],row]));
+  const rowById=new Map(shortlist.map(row=>[row[0],row]));
   const initialIds=Array.isArray(initial)?initial.map(item=>item?.candidate_id):[];
   const initialOdds=initialIds.map(id=>Number(rowById.get(id)?.[6]));
   const initialCombined=initialOdds.reduce((total,odds)=>total*odds,1);
