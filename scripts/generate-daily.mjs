@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 
 const env=process.env;
 const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
@@ -388,8 +389,9 @@ async function askGroqProduct(type,candidates,events,research){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=["Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\" or \"PASS\",\"candidate_id\":\"...\" or null,\"probability\":0,\"note\":\"...\"}]}}.","Return exactly one result for every fixture in this batch. Use PASS if no defensible selection. Do not omit fixtures.","Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),...common,"Candidate rows:",JSON.stringify(batchRows)].join("\n\n");
    const parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),850);
-   if(!Array.isArray(parsed.all_matches?.fixtures))throw new Error("All-Matches batch returned no fixture results.");
-   if(!first)first=parsed.all_matches;merged.push(...parsed.all_matches.fixtures);
+   const normalized=normalizeAllMatchesBatch(batch,parsed?.all_matches?.fixtures,batchRows);
+   if(!first)first=parsed?.all_matches||null;
+   merged.push(...normalized);
   }
   return {all_matches:{headline:first?.headline||"All-Matches Challenge",analysis_note:first?.analysis_note||"Every eligible fixture is listed; PASS means no defensible market was found.",fixtures:merged},__allowed_candidate_ids:rows.map(row=>row[0])};
  }
