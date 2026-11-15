@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
+import { findSuper10Combinations } from "./lib/super10.mjs";
 
 const env=process.env;
 const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
@@ -402,8 +403,34 @@ async function askGroqProduct(type,candidates,events,research){
  else if(type==="super_10")prompt=["Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 10: choose 2 or more selections with combined odds between 9.50 and 10.50 inclusive. Never repeat an exact candidate. Return null if no defensible combination meets the range; do not pad.",...commonPrompt].join("\n\n");
  else {const safe=shortlist.filter(x=>Number(x[6])>=1.01&&Number(x[6])<=1.50);if(safe.length<10){console.warn("Safe Picks preflight: only "+safe.length+" eligible fixtures have prices between 1.01 and 1.50; ten are required.");return {safe_picks:null,safe_picks_reason:"Only "+safe.length+" distinct fixtures have eligible prices between 1.01 and 1.50; exactly 10 are required."};}const bestPossible=[...safe].sort((a,b)=>Number(b[6])-Number(a[6])).slice(0,10).reduce((total,row)=>total*Number(row[6]),1);if(bestPossible<10){const reason="The best possible 10 distinct eligible selections from the supplied candidate data reach only "+bestPossible.toFixed(2)+" combined odds; at least 10.00 is required.";console.warn("Safe Picks preflight: "+reason);return {safe_picks:null,safe_picks_reason:reason};}maxCompletion=1800;prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every price must be 1.01 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible selections cannot satisfy both rules, return null; never pad or weaken the rules.","Eligible candidate rows:",JSON.stringify(safe),...common].join("\n\n");}
  console.log("Groq "+type+": shortlisted "+shortlist.length+" of "+rows.length+" candidate rows.");
- const generated=await callGroqJson(prompt,type,maxCompletion);
- generated.__allowed_candidate_ids=shortlist.map(row=>row[0]);
+ let generated=await callGroqJson(prompt,type,maxCompletion);
+ let allowedRows=shortlist;
+ if(type==="super_10"){
+  const initial=generated?.super_10?.selections;
+  const rowById=new Map(rows.map(row=>[row[0],row]));
+  const initialIds=Array.isArray(initial)?initial.map(item=>item?.candidate_id):[];
+  const initialOdds=initialIds.map(id=>Number(rowById.get(id)?.[6]));
+  const initialCombined=initialOdds.reduce((total,odds)=>total*odds,1);
+  const validInitial=initialIds.length>=2&&new Set(initialIds).size===initialIds.length&&initialOdds.every(Number.isFinite)&&initialOdds.every(odds=>odds>1)&&initialCombined>=9.5&&initialCombined<=10.5&&initial.every(item=>Number.isFinite(Number(item.probability))&&Number(item.probability)>0&&Number(item.probability)<100);
+  if(!validInitial){
+   const feasibleCombinations=findSuper10Combinations(rows,9.5,10.5,4);
+   if(!feasibleCombinations.length){
+    generated={super_10:null,super_10_reason:"No combination of distinct fixtures in the supplied candidate data can reach 9.50–10.50 combined odds."};
+   }else{
+    const feasibleIds=new Set(feasibleCombinations.flatMap(combo=>combo.candidate_ids));
+    allowedRows=rows.filter(row=>feasibleIds.has(row[0]));
+    console.warn("Super 10 fallback: first response was incomplete or invalid; retrying with "+feasibleCombinations.length+" mathematically feasible combinations.");
+    const fallbackPrompt=[
+     "Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}} or {\"super_10\":null,\"super_10_reason\":\"...\"}.",
+     "Choose the most defensible complete combination from the supplied feasible combinations. Each combination already contains distinct fixtures and has combined decimal odds between 9.50 and 10.50. Return every candidate ID from exactly one chosen combination, with an honest probability from 1 to 99 and a concise evidence-based note for each. Do not return an empty selections array. If none is defensible, return null and explain why; never invent evidence.",
+     "Feasible combinations:",JSON.stringify(feasibleCombinations),
+     ...common,"Candidate rows:",JSON.stringify(allowedRows)
+    ].join("\n\n");
+    generated=await callGroqJson(fallbackPrompt,"super_10 feasibility fallback",850);
+   }
+  }
+ }
+ generated.__allowed_candidate_ids=allowedRows.map(row=>row[0]);
  return generated;
 }
 
