@@ -3,6 +3,7 @@ import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { findSuper10Combinations } from "./lib/super10.mjs";
 
 const env=process.env;
+const MIN_SELECTION_ODDS=1.20;
 const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
 const databaseId=(env.D1_DATABASE_ID||"").trim();
 const cloudflareToken=(env.CLOUDFLARE_API_TOKEN||"").trim();
@@ -76,7 +77,7 @@ async function ensureSchema(){
  if(!selectionColumns.some(column=>column.name==="implied_probability"))await d1("ALTER TABLE selections ADD COLUMN implied_probability REAL NOT NULL DEFAULT 0");
  // Recover recent Safe Picks editions mislabelled by the old broad migration.
  // Safe Picks also has target_odds=10, so identify it by its invariant: exactly ten
- // distinct fixtures, with every selection priced from 1.01 through 1.50.
+ // distinct fixtures, with every selection priced from 1.20 through 1.50.
  await d1("UPDATE accas SET product_type='safe_picks' WHERE product_type='legacy' AND target_odds=10 AND publish_date >= date('now','-2 days') AND (SELECT COUNT(*) FROM selections WHERE acca_id=accas.id)=10 AND (SELECT COUNT(DISTINCT event_id) FROM selections WHERE acca_id=accas.id)=10 AND (SELECT MIN(odds) FROM selections WHERE acca_id=accas.id)>=1.01 AND (SELECT MAX(odds) FROM selections WHERE acca_id=accas.id)<=1.50");
  // Only classify old editions outside the live three-day window as legacy.
  // Never run the old target_odds-only rule against current Safe Picks editions.
@@ -85,7 +86,7 @@ async function ensureSchema(){
 
 const SNAPSHOT_CHUNK_CHARS=70000;
 async function storeDailySnapshot(date,events,candidates){
- const serialized=JSON.stringify({version:1,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
+ const serialized=JSON.stringify({version:2,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
  const chunks=[];
  for(let offset=0;offset<serialized.length;offset+=SNAPSHOT_CHUNK_CHARS)chunks.push(serialized.slice(offset,offset+SNAPSHOT_CHUNK_CHARS));
  await d1("INSERT INTO daily_snapshots (publish_date,status,fixture_count,candidate_count,chunk_count,collected_at,error) VALUES (?,?,?,?,?,?,NULL) ON CONFLICT(publish_date) DO UPDATE SET status=excluded.status,fixture_count=excluded.fixture_count,candidate_count=excluded.candidate_count,chunk_count=excluded.chunk_count,collected_at=excluded.collected_at,error=NULL",[date,"collecting",events.length,candidates.length,chunks.length,new Date().toISOString()]);
@@ -100,7 +101,7 @@ async function loadDailySnapshot(date){
  const chunks=await d1("SELECT payload FROM odds_snapshot_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  if(chunks.length!==Number(rows[0].chunk_count))throw new Error("The saved D1 odds snapshot is incomplete; refusing to use partial data.");
  const parsed=JSON.parse(chunks.map(row=>row.payload).join(""));
- if(![1,2].includes(parsed.version)||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
+ if(parsed.version!==2||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
  console.log("Reusing the immutable D1 odds snapshot for "+date+"; no Odds API requests will be made.");
  return parsed;
 }
@@ -264,7 +265,7 @@ function buildCandidates(events){
    for(const market of bookmaker.markets||[]){
     for(const outcome of market.outcomes||[]){
      const price=Number(outcome.price);
-     if(!Number.isFinite(price)||price<1.01)continue;
+     if(!Number.isFinite(price)||price<MIN_SELECTION_ODDS)continue;
      const key=market.key+"|"+cleanText(outcome.name,80)+"|"+(outcome.point??"");
      const old=best.get(key);
      if(!old||price>old.odds)best.set(key,{
@@ -278,7 +279,7 @@ function buildCandidates(events){
     }
    }
   }
-  const values=[...best.values()].filter(item=>item.odds>=1.01);
+  const values=[...best.values()].filter(item=>item.odds>=MIN_SELECTION_ODDS);
   // Preserve market breadth for every fixture while keeping the free-tier AI payload compact:
   // one shortest-priced representative per market, plus the fixture's longest price and best remaining options.
   const marketRepresentatives=new Map();
@@ -374,7 +375,7 @@ async function askGroqProduct(type,candidates,events,research){
  const byEvent=new Map();
  for(const item of candidates){if(!byEvent.has(item.event_id))byEvent.set(item.event_id,[]);byEvent.get(item.event_id).push(item);}
  let stage=candidates;
- if(type==="safe_picks")stage=[...byEvent.values()].map(items=>items.filter(x=>x.odds>=1.01&&x.odds<=1.50).sort((a,b)=>Math.abs(a.odds-1.35)-Math.abs(b.odds-1.35)||a.odds-b.odds)[0]).filter(Boolean);
+ if(type==="safe_picks")stage=[...byEvent.values()].map(items=>items.filter(x=>x.odds>=MIN_SELECTION_ODDS&&x.odds<=1.50).sort((a,b)=>Math.abs(a.odds-1.35)-Math.abs(b.odds-1.35)||a.odds-b.odds)[0]).filter(Boolean);
  else if(type==="super_5")stage=[...byEvent.values()].flatMap(items=>{
   // Include a balanced range of higher-priced options for the 30.00+ combined target.
   const sorted=[...items].sort((a,b)=>a.odds-b.odds);
@@ -401,7 +402,7 @@ async function askGroqProduct(type,candidates,events,research){
  const commonPrompt=[...common,"Candidate rows:",JSON.stringify(shortlist)];let prompt,maxCompletion=1000;
  if(type==="super_5")prompt=["Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}} or {\"super_5\":null}.","SUPER 5 TARGET: exactly five selections from five different fixtures. Their decimal odds MUST multiply to at least 30.00. Prefer a balanced combination, generally several selections around 1.80–3.50, rather than depending on one extreme longshot. Choose the most defensible five-pick combination that reaches 30.00; assess probability and evidence honestly, not just the highest prices. Use only supplied candidate IDs and prices. If no defensible five-selection combination reaches 30.00, return null and explain why in analysis_note. Never pad or lower the target.",...commonPrompt].join("\n\n");
  else if(type==="super_10")prompt=["Return JSON only: {\"super_10\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.","SUPER 10: choose 2 or more selections with combined odds between 9.50 and 10.50 inclusive. Never repeat an exact candidate. Return null if no defensible combination meets the range; do not pad.",...commonPrompt].join("\n\n");
- else {const safe=shortlist.filter(x=>Number(x[6])>=1.01&&Number(x[6])<=1.50);if(safe.length<10){console.warn("Safe Picks preflight: only "+safe.length+" eligible fixtures have prices between 1.01 and 1.50; ten are required.");return {safe_picks:null,safe_picks_reason:"Only "+safe.length+" distinct fixtures have eligible prices between 1.01 and 1.50; exactly 10 are required."};}const bestPossible=[...safe].sort((a,b)=>Number(b[6])-Number(a[6])).slice(0,10).reduce((total,row)=>total*Number(row[6]),1);if(bestPossible<10){const reason="The best possible 10 distinct eligible selections from the supplied candidate data reach only "+bestPossible.toFixed(2)+" combined odds; at least 10.00 is required.";console.warn("Safe Picks preflight: "+reason);return {safe_picks:null,safe_picks_reason:reason};}maxCompletion=1800;prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every price must be 1.01 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible selections cannot satisfy both rules, return null; never pad or weaken the rules.","Eligible candidate rows:",JSON.stringify(safe),...common].join("\n\n");}
+ else {const safe=shortlist.filter(x=>Number(x[6])>=MIN_SELECTION_ODDS&&Number(x[6])<=1.50);if(safe.length<10){console.warn("Safe Picks preflight: only "+safe.length+" eligible fixtures have prices between 1.20 and 1.50; ten are required.");return {safe_picks:null,safe_picks_reason:"Only "+safe.length+" distinct fixtures have eligible prices between 1.20 and 1.50; exactly 10 are required."};}const bestPossible=[...safe].sort((a,b)=>Number(b[6])-Number(a[6])).slice(0,10).reduce((total,row)=>total*Number(row[6]),1);if(bestPossible<10){const reason="The best possible 10 distinct eligible selections from the supplied candidate data reach only "+bestPossible.toFixed(2)+" combined odds; at least 10.00 is required.";console.warn("Safe Picks preflight: "+reason);return {safe_picks:null,safe_picks_reason:reason};}maxCompletion=1800;prompt=["Return JSON only: {\"safe_picks\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]} or null, \"safe_picks_reason\":\"...\"}.","SAFE PICKS: exactly 10 selections from 10 different fixtures, one selection per match. Every price must be 1.20 to 1.50 inclusive AND the combined decimal odds must be at least 10.00. If ten defensible selections cannot satisfy both rules, return null; never pad or weaken the rules.","Eligible candidate rows:",JSON.stringify(safe),...common].join("\n\n");}
  console.log("Groq "+type+": shortlisted "+shortlist.length+" of "+rows.length+" candidate rows.");
  let generated=await callGroqJson(prompt,type,maxCompletion);
  let allowedRows=shortlist;
@@ -411,7 +412,7 @@ async function askGroqProduct(type,candidates,events,research){
   const initialIds=Array.isArray(initial)?initial.map(item=>item?.candidate_id):[];
   const initialOdds=initialIds.map(id=>Number(rowById.get(id)?.[6]));
   const initialCombined=initialOdds.reduce((total,odds)=>total*odds,1);
-  const validInitial=initialIds.length>=2&&new Set(initialIds).size===initialIds.length&&initialOdds.every(Number.isFinite)&&initialOdds.every(odds=>odds>1)&&initialCombined>=9.5&&initialCombined<=10.5&&initial.every(item=>Number.isFinite(Number(item.probability))&&Number(item.probability)>0&&Number(item.probability)<100);
+  const validInitial=initialIds.length>=2&&new Set(initialIds).size===initialIds.length&&initialOdds.every(Number.isFinite)&&initialOdds.every(odds=>odds>=MIN_SELECTION_ODDS)&&initialCombined>=9.5&&initialCombined<=10.5&&initial.every(item=>Number.isFinite(Number(item.probability))&&Number(item.probability)>0&&Number(item.probability)<100);
   if(!validInitial){
    const feasibleCombinations=findSuper10Combinations(rows,9.5,10.5,4);
    if(!feasibleCombinations.length){
@@ -438,7 +439,7 @@ function validateProducts(result,candidates,events,onlyType=null){
  const allowedIds=Array.isArray(result?.__allowed_candidate_ids)?new Set(result.__allowed_candidate_ids):new Set(candidates.map(item=>item.candidate_id));
  const lookup=new Map(candidates.filter(item=>allowedIds.has(item.candidate_id)).map(item=>[item.candidate_id,item]));
  const products=[];
- const validateSelection=(entry,allowedMin=1.01,allowedMax=Number.POSITIVE_INFINITY)=>{
+ const validateSelection=(entry,allowedMin=MIN_SELECTION_ODDS,allowedMax=Number.POSITIVE_INFINITY)=>{
   const candidate=lookup.get(entry?.candidate_id);
   if(!candidate)throw new Error("Unknown candidate ID in product selection.");
   if(candidate.odds<allowedMin||candidate.odds>allowedMax)throw new Error("A selection is outside its product's permitted odds range.");
@@ -450,15 +451,15 @@ function validateProducts(result,candidates,events,onlyType=null){
  attempt("Safe Picks",()=>{
   if(!Array.isArray(result.safe_picks?.selections))return null;
   if(result.safe_picks.selections.length!==10)throw new Error("Safe Picks must contain exactly 10 selections.");
-  const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,1.01,1.50));
+  const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,MIN_SELECTION_ODDS,1.50));
   if(new Set(selected.map(item=>item.event_id)).size!==10)throw new Error("Safe Picks must use exactly 10 different fixtures, with only one market per match.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
   if(combined<10)throw new Error("Safe Picks combined odds must be at least 10.00; received "+combined.toFixed(2)+".");
-  return {product_type:"safe_picks",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Evidence-led selections across different fixtures, with every individual price between 1.01 and 1.50.",selections:selected};
+  return {product_type:"safe_picks",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Evidence-led selections across different fixtures, with every individual price between 1.20 and 1.50.",selections:selected};
  });
  attempt("Super 5",()=>{
   if(!Array.isArray(result.super_5?.selections)||result.super_5.selections.length!==5)throw new Error("Super 5 must contain exactly five selections.");
-  const selected=result.super_5.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
+  const selected=result.super_5.selections.map(entry=>validateSelection(entry,MIN_SELECTION_ODDS,Number.POSITIVE_INFINITY));
   if(new Set(selected.map(item=>item.event_id)).size!==5)throw new Error("Super 5 must use five different fixtures.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
   if(combined<30)throw new Error("Super 5 combined odds must be at least 30.00; received "+combined.toFixed(2)+".");
@@ -466,7 +467,7 @@ function validateProducts(result,candidates,events,onlyType=null){
  });
  attempt("Super 10",()=>{
   if(!Array.isArray(result.super_10?.selections)||result.super_10.selections.length<2)throw new Error("Super 10 needs at least two selections.");
-  const selected=result.super_10.selections.map(entry=>validateSelection(entry,1.01,Number.POSITIVE_INFINITY));
+  const selected=result.super_10.selections.map(entry=>validateSelection(entry,MIN_SELECTION_ODDS,Number.POSITIVE_INFINITY));
   if(new Set(selected.map(item=>item.candidate_id)).size!==selected.length)throw new Error("Super 10 cannot repeat the exact same market outcome.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
   if(combined<9.5||combined>10.5)throw new Error("Super 10 combined odds must be between 9.50 and 10.50; received "+combined.toFixed(2)+".");
@@ -482,7 +483,7 @@ function validateProducts(result,candidates,events,onlyType=null){
    const pass=()=>({event_id:event.id,sport_key:event.sport_key,commence_time:event.commence_time,home_team:event.home_team,away_team:event.away_team,market_key:"pass",market_name:"No qualifying market",selection_name:"PASS",odds:1,bookmaker:"—",probability:0,implied_probability:0,note:cleanText(entry.note,260)||"No sufficiently defensible market.",selection_status:"PASS"});
    if(entry.status==="PASS")return pass();
    if(entry.status!=="PICK")throw new Error("Every All-Matches fixture must be PICK or PASS.");
-   const picked=validateSelection(entry,1.01,100);
+   const picked=validateSelection(entry,MIN_SELECTION_ODDS,100);
    if(picked.event_id!==event.id)throw new Error("All-Matches candidate does not match its fixture.");
    const home=event.home_team.toLowerCase(),away=event.away_team.toLowerCase();
    if(usedTeams.has(home)||usedTeams.has(away))return {...pass(),market_name:"Team already represented",note:"Passed to avoid featuring a club more than once in the challenge."};
