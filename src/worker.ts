@@ -33,6 +33,7 @@ interface MatchRow extends SelectionRow {
 const htmlEntities:Record<string,string> = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
 const escapeHtml = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, char => htmlEntities[char] || char);
 const safeJson = (value:unknown) => String(JSON.stringify(value ?? null)).replace(/</g,"\\u003c");
+const organizationLogo = new URL("/logo%20(4).png", SITE_ORIGIN).toString();
 const competitionName = (key:string) => ({
   soccer_epl:"English Premier League",
   soccer_uefa_champs_league:"UEFA Champions League",
@@ -133,7 +134,7 @@ function renderPage(input:{title:string;description:string;path:string;body:stri
   const canonical=new URL(input.path,SITE_ORIGIN).toString();
   const image=new URL("/logo%20(4).png",SITE_ORIGIN).toString()
   const schema=input.schema || {"@context":"https://schema.org","@graph":[
-    {"@type":"Organization","@id":SITE_ORIGIN+"/#organization","name":"AccaForge","url":SITE_ORIGIN,"email":"info@jonathanmwaniki.co.ke"},
+    {"@type":"Organization","@id":SITE_ORIGIN+"/#organization","name":"AccaForge","url":SITE_ORIGIN,"logo":organizationLogo,"email":"info@jonathanmwaniki.co.ke"},
     {"@type":"WebSite","@id":SITE_ORIGIN+"/#website","url":SITE_ORIGIN,"name":"AccaForge","publisher":{"@id":origin+"/#organization"},"inLanguage":"en"},
     {"@type":"WebPage","@id":canonical+"#webpage","url":canonical,"name":input.title,"description":input.description,"isPartOf":{"@id":SITE_ORIGIN+"/#website"}}
   ]};
@@ -148,7 +149,7 @@ async function accumulatorPage(id:string,env:Env,origin:string){
   const selections=(await env.DB.prepare("SELECT * FROM selections WHERE acca_id=? ORDER BY sort_order ASC").bind(id).all<SelectionRow>()).results||[];
   const legs=selections.map(item=>"<li><a href='/matches/"+encodeURIComponent(item.event_id)+"'>"+escapeHtml(item.home_team)+" vs "+escapeHtml(item.away_team)+"</a><small>"+escapeHtml(dateTime(item.commence_time))+" · "+escapeHtml(competitionName(item.sport_key))+" · "+escapeHtml(item.market_name)+" · "+escapeHtml(item.selection_name)+" · "+escapeHtml(item.bookmaker)+" <span class='price'>"+Number(item.odds).toFixed(2)+"</span></small></li>").join("");
   const body="<h1>"+escapeHtml(acca.headline)+"</h1><p class='lead'>Football accumulator analysis for "+escapeHtml(acca.publish_date)+". Review every fixture, market and listed decimal price below.</p><div class='panel'><div class='facts'><span>Target odds: <strong>"+Number(acca.target_odds).toFixed(2)+"</strong></span><span>Combined odds: <strong>"+Number(acca.actual_odds).toFixed(2)+"</strong></span><span>Selections: <strong>"+selections.length+"</strong></span><span>Published: <strong>"+escapeHtml(acca.publish_date)+"</strong></span></div><p>"+escapeHtml(acca.analysis_note)+"</p></div><h2>Fixture and market breakdown</h2><ul class='list'>"+(legs||"<li>No selections are available for this edition.</li>")+"</ul><p class='notice'>Information and entertainment only. Odds can change and every selection can lose. No outcome or return is guaranteed. 18+ only.</p><p><a class='button' href='/'>View the latest AccaForge football tips</a></p>";
-  const schema={"@context":"https://schema.org","@type":"WebPage","name":acca.headline,"description":"Football accumulator selections and combined odds for "+acca.publish_date,"url":new URL("/accumulators/"+encodeURIComponent(id),SITE_ORIGIN).toString(),"publisher":{"@type":"Organization","name":"AccaForge","url":SITE_ORIGIN}};
+  const schema={"@context":"https://schema.org","@type":"WebPage","name":acca.headline,"description":"Football accumulator selections and combined odds for "+acca.publish_date,"url":new URL("/accumulators/"+encodeURIComponent(id),SITE_ORIGIN).toString(),"publisher":{"@type":"Organization","name":"AccaForge","url":SITE_ORIGIN,"logo":organizationLogo}};
   const editionAgeDays=(Date.now()-new Date(acca.publish_date+"T00:00:00Z").getTime())/86400000;
   const robots=selections.length===0||!Number.isFinite(editionAgeDays)||editionAgeDays>30?"noindex,follow":undefined;
   return renderPage({title:acca.headline+" | Football Accumulator "+Number(acca.target_odds).toFixed(2)+" Odds | AccaForge",description:"Review the "+Number(acca.target_odds).toFixed(2)+" target football accumulator published "+acca.publish_date+": "+selections.map(item=>item.home_team+" vs "+item.away_team).join(", ")+".",path:"/accumulators/"+encodeURIComponent(id),robots,body,schema},origin);
@@ -162,7 +163,7 @@ async function matchPage(eventId:string,env:Env,origin:string){
   const competition=competitionName(first.sport_key);
   const editionLinks=rows.map(item=>"<li><a href='/accumulators/"+encodeURIComponent(item.edition_id)+"'>"+escapeHtml(item.headline)+"</a><small>"+escapeHtml(item.publish_date)+" · "+Number(item.target_odds).toFixed(2)+" target · "+Number(item.actual_odds).toFixed(2)+" combined odds · "+escapeHtml(item.market_name)+": "+escapeHtml(item.selection_name)+"</small></li>").join("");
   const body="<h1>"+escapeHtml(name)+"</h1><p class='lead'>Football match information and published accumulator selections for "+escapeHtml(name)+", listed in the "+escapeHtml(competition)+".</p><div class='panel'><div class='facts'><span>Competition: <strong>"+escapeHtml(competition)+"</strong></span><span>Kick-off: <strong>"+escapeHtml(dateTime(first.commence_time))+"</strong></span></div></div><h2>AccaForge selections featuring this fixture</h2><ul class='list'>"+editionLinks+"</ul><p class='notice'>These are editorial market selections, not a live score or a guaranteed prediction. Match details and odds may change. 18+ only; information and entertainment only.</p><p><a class='button' href='/'>Explore daily football accumulators</a></p>";
-  const schema={"@context":"https://schema.org","@type":"SportsEvent","name":name,"startDate":first.commence_time,"sport":"Soccer","homeTeam":{"@type":"SportsTeam","name":first.home_team},"awayTeam":{"@type":"SportsTeam","name":first.away_team},"url":new URL("/matches/"+encodeURIComponent(eventId),SITE_ORIGIN).toString(),"organizer":{"@type":"Organization","name":"AccaForge","url":SITE_ORIGIN}};
+  const schema={"@context":"https://schema.org","@type":"SportsEvent","name":name,"startDate":first.commence_time,"sport":"Soccer","homeTeam":{"@type":"SportsTeam","name":first.home_team},"awayTeam":{"@type":"SportsTeam","name":first.away_team},"url":new URL("/matches/"+encodeURIComponent(eventId),SITE_ORIGIN).toString(),"organizer":{"@type":"Organization","name":"AccaForge","url":SITE_ORIGIN,"logo":organizationLogo}};
   return renderPage({title:name+" | "+competition+" Match Analysis and Accumulator Tips | AccaForge",description:"View "+name+" match information, kick-off time and published AccaForge football accumulator markets and odds.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body,schema},origin);
 }
 
@@ -212,7 +213,7 @@ async function renderHome(request:Request,env:Env){
   const websiteId=new URL("/#website",SITE_ORIGIN).toString();
   const organizationId=new URL("/#organization",SITE_ORIGIN).toString();
   const graph={"@context":"https://schema.org","@graph":[
-    {"@type":"Organization","@id":organizationId,"name":"AccaForge","url":new URL("/",SITE_ORIGIN).toString(),"email":"info@jonathanmwaniki.co.ke"},
+    {"@type":"Organization","@id":organizationId,"name":"AccaForge","url":new URL("/",SITE_ORIGIN).toString(),"logo":organizationLogo,"email":"info@jonathanmwaniki.co.ke"},
     {"@type":"WebSite","@id":websiteId,"url":new URL("/",request.url).toString(),"name":"AccaForge","publisher":{"@id":organizationId},"inLanguage":"en"},
     {"@type":"WebPage","@id":canonical+"#webpage","url":canonical,"name":meta.title,"description":meta.description,"isPartOf":{"@id":websiteId}},
     ...(pathname==="/"?[{"@type":"FAQPage","mainEntity":[
