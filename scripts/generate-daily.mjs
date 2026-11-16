@@ -82,6 +82,10 @@ async function ensureSchema(){
  // Only classify old editions outside the live three-day window as legacy.
  // Never run the old target_odds-only rule against current Safe Picks editions.
  await d1("UPDATE accas SET product_type='legacy' WHERE product_type='safe_picks' AND target_odds IN (10,15,20) AND publish_date < date('now','-2 days')");
+ // Immediately unpublish any currently live edition containing a PICK below the global odds floor.
+ // Reset its stage so the chained workflow regenerates it under the new rule.
+ await d1("UPDATE generation_runs SET status='withheld',completed_at=datetime('now'),error='Replaced: edition contained a PICK below the 1.20 minimum odds.' WHERE status='published' AND publish_date >= date('now','-2 days') AND EXISTS (SELECT 1 FROM accas a JOIN selections s ON s.acca_id=a.id WHERE a.publish_date=generation_runs.publish_date AND a.product_type=generation_runs.product_type AND a.status='published' AND s.selection_status<>'PASS' AND s.odds<1.20)");
+ await d1("UPDATE accas SET status='withheld' WHERE status='published' AND publish_date >= date('now','-2 days') AND EXISTS (SELECT 1 FROM selections s WHERE s.acca_id=accas.id AND s.selection_status<>'PASS' AND s.odds<1.20)");
 }
 
 const SNAPSHOT_CHUNK_CHARS=70000;
