@@ -4,7 +4,7 @@
 
 AccaForge publishes four distinct daily football products:
 
-- **Safe Picks:** exactly 10 different fixtures, one selection per match, with individual decimal odds from 1.01 to 1.50. If 10 defensible selections are not available, this edition is withheld rather than padded.
+- **Safe Picks:** exactly 10 different fixtures, one selection per match, with individual decimal odds from 1.20 to 1.50. If 10 defensible selections are not available, this edition is withheld rather than padded.
 - **Super 5:** exactly five different fixtures, with no fixed combined-odds target. Individual prices may exceed 2.00 when the evidence supports the selection.
 - **Super 10:** a researched combination targeting combined decimal odds of 10.00, accepting 9.50–10.50. Different markets from the same fixture may be used; the exact same market outcome cannot be repeated.\n- **All-Matches Challenge:** one entry for every eligible fixture on the daily slate. The strongest supported market is selected, or the fixture is marked PASS when no defensible pick is available. A club appears in no more than one picked fixture in this product.
 
