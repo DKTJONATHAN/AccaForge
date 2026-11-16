@@ -29,7 +29,8 @@ jobs:
           API="https://api.github.com"
           WORKFLOW="generate-safe-picks.yml"
           # Nairobi midnight is 21:00 UTC on the previous calendar day.
-          SINCE="$(TZ=Africa/Nairobi date -d 'today 00:00' -u +'%Y-%m-%dT%H:%M:%SZ')"
+          NBI_MIDNIGHT_EPOCH="$(TZ=Africa/Nairobi date -d 'today 00:00' +%s)"
+          SINCE="$(date -u -d "@${NBI_MIDNIGHT_EPOCH}" +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Checking Safe Picks runs created since ${SINCE}."
 
           get_runs() {
