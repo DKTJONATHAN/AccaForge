@@ -13,11 +13,12 @@ AccaForge discovers team crests and competition artwork for the current Kenya/Af
 
 The GitHub Actions workflow performs discovery after both daily stages:
 1. At 3:00 AM Africa/Nairobi, it refreshes yesterday's match results, then discovers artwork for teams in yesterday's result records and today's already-published fixtures.
-2. At 9:00 AM Africa/Nairobi, it generates and publishes today's editions, then runs discovery again so newly loaded teams are captured immediately.
-3. The discovery script matches each team by its normalized full name and confirms that TheSportsDB identifies it as Soccer. It reads the team's country and competition IDs from the returned record, then looks up the relevant competition artwork. It does not assign a badge when the team match or competition match is uncertain.
-4. Team badge URLs and competition artwork URLs are written to D1. Existing standings JSON is preserved; the free API's limited league-table coverage is not used to overwrite standings.
-5. The Cloudflare Worker runs a five-minute scheduled task. It downloads newly discovered image files into the existing `accaforge-media` R2 bucket, saves the R2 object keys in D1 and serves them through `/media-cache/...` with immutable cache headers.
-6. The public `/api/content` response reads the saved D1 records. Visitor requests do not perform TheSportsDB lookups or initiate logo downloads.
+2. At 9:00 AM Africa/Nairobi, it generates and publishes today's editions through the sequential Safe Picks → Super 5 → Super 10 → All Matches workflow chain.
+3. Once **AccaForge Generate All Matches** completes successfully on `main`, the enrichment workflow waits **10 minutes** before starting discovery. This gives the full generation pipeline time to finish before artwork lookups begin. A failed final generation run does not trigger automatic enrichment.
+4. The discovery script matches each team by its normalized full name and confirms that TheSportsDB identifies it as Soccer. It reads the team's country and competition IDs from the returned record, then looks up the relevant competition artwork. It does not assign a badge when the team match or competition match is uncertain.
+5. Team badge URLs and competition artwork URLs are written to D1. Existing standings JSON is preserved; the free API's limited league-table coverage is not used to overwrite standings.
+6. The Cloudflare Worker runs a five-minute scheduled task. It downloads newly discovered image files into the existing `accaforge-media` R2 bucket, saves the R2 object keys in D1 and serves them through `/media-cache/...` with immutable cache headers.
+7. The public `/api/content` response reads the saved D1 records. Visitor requests do not perform TheSportsDB lookups or initiate logo downloads.
 
 ## Existing GitHub secrets
 
@@ -31,7 +32,7 @@ No new sports-data API secret is required. The Worker already uses the configure
 
 ## Manual run
 
-In GitHub, open **Actions → AccaForge Scheduled Jobs → Run workflow** and choose `enrich`. The job processes both today's fixtures and yesterday's results and writes discovery metadata directly to D1. The Worker then caches the actual image files in R2 on its next scheduled run.
+In GitHub, open **Actions → AccaForge Enrich Football Data → Run workflow**. A manual run also observes the 10-minute wait before processing today's fixtures and yesterday's results. The Worker then caches the actual image files in R2 on its next scheduled run.
 
 ## Coverage and safety
 
