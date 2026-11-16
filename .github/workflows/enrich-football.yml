@@ -29,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Wait 10 minutes after all generation workflows finish
+        run: sleep 600
+
       - name: Check out AccaForge
         uses: actions/checkout@v4
 
