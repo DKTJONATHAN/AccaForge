@@ -89,7 +89,7 @@ async function ensureSchema(){
 
 const SNAPSHOT_CHUNK_CHARS=70000;
 async function storeDailySnapshot(date,events,candidates){
- const serialized=JSON.stringify({version:2,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
+ const serialized=JSON.stringify({version:3,publish_date:date,collection_time:new Date().toISOString(),events,candidates});
  const chunks=[];
  for(let offset=0;offset<serialized.length;offset+=SNAPSHOT_CHUNK_CHARS)chunks.push(serialized.slice(offset,offset+SNAPSHOT_CHUNK_CHARS));
  await d1("INSERT INTO daily_snapshots (publish_date,status,fixture_count,candidate_count,chunk_count,collected_at,error) VALUES (?,?,?,?,?,?,NULL) ON CONFLICT(publish_date) DO UPDATE SET status=excluded.status,fixture_count=excluded.fixture_count,candidate_count=excluded.candidate_count,chunk_count=excluded.chunk_count,collected_at=excluded.collected_at,error=NULL",[date,"collecting",events.length,candidates.length,chunks.length,new Date().toISOString()]);
@@ -104,7 +104,7 @@ async function loadDailySnapshot(date){
  const chunks=await d1("SELECT payload FROM odds_snapshot_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  if(chunks.length!==Number(rows[0].chunk_count))throw new Error("The saved D1 odds snapshot is incomplete; refusing to use partial data.");
  const parsed=JSON.parse(chunks.map(row=>row.payload).join(""));
- if(parsed.version!==2||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
+ if(parsed.version!==3||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
  console.log("Reusing the immutable D1 odds snapshot for "+date+"; no Odds API requests will be made.");
  return parsed;
 }
@@ -214,7 +214,7 @@ async function getFootballEvents(publishDate){
  // Fallback: if the primary market request is unsupported or yields too few candidates, inspect additional markets
  // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
  if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12||additionalMarketsNeeded){
-  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals,spreads,alternate_totals,alternate_spreads").split(",").map(value=>value.trim()).filter(Boolean);
+  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals,alternate_team_totals,spreads,alternate_totals,alternate_spreads,btts_h1,double_chance_h1").split(",").map(value=>value.trim()).filter(Boolean);
   console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
   for(const event of uniqueFixtures){
    const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
@@ -414,8 +414,9 @@ async function askGroqProduct(type,candidates,events,research){
   const reason="Only "+stage.length+" distinct fixtures have a priced selection between 1.20 and 1.50; ten are required.";
   return {safe_picks:null,safe_picks_reason:reason};
  }
- if((type==="super_5"||type==="super_10")&&stage.length<limit){
-  throw new Error("Only "+stage.length+" distinct fixtures have priced markets between 1.50 and 2.00; "+limit+" are required. No longshot legs will be added to force the count.");
+ if(type==="super_5"||type==="super_10"){
+  const eligibleFixtures=new Set(stage.map(item=>item.event_id)).size;
+  if(eligibleFixtures<limit)throw new Error("Only "+eligibleFixtures+" distinct fixtures have priced markets between 1.50 and 2.00; "+limit+" are required. No longshot legs will be added to force the count.");
  }
  const commonPrompt=[...common,"Candidate rows (last columns: fair market probability %, price edge percentage points, bookmaker count):",JSON.stringify(rows)];
  let prompt,maxCompletion=type==="safe_picks"?1800:1500;
