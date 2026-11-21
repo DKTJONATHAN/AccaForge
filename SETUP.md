@@ -67,12 +67,13 @@ The generator creates and upgrades its D1 snapshot, research, distillation, prod
 - Fixtures are restricted to the complete Africa/Nairobi calendar date, across active soccer competitions exposed by your Odds API account.
 - The market collector keeps only decimal prices of 1.20 or higher for every product; no PICK below 1.20 can be published. The default primary request includes match result, totals, BTTS, double chance, draw no bet, spreads and team totals; configured fallback markets can expand coverage if needed.
 - Safe Picks requires exactly 10 different fixtures, individual odds from 1.20 to 1.50, and combined odds of at least 10.00. If ten defensible selections cannot meet all three conditions, Safe Picks is withheld.
-- Super 5 requires exactly five different fixtures and combined odds of at least 30.00. Prices above 2.00 are allowed when the research supports the selection.
-- All-Matches Challenge includes every eligible fixture exactly once. Each fixture is a PICK or PASS. A club is not repeated across picked fixtures; conflicting fixtures are passed.
+- Super 5 requires exactly five different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
+- Super 10 requires exactly ten different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
+- All-Matches Challenge requires one priced PICK for every eligible fixture. No fixture is marked PASS or silently skipped. If any fixture has no usable market price, the edition is withheld until the feed supplies one.
 - Groq browser research considers recent form, home/away performance, league context, team availability, schedule and credible current reporting. Unverified information must be treated as uncertain.
 - Groq may select only candidate IDs supplied by the server-side collector. Prices and fixture identity are checked again locally before storage.
-- Every PICK stores an AI-estimated probability and a simple bookmaker implied probability calculated from decimal odds. These are informational estimates, not calibrated guarantees.
-- Combined odds are recalculated from verified individual prices for Safe Picks and Super 5. All-Matches is a fixture-by-fixture challenge, not a single accumulator.
+- Every selection stores a probability estimate blended conservatively with de-vigged bookmaker consensus and a simple bookmaker implied probability. These are informational estimates, not guarantees.
+- Combined odds are recalculated from verified individual prices for Safe Picks, Super 5 and Super 10. The Super 5 and Super 10 combined figures are outcomes of the selected legs, not targets.
 - Existing legacy 10/15/20 editions are marked as legacy and excluded from the new product board.
 - On a successful run, records older than the latest three Kenyan calendar days are deleted. If validation fails, previously published editions are not replaced.
 
