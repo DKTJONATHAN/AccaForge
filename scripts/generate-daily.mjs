@@ -108,8 +108,12 @@ async function loadDailySnapshot(date){
  if(chunks.length!==Number(rows[0].chunk_count))throw new Error("The saved D1 odds snapshot is incomplete; refusing to use partial data.");
  const parsed=JSON.parse(chunks.map(row=>row.payload).join(""));
  if(parsed.version===2){
-  console.log("The saved D1 snapshot uses the previous candidate schema; recollecting odds with bookmaker-consensus metrics.");
-  return null;
+  console.log("Upgrading the saved D1 snapshot in place; rebuilding candidates from its stored bookmaker markets without spending more Odds API credits.");
+  if(!Array.isArray(parsed.events)||!parsed.events.length)throw new Error("The legacy D1 snapshot has no stored fixture market data; a fresh Odds API quota is required.");
+  const upgradedCandidates=buildCandidates(parsed.events);
+  if(!upgradedCandidates.length)throw new Error("The legacy D1 snapshot contains no reusable bookmaker markets; a fresh Odds API quota is required.");
+  await storeDailySnapshot(date,parsed.events,upgradedCandidates);
+  return {events:parsed.events,candidates:upgradedCandidates};
  }
  if(parsed.version!==3||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
  console.log("Reusing the immutable D1 odds snapshot for "+date+"; no Odds API requests will be made.");
