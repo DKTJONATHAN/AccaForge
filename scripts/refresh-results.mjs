@@ -12,7 +12,7 @@ async function d1(sql,params=[]){
  if(result?.success===false)throw new Error("Cloudflare D1 SQL failed: "+JSON.stringify(result.meta||result).slice(0,900));
  return result?.results||[];
 }
-const keys=[...new Set(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"].flatMap(name=>(env[name]||"").split(",")).map(value=>value.trim()).filter(Boolean))];
+const keys=[...new Set(["ODDS_API_KEY",...Array.from({length:8},(_,index)=>"ODDS_API_KEY"+(index+1)),"ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"].flatMap(name=>(env[name]||"").split(",")).map(value=>value.trim()).filter(Boolean))];
 const schema=[
 "CREATE TABLE IF NOT EXISTS result_selections (selection_id TEXT PRIMARY KEY, acca_id TEXT NOT NULL, product_type TEXT NOT NULL, headline TEXT NOT NULL, publish_date TEXT NOT NULL, event_id TEXT NOT NULL, sport_key TEXT NOT NULL, commence_time TEXT NOT NULL, home_team TEXT NOT NULL, away_team TEXT NOT NULL, market_key TEXT NOT NULL, market_name TEXT NOT NULL, selection_name TEXT NOT NULL, odds REAL NOT NULL, selection_status TEXT NOT NULL DEFAULT 'PENDING', home_score INTEGER, away_score INTEGER, outcome TEXT NOT NULL DEFAULT 'PENDING', settled_at TEXT, result_note TEXT NOT NULL DEFAULT '')",
 "CREATE INDEX IF NOT EXISTS idx_result_selections_date ON result_selections(publish_date,product_type)",
