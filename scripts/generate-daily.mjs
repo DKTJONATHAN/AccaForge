@@ -386,9 +386,9 @@ async function callGroqJson(prompt,label,maxCompletion){
 }
 async function askGroqProduct(type,candidates,events,research){
  let stage=[];
- if(type==="safe_picks")stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:1.50,limit:60,perFixture:1});
- else if(type==="super_5"||type==="super_10")stage=rankCandidates(candidates,{minOdds:1.50,maxOdds:2.00,limit:60,perFixture:2});
- else stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:100,limit:Number.POSITIVE_INFINITY,perFixture:10});
+ if(type==="safe_picks")stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
+ else if(type==="super_5"||type==="super_10")stage=rankCandidates(candidates,{minOdds:1.50,maxOdds:2.00,limit:36,perFixture:2});
+ else stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:100,limit:Number.POSITIVE_INFINITY,perFixture:5});
  const rows=stage.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count})=>[
   candidate_id,event_id,sport_key,home_team+" vs "+away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count
  ]);
@@ -400,7 +400,7 @@ async function askGroqProduct(type,candidates,events,research){
   "Research citation metadata:",JSON.stringify(research.citations.slice(0,5))
  ];
  if(type==="all_matches"){
-  const merged=[];let first=null;const batchSize=6;
+  const merged=[];let first=null;const batchSize=5;
   for(let offset=0;offset<events.length;offset+=batchSize){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=[
@@ -409,7 +409,9 @@ async function askGroqProduct(type,candidates,events,research){
     "Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),
     ...common,"Candidate rows:",JSON.stringify(batchRows)
    ].join("\n\n");
-   const parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),900);
+   let parsed=null;
+   try{parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),650);}
+   catch(error){console.warn("All-Matches batch "+(Math.floor(offset/batchSize)+1)+" is using deterministic market ranking because Groq is unavailable: "+String(error?.message||error));}
    const normalized=normalizeAllMatchesBatch(batch,parsed?.all_matches?.fixtures,batchRows);
    if(!first)first=parsed?.all_matches||null;
    merged.push(...normalized);
@@ -430,7 +432,7 @@ async function askGroqProduct(type,candidates,events,research){
   if(eligibleFixtures<limit)throw new Error("Only "+eligibleFixtures+" distinct fixtures have priced markets between 1.50 and 2.00; "+limit+" are required. No longshot legs will be added to force the count.");
  }
  const commonPrompt=[...common,"Candidate rows (last columns: fair market probability %, price edge percentage points, bookmaker count):",JSON.stringify(rows)];
- let prompt,maxCompletion=type==="safe_picks"?1800:1500;
+ let prompt,maxCompletion=type==="safe_picks"?900:1000;
  if(type==="super_5")prompt=[
   "Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
   "SUPER 5: select EXACTLY five different fixtures, one market per match. Every individual decimal price MUST be between 1.50 and 2.00 inclusive. There is NO minimum or target for combined odds. Do not chase a 30.00 combined price, use longshots, or sacrifice outcome probability to inflate the accumulator. Prioritise strongest consensus probability and positive price edge, with verified match context as a secondary factor. Return exactly five distinct candidate IDs.",
@@ -451,7 +453,18 @@ async function askGroqProduct(type,candidates,events,research){
   ].join("\n\n");
  }
  console.log("Groq "+type+": shortlisted "+rows.length+" ranked market candidates from "+candidates.length+" prices.");
- let generated=await callGroqJson(prompt,type,maxCompletion);
+ let generated;
+ try{generated=await callGroqJson(prompt,type,maxCompletion);}
+ catch(error){
+  if(type!=="super_5"&&type!=="super_10")throw error;
+  const fallback=selectBestLegs(stage,limit,1.50,2.00);
+  generated={[type]:{
+   headline:type==="super_5"?"Super 5 · Probability-led":"Super 10 · Probability-led",
+   analysis_note:"Deterministic market ranking used because the AI service was unavailable. Selections are ranked by de-vigged bookmaker consensus probability, price edge and bookmaker coverage; every leg is between 1.50 and 2.00.",
+   selections:fallback.map(item=>({candidate_id:item.candidate_id,probability:item.market_probability||100/item.odds,note:"Bookmaker consensus estimates "+Number(item.market_probability||100/item.odds).toFixed(1)+"% for this outcome; best listed price "+Number(item.odds).toFixed(2)+"."}))
+  }};
+  console.warn(type+" is using deterministic market ranking because Groq is unavailable: "+String(error?.message||error));
+ }
  if(type==="super_5"||type==="super_10"){
   const entries=generated?.[type]?.selections,ids=Array.isArray(entries)?entries.map(item=>item?.candidate_id):[];
   const byId=new Map(stage.map(item=>[item.candidate_id,item]));
