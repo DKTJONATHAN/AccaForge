@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { enrichMarketProbabilities, rankCandidates, selectBestLegs } from "./lib/selection-engine.mjs";
 
+// Selection policy v3: fair bookmaker consensus, strict per-leg price bands and complete fixture coverage.
 const env=process.env;
 const MIN_SELECTION_ODDS=1.20;
 const accountId=(env.CLOUDFLARE_ACCOUNT_ID||"").trim();
