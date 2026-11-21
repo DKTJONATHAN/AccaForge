@@ -18,17 +18,16 @@ async function d1(sql,params=[]){
  return result?.results||[];
 }
 function apiKeys(names){return [...new Set(names.flatMap(name=>(env[name]||"").split(",")).map(value=>value.trim()).filter(Boolean))];}
-const oddsKeys=apiKeys(["ODDS_API_KEY","ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"]);
-// IMPORTANT: Groq credentials are stored in GitHub Secrets named GEMINI_API_KEY, GEMINI_API_KEY1, GEMINI_API_KEY2.
-// The workflow files map those legacy secret names to GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2.
-// Do not rename these environment-variable names or assume the GitHub secret names are Gemini keys.
+const oddsKeys=apiKeys(["ODDS_API_KEY",...Array.from({length:8},(_,index)=>"ODDS_API_KEY"+(index+1)),"ODDSAPI_KEY","ODDSAPI_KEY1","ODDSAPI_KEY2","ODDSAPI_KEY3"]);
+// IMPORTANT: Groq credentials remain in the legacy-named GitHub Secrets GEMINI_API_KEY through GEMINI_API_KEY4.
+// Workflows map those exact secret names to GROQ_API_KEY through GROQ_API_KEY4. Never rename either side.
 const groqKeys=apiKeys(["GROQ_API_KEY","GROQ_API_KEY1","GROQ_API_KEY2","GROQ_API_KEY3","GROQ_API_KEY4"]);
 const migrateOnly=String(env.MIGRATE_ONLY||"").toLowerCase()==="true";
 if(!migrateOnly&&!oddsKeys.length)throw new Error("No Odds API keys were supplied to GitHub Actions.");
 if(!migrateOnly&&!groqKeys.length)throw new Error("No Groq API keys were supplied to GitHub Actions.");
 let oddsKeyCursor=0,groqKeyCursor=0,lastGroqRequestAt=0;
 const GROQ_MIN_INTERVAL_MS=65000;
-const GROQ_MAX_TOTAL_TOKENS=5500;
+const GROQ_MAX_TOTAL_TOKENS=6500;
 async function waitForGroqSlot(){const wait=Math.max(0,GROQ_MIN_INTERVAL_MS-(Date.now()-lastGroqRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastGroqRequestAt=Date.now();}
 async function oddsFetch(input){
  const target=new URL(input);
@@ -319,7 +318,10 @@ async function groqRequest(body,label){
     await waitForGroqSlot();
     response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(180000)});
     responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
-    if(![401,403].includes(response.status)||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
+    const errorDetail=[payload?.error?.message,payload?.error?.code,payload?.error?.type].filter(Boolean).join(" ");
+    const dailyQuota=response.status===429&&/tokens_per_day|tokens per day|daily token|daily limit|per-day/i.test(errorDetail);
+    const shouldRotate=[401,403].includes(response.status)||(response.status===429&&!dailyQuota);
+    if(!shouldRotate||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
     console.warn("Groq key slot "+(keyIndex+1)+" returned HTTP "+response.status+" during "+label+"; rotating credentials.");
    }
    console.log("Groq "+label+": HTTP "+response.status+"; estimated request budget "+estimatedTotalTokens+"/"+GROQ_MAX_TOTAL_TOKENS+" tokens.");
@@ -327,10 +329,12 @@ async function groqRequest(body,label){
    const detail=cleanText([payload?.error?.message,payload?.error?.failed_generation].filter(Boolean).join(" | ")||JSON.stringify(payload),1600);
    lastError=new Error("Groq "+label+" failed: HTTP "+response.status+" "+detail);
    if([401,403].includes(response.status))throw lastError;
+   if(response.status===429&&/tokens_per_day|tokens per day|daily token|daily limit|per-day/i.test(detail))throw lastError;
    if(!(response.status===429||response.status===408||response.status>=500))throw lastError;
   }catch(error){
    lastError=error;const message=String(error?.message||error);
-   const retryable=/HTTP 429|HTTP 408|HTTP 5\d\d|fetch failed|timed out|parsing failed|could not be parsed|failed_generation/i.test(message);
+   const dailyQuota=/tokens_per_day|tokens per day|daily token|daily limit|per-day/i.test(message);
+   const retryable=!dailyQuota&&/HTTP 429|HTTP 408|HTTP 5\d\d|fetch failed|timed out|parsing failed|could not be parsed|failed_generation/i.test(message);
    if(attempt===3||!retryable)break;
    console.warn("Groq attempt "+attempt+" failed during "+label+"; retry will respect the global 65-second interval: "+cleanText(message,500));
   }
