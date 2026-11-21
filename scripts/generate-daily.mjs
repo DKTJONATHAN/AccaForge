@@ -318,9 +318,7 @@ async function groqRequest(body,label){
     await waitForGroqSlot();
     response=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+groqKeys[keyIndex],"Content-Type":"application/json"},body:JSON.stringify(requestBody),signal:AbortSignal.timeout(180000)});
     responseText=await response.text();try{payload=JSON.parse(responseText)}catch{throw new Error("Groq returned non-JSON response during "+label+": "+responseText.slice(0,500));}
-    const errorDetail=[payload?.error?.message,payload?.error?.code,payload?.error?.type].filter(Boolean).join(" ");
-    const dailyQuota=response.status===429&&/tokens_per_day|tokens per day|daily token|daily limit|per-day/i.test(errorDetail);
-    const shouldRotate=[401,403].includes(response.status)||(response.status===429&&!dailyQuota);
+    const shouldRotate=[401,403,429].includes(response.status);
     if(!shouldRotate||keyAttempt===groqKeys.length-1){groqKeyCursor=(keyIndex+1)%groqKeys.length;break;}
     console.warn("Groq key slot "+(keyIndex+1)+" returned HTTP "+response.status+" during "+label+"; rotating credentials.");
    }
