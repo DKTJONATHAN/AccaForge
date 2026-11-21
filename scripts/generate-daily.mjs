@@ -107,6 +107,10 @@ async function loadDailySnapshot(date){
  const chunks=await d1("SELECT payload FROM odds_snapshot_chunks WHERE publish_date=? ORDER BY chunk_index",[date]);
  if(chunks.length!==Number(rows[0].chunk_count))throw new Error("The saved D1 odds snapshot is incomplete; refusing to use partial data.");
  const parsed=JSON.parse(chunks.map(row=>row.payload).join(""));
+ if(parsed.version===2){
+  console.log("The saved D1 snapshot uses the previous candidate schema; recollecting odds with bookmaker-consensus metrics.");
+  return null;
+ }
  if(parsed.version!==3||parsed.publish_date!==date||!Array.isArray(parsed.events)||!Array.isArray(parsed.candidates))throw new Error("The saved D1 odds snapshot failed its integrity checks.");
  console.log("Reusing the immutable D1 odds snapshot for "+date+"; no Odds API requests will be made.");
  return parsed;
