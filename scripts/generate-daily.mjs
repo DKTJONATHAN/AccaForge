@@ -389,13 +389,13 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
  // that have not already been published by an earlier category for this date.
  // All-Matches intentionally remains the complete slate/union of every category.
  let eligibleCandidates=candidates;
- if(type==="super_5"||type==="super_10"){
-  const earlierTypes=type==="super_5"?["safe_picks"]:["safe_picks","super_5"];
-  const placeholders=earlierTypes.map(()=>"?").join(",");
-  const rows=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[publishDate,...earlierTypes]);
+ if(type!=="all_matches"){
+  const otherTypes=["safe_picks","super_5","super_10"].filter(productType=>productType!==type);
+  const placeholders=otherTypes.map(()=>"?").join(",");
+  const rows=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[publishDate,...otherTypes]);
   const reserved=new Set(rows.map(row=>String(row.event_id)));
   eligibleCandidates=candidates.filter(candidate=>!reserved.has(candidate.event_id));
-  console.log(type+" fixture isolation: excluded "+reserved.size+" fixtures already assigned to "+earlierTypes.join(", ")+".");
+  console.log(type+" fixture isolation: excluded "+reserved.size+" fixtures already assigned to "+otherTypes.join(", ")+".");
  }
  let stage=[];
  if(type==="safe_picks")stage=rankCandidates(eligibleCandidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
