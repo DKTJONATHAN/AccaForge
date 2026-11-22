@@ -385,9 +385,21 @@ async function callGroqJson(prompt,label,maxCompletion){
  try{return JSON.parse(jsonText)}catch{throw new Error("Groq returned malformed JSON for "+label+".");}
 }
 async function askGroqProduct(type,candidates,events,research){
+ // Each featured category owns its fixtures. Later stages may only use fixtures
+ // that have not already been published by an earlier category for this date.
+ // All-Matches intentionally remains the complete slate/union of every category.
+ let eligibleCandidates=candidates;
+ if(type==="super_5"||type==="super_10"){
+  const earlierTypes=type==="super_5"?["safe_picks"]:["safe_picks","super_5"];
+  const placeholders=earlierTypes.map(()=>"?").join(",");
+  const rows=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[env.PUBLISH_DATE||kenyaDate(),...earlierTypes]);
+  const reserved=new Set(rows.map(row=>String(row.event_id)));
+  eligibleCandidates=candidates.filter(candidate=>!reserved.has(candidate.event_id));
+  console.log(type+" fixture isolation: excluded "+reserved.size+" fixtures already assigned to "+earlierTypes.join(", ")+".");
+ }
  let stage=[];
- if(type==="safe_picks")stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
- else if(type==="super_5"||type==="super_10")stage=rankCandidates(candidates,{minOdds:1.50,maxOdds:2.00,limit:36,perFixture:2});
+ if(type==="safe_picks")stage=rankCandidates(eligibleCandidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
+ else if(type==="super_5"||type==="super_10")stage=rankCandidates(eligibleCandidates,{minOdds:1.50,maxOdds:2.00,limit:36,perFixture:2});
  else stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:100,limit:Number.POSITIVE_INFINITY,perFixture:5});
  const rows=stage.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count})=>[
   candidate_id,event_id,sport_key,home_team+" vs "+away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count
