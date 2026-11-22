@@ -384,10 +384,22 @@ async function callGroqJson(prompt,label,maxCompletion){
  if(!jsonText)throw new Error("Groq did not return a complete JSON object for "+label+".");
  try{return JSON.parse(jsonText)}catch{throw new Error("Groq returned malformed JSON for "+label+".");}
 }
-async function askGroqProduct(type,candidates,events,research){
+async function askGroqProduct(type,candidates,events,research,publishDate){
+ // Each featured category owns its fixtures. Later stages may only use fixtures
+ // that have not already been published by an earlier category for this date.
+ // All-Matches intentionally remains the complete slate/union of every category.
+ let eligibleCandidates=candidates;
+ if(type!=="all_matches"){
+  const otherTypes=["safe_picks","super_5","super_10"].filter(productType=>productType!==type);
+  const placeholders=otherTypes.map(()=>"?").join(",");
+  const rows=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[publishDate,...otherTypes]);
+  const reserved=new Set(rows.map(row=>String(row.event_id)));
+  eligibleCandidates=candidates.filter(candidate=>!reserved.has(candidate.event_id));
+  console.log(type+" fixture isolation: excluded "+reserved.size+" fixtures already assigned to "+otherTypes.join(", ")+".");
+ }
  let stage=[];
- if(type==="safe_picks")stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
- else if(type==="super_5"||type==="super_10")stage=rankCandidates(candidates,{minOdds:1.50,maxOdds:2.00,limit:36,perFixture:2});
+ if(type==="safe_picks")stage=rankCandidates(eligibleCandidates,{minOdds:1.20,maxOdds:1.50,limit:36,perFixture:1});
+ else if(type==="super_5"||type==="super_10")stage=rankCandidates(eligibleCandidates,{minOdds:1.50,maxOdds:2.00,limit:36,perFixture:2});
  else stage=rankCandidates(candidates,{minOdds:1.20,maxOdds:100,limit:Number.POSITIVE_INFINITY,perFixture:5});
  const rows=stage.map(({candidate_id,event_id,sport_key,home_team,away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count})=>[
   candidate_id,event_id,sport_key,home_team+" vs "+away_team,market_name,selection_name,odds,market_probability,value_edge,bookmaker_count
@@ -569,7 +581,7 @@ async function runProductStage(date,type,candidates,events,research){
  if(existing?.status==="published"&&forceRegenerate.has(type))console.log("Force-regenerating "+type+" for "+date+"; the previous published edition remains live unless a new edition passes validation.");
  await setStageStatus(date,type,"running",{started_at:new Date().toISOString()});
  try{
-  const result=await askGroqProduct(type,candidates,events,research);
+  const result=await askGroqProduct(type,candidates,events,research,date);
   const validated=validateProducts(result,candidates,events,type).filter(item=>item.product_type===type);
   if(!validated.length){
    const reason=type==="safe_picks"?cleanText(result.safe_picks_reason,300):"The AI response did not produce a product that passed all validation rules.";
