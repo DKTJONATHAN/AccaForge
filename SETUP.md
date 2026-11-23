@@ -66,10 +66,10 @@ The generator creates and upgrades its D1 snapshot, research, distillation, prod
 ## Data safeguards
 - Fixtures are restricted to the complete Africa/Nairobi calendar date, across active soccer competitions exposed by your Odds API account.
 - The market collector keeps only decimal prices of 1.20 or higher for every product; no PICK below 1.20 can be published. The default primary request includes match result, totals, BTTS, double chance, draw no bet, spreads and team totals; configured fallback markets can expand coverage if needed.
-- Safe Picks requires exactly 10 different fixtures, individual odds from 1.20 to 1.50, and combined odds of at least 10.00. If ten defensible selections cannot meet all three conditions, Safe Picks is withheld.
+- Safe Picks requires exactly 10 different fixtures, individual odds from 1.20 to 1.50, and combined odds of at least 7.50. If ten defensible selections cannot meet all three conditions, Safe Picks is withheld.
 - Super 5 requires exactly five different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
 - Super 10 requires exactly ten different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
-- All-Matches Challenge requires one priced PICK for every eligible fixture. No fixture is marked PASS or silently skipped. If any fixture has no usable market price, the edition is withheld until the feed supplies one.
+- All-Matches Challenge requires one priced PICK for every eligible fixture. Match-goal totals (including alternate and team totals) are capped at a 3.5 line; no higher total line is eligible. No fixture is marked PASS or silently skipped. If any fixture has no usable market price, the edition is withheld until the feed supplies one.
 - Groq browser research considers recent form, home/away performance, league context, team availability, schedule and credible current reporting. Unverified information must be treated as uncertain.
 - Groq may select only candidate IDs supplied by the server-side collector. Prices and fixture identity are checked again locally before storage.
 - Every selection stores a probability estimate blended conservatively with de-vigged bookmaker consensus and a simple bookmaker implied probability. These are informational estimates, not guarantees.
