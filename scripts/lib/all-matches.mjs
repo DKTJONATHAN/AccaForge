@@ -1,3 +1,13 @@
+export function isUnderHalfGoalSelection(marketKey, selectionName) {
+  return /(?:^|\\b)under\\s*0\\.5(?:0+)?(?:\\b|$)/i.test(String(selectionName || ""))
+    && /total/i.test(String(marketKey || "totals"));
+}
+
+export function isOverHalfGoalSelection(marketKey, selectionName) {
+  return /(?:^|\\b)over\\s*0\\.5(?:0+)?(?:\\b|$)/i.test(String(selectionName || ""))
+    && /total/i.test(String(marketKey || "totals"));
+}
+
 export function normalizeAllMatchesBatch(fixtures, entries, candidateRows) {
   const expected = new Set(fixtures.map((fixture) => fixture.id));
   const candidateToEvent = new Map(candidateRows.map((row) => [row[0], row[1]]));
@@ -10,12 +20,19 @@ export function normalizeAllMatchesBatch(fixtures, entries, candidateRows) {
   const cleanNote = (value) => String(value ?? "").replace(/[<>\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 260);
   const bestCandidate = (eventId) => {
     const options = candidatesByEvent.get(eventId) || [];
-    options.sort((a, b) =>
+    // All-Matches must not collapse into the low-value Under 0.5 market.
+    // Prefer Over 0.5 whenever the bookmaker snapshot offers it; otherwise
+    // choose the strongest alternative, excluding Under 0.5 entirely.
+    const overHalf = options.filter((row) => isOverHalfGoalSelection(row[4], row[5]));
+    const eligible = overHalf.length
+      ? overHalf
+      : options.filter((row) => !isUnderHalfGoalSelection(row[4], row[5]));
+    eligible.sort((a, b) =>
       Number(b[7] || (100 / Number(b[6]))) - Number(a[7] || (100 / Number(a[6]))) ||
       Number(b[8] || 0) - Number(a[8] || 0) ||
       Number(b[9] || 0) - Number(a[9] || 0)
     );
-    return options[0];
+    return eligible[0];
   };
 
   for (const entry of Array.isArray(entries) ? entries : []) {
@@ -23,14 +40,21 @@ export function normalizeAllMatchesBatch(fixtures, entries, candidateRows) {
     if (!expected.has(eventId) || normalizedByEvent.has(eventId)) continue;
     if (entry.status === "PICK" && candidateToEvent.get(entry.candidate_id) === eventId) {
       const row = candidatesByEvent.get(eventId)?.find((item) => item[0] === entry.candidate_id);
-      const probability = Number(entry.probability);
-      normalizedByEvent.set(eventId, {
-        event_id: eventId,
-        status: "PICK",
-        candidate_id: entry.candidate_id,
-        probability: Number.isFinite(probability) && probability > 0 && probability < 100 ? probability : Number(row?.[7]) || (100 / Number(row?.[6])),
-        note: cleanNote(entry.note)
-      });
+      const preferred = bestCandidate(eventId);
+      const picked = row && isUnderHalfGoalSelection(row[4], row[5]) ? null : row;
+      // If Over 0.5 exists, use it consistently rather than allowing the model
+      // to replace it with a different low-value totals side or Under 0.5.
+      const chosen = preferred && isOverHalfGoalSelection(preferred[4], preferred[5]) ? preferred : picked;
+      if (chosen) {
+        const probability = Number(entry.probability);
+        normalizedByEvent.set(eventId, {
+          event_id: eventId,
+          status: "PICK",
+          candidate_id: chosen[0],
+          probability: Number.isFinite(probability) && probability > 0 && probability < 100 ? probability : Number(chosen[7]) || (100 / Number(chosen[6])),
+          note: cleanNote(entry.note)
+        });
+      }
     }
   }
 
