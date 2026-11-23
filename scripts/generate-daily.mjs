@@ -442,7 +442,10 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
  }
  if(type==="super_5"||type==="super_10"){
   const eligibleFixtures=new Set(stage.map(item=>item.event_id)).size;
-  if(eligibleFixtures<limit)throw new Error("Only "+eligibleFixtures+" distinct fixtures have priced markets between 1.50 and 2.00; "+limit+" are required. No longshot legs will be added to force the count.");
+  if(eligibleFixtures<limit){
+   const reason="Withheld safely: only "+eligibleFixtures+" distinct fixtures have defensible prices between 1.50 and 2.00; "+limit+" are required. No fixtures will be reused and no longshot legs will be forced.";
+   return {[type]:null,[type+"_reason"]:reason};
+  }
  }
  const commonPrompt=[...common,"Candidate rows (last columns: fair market probability %, price edge percentage points, bookmaker count):",JSON.stringify(rows)];
  let prompt,maxCompletion=type==="safe_picks"?900:1000;
@@ -607,10 +610,11 @@ async function runProductStage(date,type,candidates,events,research){
   const result=await askGroqProduct(type,candidates,events,research,date);
   const validated=validateProducts(result,candidates,events,type).filter(item=>item.product_type===type);
   if(!validated.length){
-   const reason=type==="safe_picks"?cleanText(result.safe_picks_reason,300):"The AI response did not produce a product that passed all validation rules.";
+   const intentionalReason=cleanText(result?.[type+"_reason"]||(type==="safe_picks"?result?.safe_picks_reason:""),300);
+   const reason=intentionalReason||"The AI response did not produce a product that passed all validation rules.";
    await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:reason});
    console.warn(type+" withheld: "+reason);
-   return false;
+   return Boolean(intentionalReason);
   }
   await saveAccas(validated,date);
   const rows=await d1("SELECT id FROM accas WHERE publish_date=? AND product_type=? AND status='published' ORDER BY created_at DESC LIMIT 1",[date,type]);
