@@ -418,20 +418,20 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=[
     "Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\",\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
-    "Return exactly one PICK for every fixture in this batch. NEVER return PASS, omit a fixture or invent a candidate. Prefer Over 0.5 goals whenever that exact candidate is supplied for the fixture. NEVER select Under 0.5 goals. If Over 0.5 is unavailable, choose the strongest other defensible supplied market using consensus probability, price edge, market definition and verified research.",
+    "Independently assess every fixture and return exactly one decision per fixture: PICK only when a specific supplied market is genuinely defensible, otherwise PASS. Do not force a bet to achieve coverage. Do not prefer or prohibit a market merely because of its name (including Over 0.5 or Under 0.5); choose the market that the evidence supports. Never select a market solely because it is available or has the highest raw probability.",
+    "For every PICK, provide a concrete rationale of at least 40 characters that identifies the selected market and explains why it is supported by the supplied de-vigged consensus probability, price edge, bookmaker coverage and relevant verified match research. Explicitly address meaningful risks or uncertainty. Do not invent statistics or claim research that is marked unverified. Give a calibrated probability estimate consistent with the supplied market evidence. For every PASS, explain why no supplied market meets the evidence standard.",
+    "Return JSON fixture objects with status PICK or PASS, candidate_id and probability for PICK, and a specific note for both statuses. No generic boilerplate, automatic market substitution, or deterministic fallback is allowed.",
     "Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),
     ...common,"Candidate rows:",JSON.stringify(batchRows)
    ].join("\n\n");
-   let parsed=null;
-   try{parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),1200);}
-   catch(error){console.warn("All-Matches batch "+(Math.floor(offset/batchSize)+1)+" is using deterministic market ranking because Groq is unavailable: "+String(error?.message||error));}
+   const parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),1600);
    const normalized=normalizeAllMatchesBatch(batch,parsed?.all_matches?.fixtures,batchRows);
    if(!first)first=parsed?.all_matches||null;
    merged.push(...normalized);
   }
   return {all_matches:{
    headline:first?.headline||"All-Matches Challenge",
-   analysis_note:"Every eligible fixture receives one priced market selection. Markets are ranked by bookmaker-consensus probability and available price edge; no fixture is silently skipped.",
+   analysis_note:"The AI assessed every fixture independently. Only markets with a specific evidence-based rationale are published; fixtures without a defensible edge are passed.",
    fixtures:merged
   },__allowed_candidate_ids:rows.map(row=>row[0])};
  }
@@ -542,14 +542,17 @@ function validateProducts(result,candidates,events,onlyType=null){
   if(!Array.isArray(result.all_matches?.fixtures))throw new Error("All-Matches Challenge fixture list is missing.");
   const byEvent=new Map(result.all_matches.fixtures.map(item=>[item.event_id,item]));
   if(byEvent.size!==events.length||events.some(event=>!byEvent.has(event.id)))throw new Error("All-Matches Challenge must include every eligible fixture exactly once.");
-  const allSelections=events.map(event=>{
+  const allSelections=events.flatMap(event=>{
    const entry=byEvent.get(event.id);
-   if(entry.status!=="PICK")throw new Error("All-Matches cannot skip a fixture.");
+   if(entry.status==="PASS")return [];
+   if(entry.status!=="PICK")throw new Error("All-Matches fixture decision must be PICK or PASS.");
    const picked=validateSelection(entry,MIN_SELECTION_ODDS,100);
    if(picked.event_id!==event.id)throw new Error("All-Matches candidate does not match its fixture.");
-   return picked;
+   if(picked.note.length<40)throw new Error("Every published All-Matches pick needs a specific evidence-based rationale.");
+   return [picked];
   });
-  return {product_type:"all_matches",target:events.length,actual:Number(allSelections.reduce((total,item)=>total*item.odds,1).toFixed(4)),headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Every eligible fixture has one priced market selection. No fixtures are marked PASS.",selections:allSelections};
+  if(!allSelections.length)throw new Error("AI passed every fixture; no All-Matches edition will be published.");
+  return {product_type:"all_matches",target:allSelections.length,actual:Number(allSelections.reduce((total,item)=>total*item.odds,1).toFixed(4)),headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Only independently assessed, evidence-justified markets are included. Fixtures without a defensible selection are passed.",selections:allSelections};
  });
 
  return products;
