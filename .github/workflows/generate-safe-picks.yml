@@ -64,6 +64,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDS_API_KEY1: ${{ secrets.ODDS_API_KEY1 }}
+          ODDS_API_KEY2: ${{ secrets.ODDS_API_KEY2 }}
+          ODDS_API_KEY3: ${{ secrets.ODDS_API_KEY3 }}
+          ODDS_API_KEY4: ${{ secrets.ODDS_API_KEY4 }}
+          ODDS_API_KEY5: ${{ secrets.ODDS_API_KEY5 }}
+          ODDS_API_KEY6: ${{ secrets.ODDS_API_KEY6 }}
+          ODDS_API_KEY7: ${{ secrets.ODDS_API_KEY7 }}
+          ODDS_API_KEY8: ${{ secrets.ODDS_API_KEY8 }}
           ODDSAPI_KEY: ${{ secrets.ODDSAPI_KEY }}
           ODDSAPI_KEY1: ${{ secrets.ODDSAPI_KEY1 }}
           ODDSAPI_KEY2: ${{ secrets.ODDSAPI_KEY2 }}
