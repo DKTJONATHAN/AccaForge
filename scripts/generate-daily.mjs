@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isUnderHalfGoalSelection, normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
+import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { enrichMarketProbabilities, rankCandidates, selectBestLegs } from "./lib/selection-engine.mjs";
 import { filterAllowedGoalTotals, isDisallowedGoalTotal } from "./lib/market-guards.mjs";
 
@@ -587,10 +587,10 @@ async function runProductStage(date,type,candidates,events,research){
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
  if(existing?.status==="published"&&type==="all_matches"){
   const stored=await d1("SELECT s.market_key,s.selection_name FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type=? AND a.status='published'",[date,type]);
-  if(stored.some(isDisallowedGoalTotal)||stored.some(item=>isUnderHalfGoalSelection(item.market_key,item.selection_name))){
+  if(stored.some(isDisallowedGoalTotal)){
    await d1("UPDATE accas SET status='withheld' WHERE publish_date=? AND product_type=? AND status='published'",[date,type]);
-   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because the previous edition contained a prohibited goal-total selection (above 3.5 or Under 0.5)."});
-   console.warn("Previous All-Matches edition withheld because it contained a prohibited goal-total selection; regenerating with the corrected market policy.");
+   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because the previous edition contained a prohibited goal-total selection above 3.5."});
+   console.warn("Previous All-Matches edition withheld because it contained a prohibited goal-total selection above 3.5; regenerating with the corrected market policy.");
   }
  }
  const priorTypes=({safe_picks:[],super_5:["safe_picks"],super_10:["safe_picks","super_5"]})[type]||[];
