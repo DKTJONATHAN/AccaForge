@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { enrichMarketProbabilities, rankCandidates, selectBestLegs } from "./lib/selection-engine.mjs";
+import { filterAllowedGoalTotals, isDisallowedGoalTotal } from "./lib/market-guards.mjs";
 
 // Selection policy v3: fair bookmaker consensus, strict per-leg price bands and complete fixture coverage.
 const env=process.env;
@@ -503,6 +504,7 @@ function validateProducts(result,candidates,events,onlyType=null){
   const candidate=lookup.get(entry?.candidate_id);
   if(!candidate)throw new Error("Unknown candidate ID in product selection.");
   if(candidate.odds<allowedMin||candidate.odds>allowedMax)throw new Error("A selection is outside its product's permitted odds range.");
+   if(isDisallowedGoalTotal(candidate))throw new Error("Goal totals above 3.5 are not permitted in AccaForge selections.");
   const marketProbability=Math.max(1,Math.min(99,Number(candidate.market_probability)||100/candidate.odds));
   const modelProbability=Number(entry?.probability);
   const boundedModel=Number.isFinite(modelProbability)?Math.max(marketProbability-8,Math.min(marketProbability+8,modelProbability)):marketProbability;
@@ -516,7 +518,7 @@ function validateProducts(result,candidates,events,onlyType=null){
   const selected=result.safe_picks.selections.map(entry=>validateSelection(entry,MIN_SELECTION_ODDS,1.50));
   if(new Set(selected.map(item=>item.event_id)).size!==10)throw new Error("Safe Picks must use exactly 10 different fixtures, with only one market per match.");
   const combined=selected.reduce((v,item)=>v*item.odds,1);
-  if(combined<10)throw new Error("Safe Picks combined odds must be at least 10.00; received "+combined.toFixed(2)+".");
+  if(combined<7.50)throw new Error("Safe Picks combined odds must be at least 7.50; received "+combined.toFixed(2)+".");
   return {product_type:"safe_picks",target:10,actual:Number(combined.toFixed(4)),headline:cleanText(result.safe_picks.headline,100)||"Safe Picks",analysis_note:cleanText(result.safe_picks.analysis_note,400)||"Evidence-led selections across different fixtures, with every individual price between 1.20 and 1.50.",selections:selected};
  });
  attempt("Super 5",()=>{
@@ -577,7 +579,20 @@ async function saveAccas(products,publishDate){
 async function runProductStage(date,type,candidates,events,research){
  const existing=await getStageStatus(date,type);
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
- if(existing?.status==="published"&&!forceRegenerate.has(type)){console.log("Skipping "+type+": already published for "+date+".");return true;}
+ const priorTypes=({safe_picks:[],super_5:["safe_picks"],super_10:["safe_picks","super_5"]})[type]||[];
+ if(existing?.status==="published"&&priorTypes.length){
+  const current=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type=? AND a.status='published'",[date,type]);
+  const earlier=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type IN ("+priorTypes.map(()=>"?").join(",")+") AND a.status='published'",[date,...priorTypes]);
+  const earlierIds=new Set(earlier.map(row=>String(row.event_id)));
+  const overlap=current.filter(row=>earlierIds.has(String(row.event_id)));
+  if(overlap.length){
+   await d1("UPDATE accas SET status='withheld' WHERE publish_date=? AND product_type=? AND status='published'",[date,type]);
+   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because "+overlap.length+" fixtures overlap an earlier product category."});
+   console.warn(type+" previous edition withheld because it overlaps "+overlap.length+" fixtures reserved by "+priorTypes.join(", ")+".");
+  }
+ }
+ const refreshed=await getStageStatus(date,type);
+ if(refreshed?.status==="published"&&!forceRegenerate.has(type)){console.log("Skipping "+type+": already published for "+date+".");return true;}
  if(existing?.status==="published"&&forceRegenerate.has(type))console.log("Force-regenerating "+type+" for "+date+"; the previous published edition remains live unless a new edition passes validation.");
  await setStageStatus(date,type,"running",{started_at:new Date().toISOString()});
  try{
