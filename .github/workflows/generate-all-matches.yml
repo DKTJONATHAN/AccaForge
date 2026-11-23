@@ -1,6 +1,10 @@
 name: AccaForge Generate All Matches
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/generate-all-matches.yml"
   workflow_run:
     workflows: ["AccaForge Generate Super 10"]
     types: [completed]
@@ -21,7 +25,7 @@ concurrency:
 
 jobs:
   generate:
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion != 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
