@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
+import { isUnderHalfGoalSelection, normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { enrichMarketProbabilities, rankCandidates, selectBestLegs } from "./lib/selection-engine.mjs";
 import { filterAllowedGoalTotals, isDisallowedGoalTotal } from "./lib/market-guards.mjs";
 
@@ -418,12 +418,12 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=[
     "Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\",\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
-    "Return exactly one PICK for every fixture in this batch. NEVER return PASS, omit a fixture or invent a candidate. Choose the most likely defensible outcome using consensus probability, price edge, market definition and verified research. If uncertain, choose the strongest supplied market option rather than skipping.",
+    "Return exactly one PICK for every fixture in this batch. NEVER return PASS, omit a fixture or invent a candidate. Prefer Over 0.5 goals whenever that exact candidate is supplied for the fixture. NEVER select Under 0.5 goals. If Over 0.5 is unavailable, choose the strongest other defensible supplied market using consensus probability, price edge, market definition and verified research.",
     "Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),
     ...common,"Candidate rows:",JSON.stringify(batchRows)
    ].join("\n\n");
    let parsed=null;
-   try{parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),650);}
+   try{parsed=await callGroqJson(prompt,"all_matches batch "+(Math.floor(offset/batchSize)+1),1200);}
    catch(error){console.warn("All-Matches batch "+(Math.floor(offset/batchSize)+1)+" is using deterministic market ranking because Groq is unavailable: "+String(error?.message||error));}
    const normalized=normalizeAllMatchesBatch(batch,parsed?.all_matches?.fixtures,batchRows);
    if(!first)first=parsed?.all_matches||null;
@@ -581,10 +581,10 @@ async function runProductStage(date,type,candidates,events,research){
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
  if(existing?.status==="published"&&type==="all_matches"){
   const stored=await d1("SELECT s.market_key,s.selection_name FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type=? AND a.status='published'",[date,type]);
-  if(stored.some(isDisallowedGoalTotal)){
+  if(stored.some(isDisallowedGoalTotal)||stored.some(item=>isUnderHalfGoalSelection(item.market_key,item.selection_name))){
    await d1("UPDATE accas SET status='withheld' WHERE publish_date=? AND product_type=? AND status='published'",[date,type]);
-   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because the previous edition contained a goal-total line above 3.5."});
-   console.warn("Previous All-Matches edition withheld because it contained a goal-total line above 3.5; regenerating with the hard cap.");
+   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because the previous edition contained a prohibited goal-total selection (above 3.5 or Under 0.5)."});
+   console.warn("Previous All-Matches edition withheld because it contained a prohibited goal-total selection; regenerating with the corrected market policy.");
   }
  }
  const priorTypes=({safe_picks:[],super_5:["safe_picks"],super_10:["safe_picks","super_5"]})[type]||[];
