@@ -391,9 +391,9 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
  // All-Matches intentionally remains the complete slate/union of every category.
  let eligibleCandidates=candidates;
  if(type!=="all_matches"){
-  const otherTypes=["safe_picks","super_5","super_10"].filter(productType=>productType!==type);
+  const otherTypes=({safe_picks:[],super_5:["safe_picks"],super_10:["safe_picks","super_5"]})[type]||[];
   const placeholders=otherTypes.map(()=>"?").join(",");
-  const rows=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[publishDate,...otherTypes]);
+  const rows=otherTypes.length?await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.status='published' AND a.product_type IN ("+placeholders+")",[publishDate,...otherTypes]):[];
   const reserved=new Set(rows.map(row=>String(row.event_id)));
   eligibleCandidates=candidates.filter(candidate=>!reserved.has(candidate.event_id));
   console.log(type+" fixture isolation: excluded "+reserved.size+" fixtures already assigned to "+otherTypes.join(", ")+".");
@@ -642,7 +642,10 @@ async function main(){
   await storeDailySnapshot(date,events,candidates);
   snapshot={events,candidates};
  }
- const {events,candidates}=snapshot;
+ const {events}=snapshot;
+ const originalCandidateCount=snapshot.candidates.length;
+ const candidates=filterAllowedGoalTotals(snapshot.candidates);
+ console.log("Goal-total guard: removed "+(originalCandidateCount-candidates.length)+" candidates with a total line above 3.5; no higher goal-total line can be published.");
  for(const candidate of candidates){
   if(!Number.isFinite(Number(candidate.market_probability)))candidate.market_probability=Number((100/Number(candidate.odds)).toFixed(2));
   if(!Number.isFinite(Number(candidate.implied_probability)))candidate.implied_probability=Number((100/Number(candidate.odds)).toFixed(2));
