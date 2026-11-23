@@ -494,8 +494,13 @@ function validateProducts(result,candidates,events,onlyType=null){
  const validateSelection=(entry,allowedMin=MIN_SELECTION_ODDS,allowedMax=Number.POSITIVE_INFINITY)=>{
   const candidate=lookup.get(entry?.candidate_id);
   if(!candidate)throw new Error("Unknown candidate ID in product selection.");
-  const rationale=cleanText(entry?.note,260);
-  if(rationale.length<40)throw new Error("Every AI-selected market requires a specific evidence-based rationale of at least 40 characters.");
+  const modelRationale=cleanText(entry?.note,220);
+  if(modelRationale.length<40)throw new Error("Every AI-selected market requires a specific evidence-based rationale of at least 40 characters.");
+  const consensus=Number(candidate.market_probability)||Number((100/candidate.odds).toFixed(2));
+  const edge=Number(candidate.value_edge)||0;
+  const books=Math.max(1,Number(candidate.bookmaker_count)||1);
+  const evidence="Consensus "+consensus.toFixed(1)+"%; edge "+(edge>=0?"+":"")+edge.toFixed(1)+"pp; "+books+" bookmaker(s). ";
+  const rationale=cleanText(evidence+modelRationale,260);
   if(candidate.odds<allowedMin||candidate.odds>allowedMax)throw new Error("A selection is outside its product's permitted odds range.");
    if(isDisallowedGoalTotal(candidate))throw new Error("Goal totals above 3.5 are not permitted in AccaForge selections.");
   const marketProbability=Math.max(1,Math.min(99,Number(candidate.market_probability)||100/candidate.odds));
