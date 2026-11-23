@@ -1,10 +1,10 @@
 export function isUnderHalfGoalSelection(marketKey, selectionName) {
-  return /(?:^|\\b)under\\s*0\\.5(?:0+)?(?:\\b|$)/i.test(String(selectionName || ""))
+  return /(?:^|\b)under\s*0\.5(?:0+)?(?:\b|$)/i.test(String(selectionName || ""))
     && /total/i.test(String(marketKey || "totals"));
 }
 
 export function isOverHalfGoalSelection(marketKey, selectionName) {
-  return /(?:^|\\b)over\\s*0\\.5(?:0+)?(?:\\b|$)/i.test(String(selectionName || ""))
+  return /(?:^|\b)over\s*0\.5(?:0+)?(?:\b|$)/i.test(String(selectionName || ""))
     && /total/i.test(String(marketKey || "totals"));
 }
 
