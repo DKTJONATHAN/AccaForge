@@ -4,7 +4,11 @@ const config = readFileSync(new URL('../src/site-origin.ts', import.meta.url), '
 const origin = config.match(/SITE_ORIGIN\s*=\s*['"]([^'"]+)['"]/)?.[1];
 if (!origin) throw new Error('Could not read SITE_ORIGIN from src/site-origin.ts');
 
-const headers = { 'user-agent': 'SiteSeoVerifier/2.0' };
+// Use a standard browser UA so Cloudflare bot rules do not mistake this CI
+// smoke test for an unknown automated crawler. This is not a Googlebot test.
+const headers = {
+  'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+};
 const concurrency = 8;
 
 function stripTags(value) {
@@ -49,7 +53,16 @@ async function request(url) {
 
 async function main() {
   const sitemapResponse = await fetch(new URL('/sitemap.xml', origin), { headers });
-  if (!sitemapResponse.ok) throw new Error(`Sitemap returned HTTP ${sitemapResponse.status}`);
+  if (!sitemapResponse.ok) {
+    const detail = {
+      status: sitemapResponse.status,
+      contentType: sitemapResponse.headers.get('content-type'),
+      server: sitemapResponse.headers.get('server'),
+      ray: sitemapResponse.headers.get('cf-ray'),
+      body: (await sitemapResponse.text()).slice(0, 300),
+    };
+    throw new Error(`Sitemap request failed: ${JSON.stringify(detail)}`);
+  }
   const sitemap = await sitemapResponse.text();
   const urls = unique([...sitemap.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)]
     .map((match) => match[1].replace(/&amp;/g, '&')));
