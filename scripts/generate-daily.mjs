@@ -579,6 +579,14 @@ async function saveAccas(products,publishDate){
 async function runProductStage(date,type,candidates,events,research){
  const existing=await getStageStatus(date,type);
  const forceRegenerate=new Set(String(env.FORCE_REGENERATE_PRODUCTS||"").split(",").map(value=>value.trim().toLowerCase()).filter(Boolean));
+ if(existing?.status==="published"&&type==="all_matches"){
+  const stored=await d1("SELECT s.market_key,s.selection_name FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type=? AND a.status='published'",[date,type]);
+  if(stored.some(isDisallowedGoalTotal)){
+   await d1("UPDATE accas SET status='withheld' WHERE publish_date=? AND product_type=? AND status='published'",[date,type]);
+   await setStageStatus(date,type,"withheld",{completed_at:new Date().toISOString(),error:"Replaced because the previous edition contained a goal-total line above 3.5."});
+   console.warn("Previous All-Matches edition withheld because it contained a goal-total line above 3.5; regenerating with the hard cap.");
+  }
+ }
  const priorTypes=({safe_picks:[],super_5:["safe_picks"],super_10:["safe_picks","super_5"]})[type]||[];
  if(existing?.status==="published"&&priorTypes.length){
   const current=await d1("SELECT DISTINCT s.event_id FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.publish_date=? AND a.product_type=? AND a.status='published'",[date,type]);
