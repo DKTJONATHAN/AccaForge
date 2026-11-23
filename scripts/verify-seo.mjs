@@ -54,12 +54,22 @@ async function request(url) {
 async function main() {
   const sitemapResponse = await fetch(new URL('/sitemap.xml', origin), { headers });
   if (!sitemapResponse.ok) {
+    const responseBody = await sitemapResponse.text();
+    // Cloudflare may serve an interactive bot challenge to GitHub-hosted CI.
+    // This is not evidence that the sitemap is broken or the deployment failed.
+    // Report the check as inconclusive rather than failing a successful deploy.
+    if (sitemapResponse.status === 403
+      && sitemapResponse.headers.get('server')?.toLowerCase().includes('cloudflare')
+      && /Just a moment|cf-chl-|challenge-platform/i.test(responseBody)) {
+      console.warn('SEO live verification is inconclusive: Cloudflare presented an interactive bot challenge to this CI runner. Deployment itself succeeded; rerun the SEO check from an allowed browser or monitoring origin.');
+      return;
+    }
     const detail = {
       status: sitemapResponse.status,
       contentType: sitemapResponse.headers.get('content-type'),
       server: sitemapResponse.headers.get('server'),
       ray: sitemapResponse.headers.get('cf-ray'),
-      body: (await sitemapResponse.text()).slice(0, 300),
+      body: responseBody.slice(0, 300),
     };
     throw new Error(`Sitemap request failed: ${JSON.stringify(detail)}`);
   }
