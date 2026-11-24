@@ -1,3 +1,4 @@
+export function isAutoSettleableMarket(key){return new Set(["h2h","moneyline","match_winner","btts","both_teams_to_score","totals","alternate_totals","double_chance","draw_no_bet"]).has(String(key||"").toLowerCase());}
 export function settleSelection(row,home,away){
  const market=String(row.market_key||"").toLowerCase();
  const pick=String(row.selection_name||"").trim();
