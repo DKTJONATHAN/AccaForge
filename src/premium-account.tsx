@@ -218,7 +218,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
       const response = await fetch(config.supabase_url + "/rest/v1/profiles?id=eq." + encodeURIComponent(account.account.id), {
         method: "PATCH",
         headers: { apikey: config.supabase_anon_key, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ display_name: displayName.trim() || null, updated_at: new Date().toISOString() })
+        body: JSON.stringify({ display_name: displayName.trim() || null })
       });
       if (!response.ok) throw new Error("Could not update your account profile.");
       setNotice("Your profile has been updated.");
