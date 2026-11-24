@@ -28,7 +28,7 @@ export function settleSelection(row,home,away){
   return result((isOver?total>line:total<line)?"WON":"LOST","Full-time total: "+total+" goals.");
  }
  if(market==="double_chance"){
-  const value=pick.toLowerCase().replace(/[\\s-]+/g,"");
+  const value=pick.toLowerCase().split(" ").join("").replaceAll("-","");
   const homeDraw=["1x","homedraw","homeordraw","draworhome"].includes(value);
   const drawAway=["x2","drawaway","draworaway","awayordraw"].includes(value);
   const noDraw=["12","homeaway","homeoraway","awayorhome"].includes(value);
