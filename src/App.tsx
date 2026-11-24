@@ -2,7 +2,7 @@ import React, {useCallback,useEffect,useMemo,useState} from "react";
 import PremiumAccountPanel from "./premium-account";
 import {useQuery} from "@tanstack/react-query";
 import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Phone,Sparkles,Loader2,AlertCircle,CheckCircle2} from "lucide-react";
-import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo,PremiumStatus} from "./types";
+import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo} from "./types";
 
 const products:[ProductType,string,string,string][]=[
  ["safe_picks","10-Leg Accumulator","10 legs · 1.20–1.50 each · all 10 must win","/safe-picks"],
@@ -81,28 +81,9 @@ async function loadMember(token:string):Promise<MemberInfo|null>{
  const data=await response.json() as {member:MemberInfo|null};
  return data.member;
 }
-async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;poll_token:string;message:string}>{
- const response=await fetch("/api/premium/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,plan_id:planId})});
- const data=await response.json() as {checkout_request_id?:string;poll_token?:string;message?:string;error?:string;code?:string;provider_code?:string|null};
- if(!response.ok){
-  const diagnostic=[data.code,data.provider_code?("Daraja "+data.provider_code):null].filter(Boolean).join(" · ");
-  throw new Error([data.error||"Could not start the payment.",diagnostic?("["+diagnostic+"]"):null].filter(Boolean).join(" "));
- }
- if(!data.checkout_request_id||!data.poll_token)throw new Error("Payment provider did not return a secure payment reference.");
- return {checkout_request_id:data.checkout_request_id,poll_token:data.poll_token,message:data.message||"Payment prompt sent."};
-}
-async function pollPaymentStatus(checkoutRequestId:string,pollToken:string):Promise<PremiumStatus>{
- await fetch("/api/premium/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({checkout_request_id:checkoutRequestId,poll_token:pollToken})});
- const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId)+"?token="+encodeURIComponent(pollToken));
- const data=await response.json() as {status?:string;result_code?:number|null;result_desc?:string|null;session_token?:string|null;expires_at?:string|null;error?:string};
- if(!response.ok)throw new Error(data.error||"Could not check payment status.");
- if(!data.status)throw new Error("Payment status response was incomplete.");
- return {status:data.status,result_code:data.result_code??null,result_desc:data.result_desc??null,session_token:data.session_token||null,expires_at:data.expires_at||null};
-}
 function getPremiumToken():string|null{
  try{return localStorage.getItem("accaforge-premium-token");}catch{return null;}
 }
-function setPremiumToken(token:string){try{localStorage.setItem("accaforge-premium-token",token);}catch{}}
 function usePremiumMember(){
  const [member,setMember]=useState<MemberInfo|null>(null);
  const [loading,setLoading]=useState(true);
@@ -219,12 +200,8 @@ function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
 }
-const PREMIUM_PACKAGE_PREVIEW:SubscriptionPlan[]=[
- {id:"preview-monthly",name:"Monthly Premium",price_ksh:499,duration_days:30,description:"A full month of deeper AccaForge research.",features:["All four daily formats with complete reasoning","30-day searchable edition archive","Detailed market and selection notes","Published results and transparent track record"]},
- {id:"preview-quarterly",name:"Quarterly Premium",price_ksh:1299,duration_days:90,description:"Three months of Premium access at a better rate.",features:["Everything in Monthly Premium","90-day searchable edition archive","More time to review historical editions","Save KSh 198 compared with monthly billing"]},
- {id:"preview-annual",name:"Annual Premium",price_ksh:4499,duration_days:365,description:"The best value for long-term AccaForge members.",features:["Everything in Quarterly Premium","365-day searchable edition archive","Full year of detailed edition reasoning","Save KSh 1,489 compared with monthly billing"]}
-];
 function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
+ void refreshMember;
  const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
  if(memberLoading){
   return <main className="page-shell premium-page"><PageHeading title="AccaForge Premium" description="Unlock dedicated Premium football analysis and manage your subscription."/><div className="state-panel"><span className="loader"/><p>Loading…</p></div></main>;
