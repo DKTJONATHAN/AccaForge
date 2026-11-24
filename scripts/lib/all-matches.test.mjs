@@ -40,7 +40,7 @@ test("rejects unknown candidate IDs and mismatched fixture decisions",()=>{
 
 test("requires the AI to assess every fixture exactly once",()=>{
  assert.throws(()=>normalizeAllMatchesBatch(fixtures,[
-  {event_id:"e1",status:"PASS",note:"No defensible market because the available prices conflict and reliable team news is unavailable."}
+  {event_id:"e1",status:"PICK",candidate_id:"c1",probability:62,note:reason1}
  ],rows),/assess every fixture/);
 });
 
