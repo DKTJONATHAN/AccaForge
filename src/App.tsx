@@ -87,6 +87,7 @@ async function initiateSubscription(phone:string,planId:string):Promise<{checkou
  return {checkout_request_id:data.checkout_request_id,poll_token:data.poll_token,message:data.message||"Payment prompt sent."};
 }
 async function pollPaymentStatus(checkoutRequestId:string,pollToken:string):Promise<PremiumStatus>{
+ await fetch("/api/premium/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({checkout_request_id:checkoutRequestId,poll_token:pollToken})});
  const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId)+"?token="+encodeURIComponent(pollToken));
  const data=await response.json() as {status?:string;session_token?:string|null;expires_at?:string|null;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not check payment status.");
@@ -243,7 +244,7 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
     }
    }catch{ /* keep polling */ }
   };
-  const interval=setInterval(poll,4000);
+  const interval=setInterval(poll,7000);
   poll();
   return()=>{cancelled=true;clearInterval(interval);};
  },[status,checkoutId,pollToken,refreshMember]);
