@@ -199,8 +199,17 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         transactionDesc: `Premium subscription - ${plan.name}`,
         callbackUrl: env.DARAJA_CALLBACK_URL,
       });
-      if (!pushed.success || !pushed.checkoutRequestId)
-        return json({ error: pushed.errorMessage || "Could not send the M-Pesa prompt." }, 502);
+      if (!pushed.success || !pushed.checkoutRequestId) {
+        console.error("Premium STK push rejected:", {
+          responseCode: pushed.responseCode || "not_provided",
+          responseDescription: pushed.responseDescription || pushed.errorMessage || "No provider description",
+        });
+        return json({
+          error: pushed.errorMessage || "Could not send the M-Pesa prompt.",
+          code: "PREMIUM_SUBSCRIBE_STK_PUSH_REJECTED",
+          provider_code: pushed.responseCode || null,
+        }, 502);
+      }
 
       subscribeStage = "payment_persistence";
       const pollToken = crypto.randomUUID() + crypto.randomUUID();

@@ -82,8 +82,11 @@ async function loadMember(token:string):Promise<MemberInfo|null>{
 }
 async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;poll_token:string;message:string}>{
  const response=await fetch("/api/premium/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,plan_id:planId})});
- const data=await response.json() as {checkout_request_id?:string;poll_token?:string;message?:string;error?:string};
- if(!response.ok)throw new Error(data.error||"Could not start the payment.");
+ const data=await response.json() as {checkout_request_id?:string;poll_token?:string;message?:string;error?:string;code?:string;provider_code?:string|null};
+ if(!response.ok){
+  const diagnostic=[data.code,data.provider_code?("Daraja "+data.provider_code):null].filter(Boolean).join(" · ");
+  throw new Error([data.error||"Could not start the payment.",diagnostic?("["+diagnostic+"]"):null].filter(Boolean).join(" "));
+ }
  if(!data.checkout_request_id||!data.poll_token)throw new Error("Payment provider did not return a secure payment reference.");
  return {checkout_request_id:data.checkout_request_id,poll_token:data.poll_token,message:data.message||"Payment prompt sent."};
 }
