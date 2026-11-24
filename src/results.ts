@@ -5,7 +5,8 @@ type ScoreEvent={id:string;sport_key:string;home_team:string;away_team:string;co
 const resultSchema=[
 "CREATE TABLE IF NOT EXISTS result_selections (selection_id TEXT PRIMARY KEY, acca_id TEXT NOT NULL, product_type TEXT NOT NULL, headline TEXT NOT NULL, publish_date TEXT NOT NULL, event_id TEXT NOT NULL, sport_key TEXT NOT NULL, commence_time TEXT NOT NULL, home_team TEXT NOT NULL, away_team TEXT NOT NULL, market_key TEXT NOT NULL, market_name TEXT NOT NULL, selection_name TEXT NOT NULL, odds REAL NOT NULL, selection_status TEXT NOT NULL DEFAULT 'PENDING', home_score INTEGER, away_score INTEGER, outcome TEXT NOT NULL DEFAULT 'PENDING', settled_at TEXT, result_note TEXT NOT NULL DEFAULT '')",
 "CREATE INDEX IF NOT EXISTS idx_result_selections_date ON result_selections(publish_date,product_type)",
-"CREATE INDEX IF NOT EXISTS idx_result_selections_event ON result_selections(event_id)"
+"CREATE INDEX IF NOT EXISTS idx_result_selections_event ON result_selections(event_id)",
+"CREATE TABLE IF NOT EXISTS edition_results (acca_id TEXT PRIMARY KEY, product_type TEXT NOT NULL, headline TEXT NOT NULL, publish_date TEXT NOT NULL, leg_count INTEGER NOT NULL DEFAULT 0, won_legs INTEGER NOT NULL DEFAULT 0, lost_legs INTEGER NOT NULL DEFAULT 0, void_legs INTEGER NOT NULL DEFAULT 0, pending_legs INTEGER NOT NULL DEFAULT 0, pass_legs INTEGER NOT NULL DEFAULT 0, outcome TEXT NOT NULL DEFAULT 'PENDING', effective_odds REAL, profit REAL, result_note TEXT NOT NULL DEFAULT '', settled_at TEXT)"
 ];
 async function ensureResultsSchema(env:ResultsEnv){for(const sql of resultSchema)await env.DB.prepare(sql).run();}
 function oddsApiKeys(env:ResultsEnv){return [...new Set([env.ODDSAPI_KEY,env.ODDSAPI_KEY1,env.ODDSAPI_KEY2,env.ODDSAPI_KEY3,env.ODDS_API_KEY].map(key=>key?.trim()).filter((key):key is string=>Boolean(key)))];}
@@ -25,6 +26,19 @@ async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<S
 }
 function yesterdayNairobi(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(parts+"T12:00:00Z");date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
 function scoreMap(event:ScoreEvent){const scores=event.scores||[];const home=Number(scores.find(item=>item.name===event.home_team)?.score);const away=Number(scores.find(item=>item.name===event.away_team)?.score);return Number.isFinite(home)&&Number.isFinite(away)?{home,away}:null;}
+
+async function recalculateEdition(env:ResultsEnv,accaId:string){
+ const rows=(await env.DB.prepare("SELECT selection_status,selection_name,outcome,odds FROM result_selections WHERE acca_id=? ORDER BY selection_id").bind(accaId).all()).results||[];
+ const edition=calculateEdition(rows);
+ const meta=await env.DB.prepare("SELECT product_type,headline,publish_date FROM result_selections WHERE acca_id=? LIMIT 1").bind(accaId).first();
+ if(!meta)return;
+ const sql=`INSERT INTO edition_results (acca_id,product_type,headline,publish_date,leg_count,won_legs,lost_legs,void_legs,pending_legs,pass_legs,outcome,effective_odds,profit,result_note,settled_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ? IN ('WON','LOST','VOID','NO_SELECTION') THEN CURRENT_TIMESTAMP ELSE NULL END) ON CONFLICT(acca_id) DO UPDATE SET product_type=excluded.product_type,headline=excluded.headline,publish_date=excluded.publish_date,leg_count=excluded.leg_count,won_legs=excluded.won_legs,lost_legs=excluded.lost_legs,void_legs=excluded.void_legs,pending_legs=excluded.pending_legs,pass_legs=excluded.pass_legs,outcome=excluded.outcome,effective_odds=excluded.effective_odds,profit=excluded.profit,result_note=excluded.result_note,settled_at=CASE WHEN excluded.outcome IN ('WON','LOST','VOID','NO_SELECTION') THEN COALESCE(edition_results.settled_at,CURRENT_TIMESTAMP) ELSE NULL END`;
+ await env.DB.prepare(sql).bind(accaId,meta.product_type,meta.headline,meta.publish_date,edition.legs,edition.won,edition.lost,edition.void,edition.pending,edition.pass,edition.outcome,edition.effectiveOdds,edition.profit,edition.note,edition.outcome).run();
+}
+async function syncEditionResults(env:ResultsEnv){
+ const editions=(await env.DB.prepare("SELECT DISTINCT acca_id FROM result_selections").all()).results||[];
+ for(const edition of editions)await recalculateEdition(env,edition.acca_id);
+}
 export async function refreshYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
