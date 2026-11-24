@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { normalizeAllMatchesBatch } from "./lib/all-matches.mjs";
 import { enrichMarketProbabilities, rankCandidates } from "./lib/selection-engine.mjs";
 import { filterAllowedGoalTotals, isDisallowedGoalTotal } from "./lib/market-guards.mjs";
+import { isAutoSettleableMarket } from "../src/settlement.mjs";
 
 // Selection policy v3: fair bookmaker consensus, strict per-leg price bands and complete fixture coverage.
 const env=process.env;
@@ -46,7 +47,7 @@ async function oddsFetch(input){
  throw new Error("All Odds API key slots failed; last status "+last+".");
 }
 const regions=env.ODDS_REGIONS||"uk";
-const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals";
+const markets=env.ODDS_MARKETS||"h2h,totals,btts,double_chance,draw_no_bet";
 const model=env.GROQ_MODEL||"openai/gpt-oss-120b";
 console.log("Groq model selected: "+model+" (shared research + four independent product stages).");
 
@@ -226,7 +227,7 @@ async function getFootballEvents(publishDate){
  // Fallback: if the primary market request is unsupported or yields too few candidates, inspect additional markets
  // fixture-by-fixture across the ENTIRE date slate instead of only a small first-N sample.
  if(primaryCandidates.length<24||new Set(primaryCandidates.map(item=>item.event_id)).size<12||additionalMarketsNeeded){
-  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,team_totals,alternate_team_totals,spreads,alternate_totals,alternate_spreads,btts_h1,double_chance_h1").split(",").map(value=>value.trim()).filter(Boolean);
+  const fallbackMarkets=(env.ODDS_FALLBACK_MARKETS||"btts,double_chance,draw_no_bet,alternate_totals").split(",").map(value=>value.trim()).filter(Boolean);
   console.log("Fallback market scan activated for all "+uniqueFixtures.length+" fixtures; markets="+fallbackMarkets.join(",")+".");
   for(const event of uniqueFixtures){
    const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(event.sport_key)+"/events/"+encodeURIComponent(event.id)+"/odds/");
@@ -278,6 +279,7 @@ function buildCandidates(events){
   const best=new Map();
   for(const bookmaker of event.bookmakers||[]){
    for(const market of bookmaker.markets||[]){
+    if(!isAutoSettleableMarket(market.key))continue;
     for(const outcome of market.outcomes||[]){
      const price=Number(outcome.price);
      if(!Number.isFinite(price)||price<MIN_SELECTION_ODDS)continue;

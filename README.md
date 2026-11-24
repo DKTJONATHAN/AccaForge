@@ -4,7 +4,7 @@
 
 AccaForge publishes four distinct daily football products:
 
-- **Safe Picks:** exactly 10 different fixtures, one selection per match, with individual decimal odds from 1.20 to 1.50. If 10 defensible selections are not available, this edition is withheld rather than padded.
+- **10-Leg Accumulator:** exactly 10 different fixtures, one selection per match, with individual decimal odds from 1.20 to 1.50. All 10 active legs must win; this format is not risk-free. If 10 defensible selections are not available, the edition is withheld rather than padded.
 - **Super 5:** exactly five different fixtures, one selection per match, with every individual price between 1.50 and 2.00. Combined odds are an outcome, not a target.
 - **Super 10:** exactly ten different fixtures, one selection per match, with every individual price between 1.50 and 2.00. It does not chase a 10.00 combined-odds target.
 - **All-Matches Challenge:** exactly one priced market selection for every eligible fixture on the daily slate. No fixture is marked PASS or silently skipped; if any fixture has no usable market prices, the edition is withheld.
@@ -30,3 +30,8 @@ AccaForge is for adults aged 18+ and provides information for entertainment only
 
 ## Design credits
 Project-level design guidance from Unslop, No AI Slop UI Skill and Impeccable is included under `.agents/skills/`. Read [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md) for attribution and licence information.
+
+
+## Edition settlement
+
+Selection-level hit rate and accumulator-level results are reported separately. An edition wins only when every active leg wins. A losing leg makes the accumulator a loss; void legs are excluded from effective combined odds; pending legs keep an otherwise-unsettled edition pending. Markets without verified settlement logic are excluded from generation. Cup and tournament fixtures remain pending when the score feed does not expose a regulation-time score separately from extra time.
