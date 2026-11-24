@@ -28,13 +28,16 @@ export function settleSelection(row,home,away){
   return result((isOver?total>line:total<line)?"WON":"LOST","Full-time total: "+total+" goals.");
  }
  if(market==="double_chance"){
-  const value=pick.toLowerCase().replace(/\s/g,"");
-  const won=value==="1x"?(home>=away):value==="x2"?(away>=home):value==="12"?(home!==away):null;
+  const value=pick.toLowerCase().replace(/[\\s-]+/g,"");
+  const homeDraw=["1x","homedraw","homeordraw","draworhome"].includes(value);
+  const drawAway=["x2","drawaway","draworaway","awayordraw"].includes(value);
+  const noDraw=["12","homeaway","homeoraway","awayorhome"].includes(value);
+  const won=homeDraw?(home>=away):drawAway?(away>=home):noDraw?(home!==away):null;
   return won===null?result("PENDING","Double-chance selection could not be interpreted safely."):result(won?"WON":"LOST","Full-time result: "+home+"–"+away+".");
  }
  if(market==="draw_no_bet"){
-  const selectedHome=pick.toLowerCase()===String(row.home_team).toLowerCase();
-  const selectedAway=pick.toLowerCase()===String(row.away_team).toLowerCase();
+  const selectedHome=[String(row.home_team).toLowerCase(),"home"].includes(pick.toLowerCase());
+  const selectedAway=[String(row.away_team).toLowerCase(),"away"].includes(pick.toLowerCase());
   if(home===away)return result("VOID","Match finished level; draw-no-bet selection is void.");
   if(!selectedHome&&!selectedAway)return result("PENDING","Team selection could not be identified safely.");
   return result((selectedHome?home>away:away>home)?"WON":"LOST","Full-time result: "+home+"–"+away+".");
