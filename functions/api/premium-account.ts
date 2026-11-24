@@ -143,7 +143,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
       const subscriptions = await subscriptionsResponse.json();
       const payments = await paymentsResponse.json();
       const profiles = await profileResponse.json() as Array<{ display_name: string | null; email: string | null; avatar_url: string | null }>;
-      const active = (subscriptions as Array<{ status: string; expires_at: string }>).find(item => item.status === "active" && Date.parse(item.expires_at) > Date.now());
+      const active = (subscriptions as Array<{ status: string; expires_at: string; plan_id: string }>).find(item => item.status === "active" && Date.parse(item.expires_at) > Date.now());
       return json({
         account: { id: user.id, email: user.email || null, display_name: profiles[0]?.display_name || String(user.user_metadata?.full_name || ""), avatar_url: profiles[0]?.avatar_url || null },
         verified_phones: phones,
