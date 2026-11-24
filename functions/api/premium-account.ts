@@ -77,7 +77,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   if (!validOrigin(request)) return json({ error: "Invalid request origin." }, 403);
   const path = new URL(request.url).pathname.replace(/\/$/, "");
   try {
-    if (path === "/api/premium/account/subscribe") {
+    if (path === "/api/premium/account/subscribe" || path === "/api/premium/subscribe") {
       const user = await authenticate(request, env);
       if (!user) return json({ error: "Sign in to your AccaForge account before subscribing." }, 401);
       const body = await request.json() as { phone?: string; plan_id?: string };
