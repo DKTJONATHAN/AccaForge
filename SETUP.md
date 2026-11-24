@@ -1,81 +1,95 @@
-# AccaForge deployment setup
+# AccaForge deployment and operations
 
-## Cloudflare D1
-1. Open Cloudflare Dashboard → Storage & databases → D1 SQL Database.
-2. Create a database named **accaforge** and copy its database ID.
-3. In Cloudflare Pages → AccaForge → Settings → Functions → D1 database bindings, add variable name **DB** and select this database.
-4. Replace the placeholder database UUID `00000000-0000-0000-0000-000000000000` in `wrangler.toml` with the real D1 database ID.
-5. Redeploy the Pages project after saving the binding.
+## Runtime architecture
 
-The daily workflow creates the required tables and indexes if missing. The matching migration is checked in at `migrations/0001_initial_schema.sql`.
+AccaForge is deployed as a **Cloudflare Worker with static assets**, not Cloudflare Pages. The configuration lives in `wrangler.jsonc`:
 
-## Cloudflare Pages
-1. Create a Pages project connected to `DKTJONATHAN/AccaForge`.
-2. Framework preset: **Vite**.
-3. Build command: `npm run build`.
-4. Build output directory: `dist`.
-5. Deploy. The `functions/` directory is deployed alongside the static site.
+- Worker entry point: `src/worker.ts`
+- Built frontend assets: `dist/`
+- D1 binding: `DB` (database name: `accaforge`)
+- R2 binding: `MEDIA` (bucket: `accaforge-media`)
+- Custom domain: `accaforge.co.ke`
+
+Do not create or edit a `wrangler.toml`; it is not the active configuration. Keep the deployed D1 database ID and existing bindings intact when changing `wrangler.jsonc`.
+
+## Cloudflare setup
+
+1. Confirm the `accaforge` D1 database exists and that the ID in `wrangler.jsonc` points to it.
+2. Confirm the Worker has the `DB` D1 binding and the `MEDIA` R2 binding.
+3. Confirm the `accaforge.co.ke` custom domain is attached to the Worker.
+4. Add the Cloudflare API token as a GitHub Actions secret named `CLOUDFLARE_API_TOKEN`. It must have the permissions needed to deploy Workers and access the configured account resources.
+5. Add `CLOUDFLARE_ACCOUNT_ID` as a GitHub Actions secret.
+6. The deploy workflow runs `npm ci`, builds the Vite application and deploys with `npx wrangler@4 deploy`.
+
+The daily generator talks to D1 through the Cloudflare D1 REST API, so it also requires the D1 database ID as `D1_DATABASE_ID`. The Worker itself receives D1 through its `DB` binding. The application schema is tracked in `migrations/0001_initial_schema.sql`; the generator creates/upgrades its daily snapshot, research and generation tables.
 
 ## GitHub Actions secrets
-In GitHub → AccaForge → Settings → Secrets and variables → Actions, add:
 
-| Secret | Value |
+In GitHub → AccaForge → Settings → Secrets and variables → Actions, configure:
+
+| Secret | Purpose |
 |---|---|
-| `ODDS_API_KEY` | Your existing/current The Odds API key (keep this configured) |
-| `ODDSAPI_KEY1` | Additional Odds API key 1 |
-| `ODDSAPI_KEY2` | Additional Odds API key 2 |
-| `ODDSAPI_KEY3` | Additional Odds API key 3 |
-| `GEMINI_API_KEY` | Your Groq API key (legacy secret name; value must be a Groq key) |
-| `GEMINI_API_KEY1` | Optional second Groq API key (same legacy naming) |
-| `GEMINI_API_KEY2` | Optional third Groq API key (same legacy naming) |
-| `GEMINI_API_KEY3` | Optional fourth Groq API key (same legacy naming) |
-| `GEMINI_API_KEY4` | Optional fifth Groq API key (same legacy naming) |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Account D1 Edit permission |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
-| `D1_DATABASE_ID` | The ID of the accaforge D1 database |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare token used by deployment and D1 generation |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account identifier |
+| `D1_DATABASE_ID` | ID of the existing AccaForge D1 database |
+| `ODDS_API_KEY` | Primary The Odds API key |
+| `ODDS_API_KEY1` … `ODDS_API_KEY8` | Additional Odds API key slots |
+| `ODDSAPI_KEY`, `ODDSAPI_KEY1` … `ODDSAPI_KEY3` | Supported legacy Odds API key aliases |
+| `GEMINI_API_KEY` … `GEMINI_API_KEY4` | Legacy-named secrets whose values are Groq API keys |
 
-Optional Actions variables:
-- `GROQ_MODEL` (default `openai/gpt-oss-120b`; supports Groq built-in browser search and structured JSON output)
-- `ODDS_REGIONS` (default `uk`)
-- `ODDS_MARKETS` (default `h2h,totals,btts,double_chance,draw_no_bet,spreads,team_totals`)
-- `ODDS_FALLBACK_MARKETS` (default `btts,double_chance,draw_no_bet,team_totals,spreads,alternate_totals,alternate_spreads`; checked across the fixture slate when the primary market request is unsupported or the candidate pool is too small)
+**Important:** Keep the Groq secrets under their existing `GEMINI_API_KEY` names. The workflows map them to `GROQ_API_KEY` through `GROQ_API_KEY4`; do not rename the GitHub secrets. Never print, commit or expose secret values.
 
-The daily generator discovers every active soccer competition exposed by your Odds API account. It first lists all fixtures on the requested Africa/Nairobi calendar date using the quota-free `/events` endpoint, then fetches odds for those exact event IDs. It does not impose a rolling-hour or multi-day lookahead and does not restrict discovery to a hand-picked league list. The Odds API can only return competitions and fixtures included in your subscription tier and current feed.
+Optional GitHub Actions variables:
 
-Odds API market credits depend on the number of active soccer competitions and markets returned. The event-list endpoint used to discover the full daily slate does not consume usage credits. Primary odds requests consume credits per market and region; if the combined primary market request is unsupported, or fewer than 24 eligible prices / 12 distinct fixtures are found, the fallback scan checks additional markets across the fixture slate and can consume substantially more credits. A successful broad primary-market request avoids this extra scan. Monitor the `x-requests-remaining` logs before enabling broad fallback scans on a low-quota account. Groq browser search is performed in the AI research stage and is subject to Groq model/tool usage limits. The generation pipeline persists six-fixture research shards, then runs a separate token-aware candidate-distillation pass over the full fixture universe, retaining up to eight representative market candidates per fixture for analysis. Distillation results are validated against the original event and candidate IDs, checkpointed in D1 and globally deduplicated before product-specific allocation. All-Matches generation also checkpoints each six-fixture product batch so a rerun can resume completed work. Failed shards are retried; incomplete distillation is never published. Up to five Groq credentials can be configured through the legacy `GEMINI_API_KEY` through `GEMINI_API_KEY4` secret names. Multiple keys in the same Groq organisation do not increase the organisation TPM quota; the generator retains a shared 65-second request interval, rotates configured credential slots between requests, fails over immediately on authentication errors and honors the Groq Retry-After cooldown on rate limits. See the [Odds API v4 guide](https://the-odds-api.com/liveapi/guides/v4/index.html).
+- `GROQ_MODEL` — defaults to `openai/gpt-oss-120b`.
+- `ODDS_REGIONS` — defaults to `uk`.
+- `ODDS_MARKETS` — defaults to `h2h,totals,btts,double_chance,draw_no_bet`.
+- `ODDS_FALLBACK_MARKETS` — defaults to `btts,double_chance,draw_no_bet,alternate_totals`.
 
-Never use `VITE_` prefixes for secrets and never commit API keys.
+Do not add a `VITE_` prefix to server-side secrets.
 
-## Schedule
-- .github/workflows/refresh-results.yml refreshes yesterday's scores at **03:10 Africa/Nairobi**.
-- .github/workflows/generate-safe-picks.yml starts the daily fixture, research and distillation pipeline at **09:00 Africa/Nairobi**.
-- On completion, product workflows continue in order: **Super 5 → Super 10 → All-Matches**. A withheld or failed product does not stop later product stages.
-- Each product workflow supports manual dispatch with an optional publish_date (YYYY-MM-DD). The selected date is stored in D1 and automatically propagated through the chained Super 5, Super 10 and All-Matches workflows. Use the same date to resume D1 research/distillation checkpoints and unfinished All-Matches batches.
-- GitHub scheduled jobs are best-effort and can start a little later during high platform load.
+## Daily generation pipeline
 
+- `.github/workflows/refresh-results.yml` refreshes previous match results.
+- `.github/workflows/generate-safe-picks.yml` starts the daily fixture collection, research and distillation pipeline at 09:00 Africa/Nairobi.
+- The chained product workflows run **Super 5 → Super 10 → All-Matches** after the initial 10-Leg Accumulator generation.
+- A product may be deliberately withheld without preventing the remaining product workflows from running.
+- Product workflows support manual dispatch with an optional `publish_date` in `YYYY-MM-DD` format. Use the same date when resuming a checkpointed run.
+- The enrichment workflow is separately scheduled; inspect its current Actions schedule before changing pipeline timing.
+- GitHub scheduled workflows are best-effort and may start later during platform load.
 
-## Database schema
-The generator creates and upgrades its D1 snapshot, research, distillation, product-chunk and generation-status tables before processing. The base application schema remains in migrations/0001_initial_schema.sql; no separate daily-accas workflow is required.
+The generator discovers fixtures on the requested Africa/Nairobi calendar date from the active soccer competitions available to the Odds API account. The event-list endpoint is used to discover fixture IDs before odds are requested for those exact fixtures. Coverage is limited by the competitions and markets available in the Odds API subscription.
 
-## Verify
-- Open GitHub Actions and run **AccaForge Generate Safe Picks** manually for the required publication date. The downstream product workflows are triggered automatically after the Safe Picks workflow completes.
-- Confirm that each product workflow completes or records a deliberate withheld status.
-- Open the deployed site and check `/api/health` reports a connected database.
-- Check `/api/accas?days=3` for the latest stored editions.
+The generator researches fixtures, distils supplied bookmaker markets, and asks the model to choose among those candidates. Candidate IDs, fixture identity, market price and product rules are validated locally before publishing. Research and product batches are checkpointed in D1 so an interrupted run can resume without unnecessarily repeating completed work.
 
-## Data safeguards
-- Fixtures are restricted to the complete Africa/Nairobi calendar date, across active soccer competitions exposed by your Odds API account.
-- The market collector keeps only decimal prices of 1.20 or higher for every product; no PICK below 1.20 can be published. The default primary request includes match result, totals, BTTS, double chance, draw no bet, spreads and team totals; configured fallback markets can expand coverage if needed.
-- Safe Picks requires exactly 10 different fixtures, individual odds from 1.20 to 1.50, and combined odds of at least 7.50. If ten defensible selections cannot meet all three conditions, Safe Picks is withheld.
-- Super 5 requires exactly five different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
-- Super 10 requires exactly ten different fixtures, one market per match, with each individual price between 1.50 and 2.00. Combined odds are not a target.
-- All-Matches Challenge requires one priced PICK for every eligible fixture. Match-goal totals (including alternate and team totals) are capped at a 3.5 line; no higher total line is eligible. No fixture is marked PASS or silently skipped. If any fixture has no usable market price, the edition is withheld until the feed supplies one.
-- Groq browser research considers recent form, home/away performance, league context, team availability, schedule and credible current reporting. Unverified information must be treated as uncertain.
-- Groq may select only candidate IDs supplied by the server-side collector. Prices and fixture identity are checked again locally before storage.
-- Every selection stores a probability estimate blended conservatively with de-vigged bookmaker consensus and a simple bookmaker implied probability. These are informational estimates, not guarantees.
-- Combined odds are recalculated from verified individual prices for Safe Picks, Super 5 and Super 10. The Super 5 and Super 10 combined figures are outcomes of the selected legs, not targets.
-- Existing legacy 10/15/20 editions are marked as legacy and excluded from the new product board.
-- On a successful run, records older than the latest three Kenyan calendar days are deleted. If validation fails, previously published editions are not replaced.
+The Odds API market-credit cost depends on the number of competitions, regions and markets requested. A fallback scan can consume additional credits. Check remaining usage in workflow logs and in the Odds API account. Multiple Groq keys in one organisation do not increase that organisation's shared token quota; the pipeline rate-limits requests and rotates configured credentials.
+
+## Product validation rules
+
+- All products use fixtures scheduled on the full Africa/Nairobi calendar date.
+- The minimum published individual price is 1.20.
+- **10-Leg Accumulator:** exactly ten different fixtures, one selection per fixture, individual prices 1.20–1.50. The product is withheld if ten defensible selections cannot be produced under its configured validation rules.
+- **Super 5:** exactly five different fixtures, one selection per fixture, individual prices 1.50–2.00.
+- **Super 10:** exactly ten different fixtures, one selection per fixture, individual prices 1.50–2.00.
+- **All-Matches Challenge:** exactly one defensible priced selection for every eligible fixture. A single PASS, missing decision, duplicate, invalid candidate or fixture without a usable market withholds the entire edition. No fixture is silently skipped and no arbitrary fallback market is selected.
+- Goal-total market guards restrict the allowed goal lines; do not bypass `scripts/lib/market-guards.mjs`.
+- Probabilities are estimates informed by de-vigged bookmaker consensus and supplied match research, not guarantees.
+- Combined odds are calculated from verified individual prices; Super 5 and Super 10 do not target a preset combined price.
+- Settlement is handled by `src/settlement.mjs`. Unsupported or ambiguous result payloads must remain pending rather than being guessed.
+
+## Verify a deployment or generation run
+
+1. Open GitHub Actions and inspect the relevant workflow run and every chained product workflow.
+2. Confirm the build and unit-test workflows pass.
+3. Open the live site and check `/api/health` for database connectivity.
+4. Check `/api/accas?days=3` for the latest published editions.
+5. Confirm an All-Matches edition has exactly the same number of selections as eligible fixtures, with one unique fixture per selection and no PASS records.
+6. Check the live track-record page after results have been refreshed.
+
+## Premium membership
+
+The proposed paid membership is documented in [PREMIUM.md](./PREMIUM.md). The current application does not yet implement user accounts, subscription billing or Premium entitlements. Do not collect payments or display paid-access claims until verified payment callbacks and server-side entitlement checks are implemented.
 
 ## Responsible use
-Keep the 18+ gate and responsible-play notice visible. No outcome or return is guaranteed. Obtain local legal review before offering the service in any jurisdiction.
+
+AccaForge is for adults aged 18+ and provides football information for entertainment. Accumulators can lose in full. No prediction or return is guaranteed. Keep the 18+ gate and responsible-play information visible, and obtain local legal review before offering paid services in each jurisdiction.

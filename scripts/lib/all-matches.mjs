@@ -14,9 +14,7 @@ export function normalizeAllMatchesBatch(fixtures, entries, candidateRows) {
     }
     const note = cleanNote(entry.note);
     if (entry.status === "PASS") {
-      if (note.length < 40) throw new Error("Every PASS decision requires a specific evidence-based explanation (at least 40 characters).");
-      normalizedByEvent.set(eventId, { event_id: eventId, status: "PASS", note });
-      continue;
+      throw new Error("All-Matches edition withheld: fixture " + eventId + " has no defensible priced selection. PASS is not publishable; no arbitrary market will be substituted.");
     }
     if (entry.status !== "PICK" || candidateToEvent.get(entry.candidate_id) !== eventId) {
       throw new Error("All-Matches AI response contains an invalid decision or candidate ID for " + eventId + ".");
