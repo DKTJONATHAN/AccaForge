@@ -22,7 +22,7 @@ const schema=[
 ];
 for(const sql of schema)await d1(sql);
 function yesterdayNairobi(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(parts+"T12:00:00Z");date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
-function scoreMap(event){const scores=event.scores||[];const home=Number(scores.find(item=>item.name===event.home_team)?.score);const away=Number(scores.find(item=>item.name===event.away_team)?.score);return Number.isFinite(home)&&Number.isFinite(away)?{home,away}:null;}
+function scoreMap(event){const scores=event.scores||[];const homeValue=scores.find(item=>item.name===event.home_team)?.score;const awayValue=scores.find(item=>item.name===event.away_team)?.score;if(homeValue===null||homeValue===undefined||awayValue===null||awayValue===undefined)return null;const home=Number(homeValue),away=Number(awayValue);return Number.isInteger(home)&&Number.isInteger(away)&&home>=0&&away>=0?{home,away}:null;}
 async function fetchScores(sportKey){
  for(let i=0;i<keys.length;i++){
   const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(sportKey)+"/scores");
