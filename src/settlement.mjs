@@ -1,3 +1,4 @@
+export function hasUnverifiedExtraTime(sportKey){return /(?:_cup|cup_|champions_league|europa_league|conference_league|world_cup|nations_league|european_championship|copa|coppa|pokal|beker|coupe|super_cup)/i.test(String(sportKey||""));}
 export function isAutoSettleableMarket(key){return new Set(["h2h","moneyline","match_winner","btts","both_teams_to_score","totals","alternate_totals","double_chance","draw_no_bet"]).has(String(key||"").toLowerCase());}
 export function settleSelection(row,home,away){
  const market=String(row.market_key||"").toLowerCase();
@@ -6,26 +7,27 @@ export function settleSelection(row,home,away){
  const result=(outcome,note)=>({outcome,note});
  if(row.selection_status==="PASS"||pick.toUpperCase()==="PASS")return result("PASS","No selection was published for this fixture.");
  if(!Number.isInteger(home)||!Number.isInteger(away)||home<0||away<0)return result("PENDING","A valid full-time score is not available.");
+ if(hasUnverifiedExtraTime(row.sport_key))return result("PENDING","The scores feed does not separate regulation time from extra time; this cup or tournament fixture is left pending.");
  if(["h2h","moneyline","match_winner"].includes(market)){
   const winner=home>away?row.home_team:away>home?row.away_team:"Draw";
   const value=pick.toLowerCase();
   const won=value===String(winner).toLowerCase()||(["1","home"].includes(value)&&home>away)||(["2","away"].includes(value)&&away>home)||(["x","draw"].includes(value)&&home===away);
   const recognised=won||value===String(row.home_team).toLowerCase()||value===String(row.away_team).toLowerCase()||["1","2","x","home","away","draw"].includes(value);
-  return recognised?result(won?"WON":"LOST","Full-time result: "+home+"–"+away+"."):result("PENDING","Match-result selection could not be interpreted safely.");
+  return recognised?result(won?"WON":"LOST","Provider-reported score: "+home+"–"+away+"."):result("PENDING","Match-result selection could not be interpreted safely.");
  }
  if(["btts","both_teams_to_score"].includes(market)){
   const yes=home>0&&away>0;
   const wantsYes=/\byes\b|both teams to score/i.test(pick);
   const wantsNo=/\bno\b|neither team/i.test(pick);
   if(wantsYes===wantsNo)return result("PENDING","BTTS selection could not be interpreted safely.");
-  return result(yes===wantsYes?"WON":"LOST","Full-time score: "+home+"–"+away+".");
+  return result(yes===wantsYes?"WON":"LOST","Provider-reported score: "+home+"–"+away+".");
  }
  if(["totals","alternate_totals"].includes(market)){
   const line=Number((pick+" "+row.market_name).match(/\b(\d+(?:\.\d+)?)\b/)?.[1]);
   const isOver=/\bover\b/i.test(pick),isUnder=/\bunder\b/i.test(pick);
   if(!Number.isFinite(line)||isOver===isUnder||Math.abs(line*2-Math.round(line*2))>1e-8)return result("PENDING","Only clearly labelled half-goal totals can be settled automatically.");
   if(total===line)return result("VOID","The total landed exactly on the line; the selection is void.");
-  return result((isOver?total>line:total<line)?"WON":"LOST","Full-time total: "+total+" goals.");
+  return result((isOver?total>line:total<line)?"WON":"LOST","Provider-reported total: "+total+" goals.");
  }
  if(market==="double_chance"){
   const value=pick.toLowerCase().split(" ").join("").replaceAll("-","");
@@ -33,14 +35,14 @@ export function settleSelection(row,home,away){
   const drawAway=["x2","drawaway","draworaway","awayordraw"].includes(value);
   const noDraw=["12","homeaway","homeoraway","awayorhome"].includes(value);
   const won=homeDraw?(home>=away):drawAway?(away>=home):noDraw?(home!==away):null;
-  return won===null?result("PENDING","Double-chance selection could not be interpreted safely."):result(won?"WON":"LOST","Full-time result: "+home+"–"+away+".");
+  return won===null?result("PENDING","Double-chance selection could not be interpreted safely."):result(won?"WON":"LOST","Provider-reported score: "+home+"–"+away+".");
  }
  if(market==="draw_no_bet"){
   const selectedHome=[String(row.home_team).toLowerCase(),"home"].includes(pick.toLowerCase());
   const selectedAway=[String(row.away_team).toLowerCase(),"away"].includes(pick.toLowerCase());
   if(home===away)return result("VOID","Match finished level; draw-no-bet selection is void.");
   if(!selectedHome&&!selectedAway)return result("PENDING","Team selection could not be identified safely.");
-  return result((selectedHome?home>away:away>home)?"WON":"LOST","Full-time result: "+home+"–"+away+".");
+  return result((selectedHome?home>away:away>home)?"WON":"LOST","Provider-reported score: "+home+"–"+away+".");
  }
  // Asian quarter-lines, handicaps and team totals are deliberately not guessed.
  return result("PENDING","This market is not enabled for automatic settlement; no outcome has been guessed.");
