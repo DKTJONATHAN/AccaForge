@@ -18,6 +18,8 @@ test("settles half-goal totals and pushes whole-goal totals",()=>{
 });
 test("settles double chance and draw no bet",()=>{
  assert.equal(settleSelection(row("double_chance","1X"),1,1).outcome,"WON");
+ assert.equal(settleSelection(row("double_chance","Home or Draw"),1,0).outcome,"WON");
+ assert.equal(settleSelection(row("double_chance","Draw or Away"),1,0).outcome,"LOST");
  assert.equal(settleSelection(row("double_chance","12"),0,0).outcome,"LOST");
  assert.equal(settleSelection(row("draw_no_bet","Arsenal"),1,1).outcome,"VOID");
 });
