@@ -7,6 +7,7 @@ interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_ANON_KEY?: string;
+  PREMIUM_SUPPORT_WHATSAPP?: string;
   DARAJA_CONSUMER_KEY: string;
   DARAJA_CONSUMER_SECRET: string;
   DARAJA_SHORTCODE: string;
@@ -133,7 +134,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
   const path = new URL(request.url).pathname.replace(/\/$/, "");
   try {
     if (path === "/api/premium/account/config") {
-      return json({ supabase_url: env.SUPABASE_URL, supabase_anon_key: env.SUPABASE_ANON_KEY?.trim() || SUPABASE_PUBLIC_AUTH_KEY });
+      return json({ supabase_url: env.SUPABASE_URL, supabase_anon_key: env.SUPABASE_ANON_KEY?.trim() || SUPABASE_PUBLIC_AUTH_KEY, support_whatsapp: String(env.PREMIUM_SUPPORT_WHATSAPP || "").replace(/\\D/g, "") });
     }
     if (path === "/api/premium/preview") {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
