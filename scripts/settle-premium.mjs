@@ -42,7 +42,7 @@ async function main() {
   if (!runId) throw new Error("Could not create Premium settlement run.");
 
   const fixtures = await db("/rest/v1/premium_fixtures?provider=eq." + PROVIDER +
-    "&fixture_status=in.(scheduled,in_play)&commence_time=lte." + encodeURIComponent(new Date().toISOString()) +
+    "&fixture_status=in.(scheduled,in_play,postponed)&commence_time=lte." + encodeURIComponent(new Date().toISOString()) +
     "&select=id,provider_event_id,sport_key,competition,home_team,away_team,raw_snapshot&order=commence_time.asc&limit=20");
   for (const stored of fixtures || []) {
     checked++;
@@ -81,12 +81,12 @@ async function main() {
         away_team: stored.away_team
       }, homeScore, awayScore);
       const result = String(outcome.outcome || "PENDING").toLowerCase();
-      if (!["won","lost","void","pending","push"].includes(result)) continue;
+      if (!["won","lost","void","pending","push"].includes(result) || result === "pending") continue;
       await db("/rest/v1/premium_predictions?id=eq." + prediction.id, {
         method: "PATCH", headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ status: result === "pending" ? "published" : "settled", result, updated_at: new Date().toISOString() })
+        body: JSON.stringify({ status: "settled", result, updated_at: new Date().toISOString() })
       });
-      if (result !== "pending") settled++;
+      settled++;
     }
   }
   await db("/rest/v1/premium_workflow_runs?id=eq." + runId, {
