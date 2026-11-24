@@ -140,7 +140,8 @@ async function analyzeFixture(context) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         temperature: 0.1,
-        max_tokens: 1400,
+        max_completion_tokens: 2000,
+        reasoning_effort: "high",
         response_format: { type: "json_object" },
         messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }]
       }),
@@ -165,7 +166,13 @@ async function updateRun(status, summary = {}, failureCode = null) {
   if (!runId) return;
   await supabase("/rest/v1/premium_workflow_runs?id=eq." + runId, {
     method: "PATCH", headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ status, failure_code: failureCode, summary, finished_at: new Date().toISOString() })
+    body: JSON.stringify({
+      status, failure_code: failureCode,
+      fixtures_discovered: Number(summary.fixtures_discovered || 0),
+      predictions_validated: Number(summary.predictions_validated || 0),
+      predictions_published: Number(summary.predictions_published || 0),
+      summary, finished_at: new Date().toISOString()
+    })
   });
 }
 async function main() {
