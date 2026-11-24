@@ -332,7 +332,8 @@ export default function App({initialData,initialContent,initialResults,initialTr
      <span className="scene-ground-glow"/>
     </div>
    </section>
-   <PremiumPreviewSection/>\n   <section className="home-board-stage" aria-labelledby="daily-board-title">
+   <PremiumPreviewSection/>
+   <section className="home-board-stage" aria-labelledby="daily-board-title">
     <div className="home-board-preview">
      <div className="board-card-top">
       <div><span className="board-eyebrow">TODAY’S EDITIONS</span><h2 id="daily-board-title">Choose your format</h2></div>
