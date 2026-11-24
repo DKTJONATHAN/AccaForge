@@ -75,7 +75,7 @@ BEGIN
     ELSE now()
   END;
   v_expiry := v_start + make_interval(days => v_plan.duration_days);
-  v_token := encode(gen_random_bytes(32), 'hex');
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
 
   IF v_member_exists THEN
     UPDATE public.members
@@ -107,3 +107,5 @@ ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.members, public.payments FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.members, public.payments TO service_role;
+
+GRANT SELECT ON public.subscription_plans TO service_role;
