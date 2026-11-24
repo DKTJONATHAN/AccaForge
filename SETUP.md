@@ -93,3 +93,20 @@ The proposed paid membership is documented in [PREMIUM.md](./PREMIUM.md). The cu
 ## Responsible use
 
 AccaForge is for adults aged 18+ and provides football information for entertainment. Accumulators can lose in full. No prediction or return is guaranteed. Keep the 18+ gate and responsible-play information visible, and obtain local legal review before offering paid services in each jurisdiction.
+
+## Premium payment configuration (not yet production-approved)
+
+The current Premium API implementation is backed by Supabase REST and Safaricom Daraja STK Push. It requires these additional **Cloudflare Worker secrets/variables** before the checkout route can operate:
+
+| Name | Type | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Secret/variable | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret | Supabase service-role key; never expose it to the browser |
+| `DARAJA_CONSUMER_KEY` | Secret | Safaricom Daraja app consumer key |
+| `DARAJA_CONSUMER_SECRET` | Secret | Safaricom Daraja app consumer secret |
+| `DARAJA_SHORTCODE` | Secret/variable | Paybill or shortcode configured for STK Push |
+| `DARAJA_PASSKEY` | Secret | Safaricom STK Push passkey |
+| `DARAJA_ENV` | Variable | `sandbox` for testing; `production` only after approval |
+| `DARAJA_CALLBACK_URL` | Variable | Public HTTPS URL ending in `/api/premium/callback` |
+
+Apply `supabase/migrations/20261124142410_create_premium_subscription_tables.sql` to the intended Supabase project and confirm the seeded plan before exposing checkout. The migration currently seeds **KSh 199 for 30 days**, while the Premium proposal discusses higher target prices; align the live plan rows and public price copy before launch. The M-Pesa integration has not passed a security review: do not switch Daraja to production or accept live payments until callback verification, payment idempotency, checkout-status authorization, expiry handling and server-side feature entitlements are fixed and tested.
