@@ -305,7 +305,7 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
    <div className="premium-hero-inner">
     <span className="eyebrow">PREMIUM PACKAGE</span>
     <h2>Get more from every match day</h2>
-    <p>AccaForge Premium gives you full access to all four daily formats with complete fixture details, market breakdowns, individual prices and edition analysis notes. Pay once with M-Pesa and unlock 30 days of premium football analysis.</p>
+    <p>AccaForge Premium gives you full access to all four daily formats with complete fixture details, market breakdowns, individual prices and edition analysis notes. Choose a 30-day, 90-day or 365-day package and pay securely with M-Pesa.</p>
     <div className="premium-features-grid">
      <article><Sparkles size={20}/><h3>All daily formats</h3><p>Safe Picks, Super 5, Super 10 and the All-Matches Challenge with full details.</p></article>
      <article><BarChart3 size={20}/><h3>Deep analysis</h3><p>Read the edition notes and reasoning behind each published selection.</p></article>
