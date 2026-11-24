@@ -2,6 +2,7 @@ import {
   getDarajaAccessToken, stkPush, normalizePhone, type DarajaEnv
 } from "../../src/daraja";
 
+const SUPABASE_PUBLIC_AUTH_KEY = "sb_publishable_YhJkd-V8k6TjyS1OnAZpbQ_6hg8ueNg";
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -127,8 +128,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
   const path = new URL(request.url).pathname.replace(/\/$/, "");
   try {
     if (path === "/api/premium/account/config") {
-      if (!env.SUPABASE_ANON_KEY?.trim()) return json({ error: "Supabase public Auth key is not configured." }, 503);
-      return json({ supabase_url: env.SUPABASE_URL, supabase_anon_key: env.SUPABASE_ANON_KEY });
+      return json({ supabase_url: env.SUPABASE_URL, supabase_anon_key: env.SUPABASE_ANON_KEY?.trim() || SUPABASE_PUBLIC_AUTH_KEY });
     }
     const user = await authenticate(request, env);
     if (!user) return json({ error: "Sign in to view your Premium account." }, 401);
