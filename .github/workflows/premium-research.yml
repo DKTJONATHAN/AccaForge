@@ -1,0 +1,45 @@
+name: AccaForge Premium Research
+
+on:
+  schedule:
+    - cron: "15 2 * * *" # 05:15 Africa/Nairobi
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accaforge-premium-research
+  cancel-in-progress: false
+
+jobs:
+  premium-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run Premium market-engine tests
+        run: node --test scripts/lib/premium-engine.test.mjs
+      - name: Validate Premium pipeline syntax
+        run: node --check scripts/generate-premium.mjs
+      - name: Generate evidence-validated Premium predictions
+        run: node scripts/generate-premium.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PREMIUM_FOOTBALL_API_KEY: ${{ secrets.PREMIUM_FOOTBALL_API_KEY }}
+          PREMIUM_API_KEY1: ${{ secrets.PREMIUM_API_KEY1 }}
+          PREMIUM_API_KEY2: ${{ secrets.PREMIUM_API_KEY2 }}
+          PREMIUM_API_KEY3: ${{ secrets.PREMIUM_API_KEY3 }}
+          PREMIUM_API_KEY4: ${{ secrets.PREMIUM_API_KEY4 }}
+          PREMIUM_API_KEY5: ${{ secrets.PREMIUM_API_KEY5 }}
+          PREMIUM_GROQ_MODEL: openai/gpt-oss-120b
+          PREMIUM_LEAGUE_IDS: ${{ vars.PREMIUM_LEAGUE_IDS }}
+          PREMIUM_MAX_FIXTURES: "10"
