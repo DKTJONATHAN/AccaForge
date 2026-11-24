@@ -63,7 +63,8 @@ const pct=(value:number|null)=>value===null?"—":(value>0?"+":"")+value.toFixed
 const unit=(value:number)=>((value>0?"+":"")+value.toFixed(2)+" units");
 
 async function loadAccas():Promise<AccasResponse>{
- const response=await fetch("/api/accas?days=3");
+ const token=getPremiumToken();
+ const response=await fetch("/api/accas?days=3",token?{headers:{Authorization:`Bearer ${token}`}}:{});
  if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
 }
@@ -79,15 +80,16 @@ async function loadMember(token:string):Promise<MemberInfo|null>{
  const data=await response.json() as {member:MemberInfo|null};
  return data.member;
 }
-async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;message:string}>{
+async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;poll_token:string;message:string}>{
  const response=await fetch("/api/premium/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,plan_id:planId})});
- const data=await response.json() as {checkout_request_id?:string;message?:string;error?:string};
+ const data=await response.json() as {checkout_request_id?:string;poll_token?:string;message?:string;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not start the payment.");
- if(!data.checkout_request_id)throw new Error("Payment provider did not return a checkout reference.");
- return {checkout_request_id:data.checkout_request_id,message:data.message||"Payment prompt sent."};
+ if(!data.checkout_request_id||!data.poll_token)throw new Error("Payment provider did not return a secure payment reference.");
+ return {checkout_request_id:data.checkout_request_id,poll_token:data.poll_token,message:data.message||"Payment prompt sent."};
 }
-async function pollPaymentStatus(checkoutRequestId:string):Promise<PremiumStatus>{
- const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId));
+async function pollPaymentStatus(checkoutRequestId:string,pollToken:string):Promise<PremiumStatus>{
+ await fetch("/api/premium/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({checkout_request_id:checkoutRequestId,poll_token:pollToken})});
+ const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId)+"?token="+encodeURIComponent(pollToken));
  const data=await response.json() as {status?:string;session_token?:string|null;expires_at?:string|null;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not check payment status.");
  if(!data.status)throw new Error("Payment status response was incomplete.");
@@ -220,14 +222,15 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
  const [status,setStatus]=useState<"idle"|"initiating"|"waiting"|"checking"|"success"|"error">("idle");
  const [error,setError]=useState<string|null>(null);
  const [checkoutId,setCheckoutId]=useState<string|null>(null);
+ const [pollToken,setPollToken]=useState<string|null>(null);
  useEffect(()=>{if(plans&&plans.length&&!selectedPlan)setSelectedPlan(plans[0].id);},[plans,selectedPlan]);
 
  useEffect(()=>{
-  if(status!=="waiting"||!checkoutId)return;
+  if(status!=="waiting"||!checkoutId||!pollToken)return;
   let cancelled=false;
   const poll=async()=>{
    try{
-    const result=await pollPaymentStatus(checkoutId);
+    const result=await pollPaymentStatus(checkoutId,pollToken);
     if(cancelled)return;
     if(result.status==="success"&&result.session_token){
      setPremiumToken(result.session_token);
@@ -242,10 +245,10 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
     }
    }catch{ /* keep polling */ }
   };
-  const interval=setInterval(poll,4000);
+  const interval=setInterval(poll,7000);
   poll();
   return()=>{cancelled=true;clearInterval(interval);};
- },[status,checkoutId,refreshMember]);
+ },[status,checkoutId,pollToken,refreshMember]);
 
  const handleSubmit=async()=>{
   setError(null);
@@ -255,6 +258,7 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
   try{
    const result=await initiateSubscription(phone.trim(),selectedPlan);
    setCheckoutId(result.checkout_request_id);
+   setPollToken(result.poll_token);
    setStatus("waiting");
   }catch(err){
    setError(err instanceof Error?err.message:"Could not start the payment. Please try again.");

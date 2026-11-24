@@ -1,28 +1,20 @@
 /**
- * Premium subscription API endpoints.
- *
- * These run as Cloudflare Pages Functions and proxy all payment operations
- * through Supabase using the service_role key. The browser never sees
- * member or payment data directly — it only gets a session token after
- * a successful M-Pesa payment.
- *
- * Routes handled:
- *   POST /api/premium/subscribe  — initiate STK push
- *   GET  /api/premium/status/:id — poll payment status
- *   GET  /api/premium/me         — check current member session
- *   POST /api/premium/callback   — Daraja STK push callback (no auth)
+ * Premium subscription API.
+ * A Daraja callback is untrusted until the matching STK transaction is queried
+ * directly with Safaricom and its callback amount, phone and receipt match the
+ * immutable payment intent. Subscription activation is atomic and idempotent
+ * inside Postgres (finalize_premium_payment).
  */
-
 import {
   getDarajaAccessToken,
   stkPush,
   parseStkCallback,
   normalizePhone,
+  queryStkStatus,
   type DarajaEnv,
 } from "../../src/daraja";
 
 interface PremiumEnv {
-  DB: D1Database;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   DARAJA_CONSUMER_KEY: string;
@@ -32,20 +24,22 @@ interface PremiumEnv {
   DARAJA_ENV: string;
   DARAJA_CALLBACK_URL: string;
 }
-
-const json = (body: unknown, status = 200, extra?: Record<string, string>) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store",
-      ...(extra || {}),
-    },
-  });
-
-async function supabaseFetch(env: PremiumEnv, path: string, options: RequestInit = {}): Promise<Response> {
-  const url = `${env.SUPABASE_URL}${path}`;
-  return fetch(url, {
+interface Plan { id: string; name: string; price_ksh: number; duration_days: number }
+interface Payment {
+  status: string;
+  member_phone: string;
+  plan_id: string;
+  amount_ksh: number;
+  poll_token_hash: string | null;
+  session_token: string | null;
+  expires_at: string | null;
+}
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+});
+const supabaseFetch = (env: PremiumEnv, path: string, options: RequestInit = {}) =>
+  fetch(`${env.SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -54,244 +48,215 @@ async function supabaseFetch(env: PremiumEnv, path: string, options: RequestInit
       ...options.headers,
     },
   });
+const darajaEnv = (env: PremiumEnv): DarajaEnv => ({
+  DARAJA_CONSUMER_KEY: env.DARAJA_CONSUMER_KEY,
+  DARAJA_CONSUMER_SECRET: env.DARAJA_CONSUMER_SECRET,
+  DARAJA_SHORTCODE: env.DARAJA_SHORTCODE,
+  DARAJA_PASSKEY: env.DARAJA_PASSKEY,
+  DARAJA_ENV: env.DARAJA_ENV,
+  DARAJA_CALLBACK_URL: env.DARAJA_CALLBACK_URL,
+});
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
-
-async function fetchPlan(env: PremiumEnv, planId: string): Promise<{ id: string; name: string; price_ksh: number; duration_days: number } | null> {
-  const res = await supabaseFetch(env, `/rest/v1/subscription_plans?id=eq.${planId}&is_active=eq.true&select=id,name,price_ksh,duration_days`);
-  if (!res.ok) return null;
-  const rows = await res.json() as Array<{ id: string; name: string; price_ksh: number; duration_days: number }>;
+async function safeEqualToken(token: string, expectedHash: string): Promise<boolean> {
+  const actualHash = await sha256(token);
+  if (!/^[a-f0-9]{64}$/i.test(expectedHash)) return false;
+  let diff = 0;
+  for (let i = 0; i < actualHash.length; i++) diff |= actualHash.charCodeAt(i) ^ expectedHash.charCodeAt(i);
+  return diff === 0;
+}
+async function fetchPlan(env: PremiumEnv, id: string): Promise<Plan | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const res = await supabaseFetch(env, `/rest/v1/subscription_plans?id=eq.${id}&is_active=eq.true&select=id,name,price_ksh,duration_days`);
+  if (!res.ok) throw new Error("Could not load subscription plan.");
+  const rows = await res.json() as Plan[];
   return rows[0] || null;
 }
+async function fetchPayment(env: PremiumEnv, checkoutId: string): Promise<Payment | null> {
+  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&select=status,member_phone,plan_id,amount_ksh,poll_token_hash,session_token,expires_at`);
+  if (!res.ok) throw new Error("Could not load payment.");
+  const rows = await res.json() as Payment[];
+  return rows[0] || null;
+}
+async function createPayment(env: PremiumEnv, data: {
+  checkout_request_id: string; member_phone: string; plan_id: string; amount_ksh: number; poll_token_hash: string;
+}): Promise<void> {
+  const res = await supabaseFetch(env, "/rest/v1/payments", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ ...data, status: "pending" }),
+  });
+  if (!res.ok) throw new Error("Could not persist payment intent.");
+}
+async function verifyAndActivate(
+  env: PremiumEnv,
+  checkoutId: string,
+  callback?: { amount?: number; phoneNumber?: string; mpesaReceipt?: string; resultCode: number; resultDesc: string },
+  pollToken?: string,
+): Promise<void> {
+  const payment = await fetchPayment(env, checkoutId);
+  if (!payment || payment.status !== "pending") return;
+  // Browser verification requires the unguessable token returned with this payment.
+  if (pollToken && (!payment.poll_token_hash || !(await safeEqualToken(pollToken, payment.poll_token_hash)))) return;
+  // When callback metadata is available, cross-check all three values against
+  // the immutable STK intent. Without a callback, STK Query is still bound to
+  // the checkout created with the stored amount and phone number.
+  if (callback && (callback.resultCode !== 0 || !callback.mpesaReceipt ||
+      callback.amount !== payment.amount_ksh ||
+      normalizePhone(String(callback.phoneNumber || "")) !== payment.member_phone)) return;
+  if (!callback && !pollToken) return;
 
-async function createPayment(env: PremiumEnv, data: { checkout_request_id: string; member_phone: string; plan_id: string; amount_ksh: number }): Promise<void> {
-  await supabaseFetch(env, "/rest/v1/payments", {
+  const token = await getDarajaAccessToken(darajaEnv(env));
+  const result = await queryStkStatus(darajaEnv(env), token, checkoutId);
+  if (result.checkoutRequestId && result.checkoutRequestId !== checkoutId) return;
+  if (result.resultCode === undefined) return;
+  if (result.resultCode !== 0) {
+    const status = result.resultCode === 1032 ? "cancelled" : result.resultCode === 1037 ? "timeout" : "failed";
+    await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&status=eq.pending`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, result_code: result.resultCode, result_desc: result.resultDescription || "Safaricom confirmed the payment did not complete.", callback_received: !!callback, updated_at: new Date().toISOString() }),
+    });
+    return;
+  }
+
+  const res = await supabaseFetch(env, "/rest/v1/rpc/finalize_premium_payment", {
     method: "POST",
     body: JSON.stringify({
-      checkout_request_id: data.checkout_request_id,
-      member_phone: data.member_phone,
-      plan_id: data.plan_id,
-      amount_ksh: data.amount_ksh,
-      status: "pending",
+      p_checkout_request_id: checkoutId,
+      p_amount_ksh: callback?.amount ?? payment.amount_ksh,
+      p_member_phone: callback ? normalizePhone(String(callback.phoneNumber)) : payment.member_phone,
+      p_mpesa_receipt: callback?.mpesaReceipt ?? null,
+      p_result_code: result.resultCode,
+      p_result_desc: result.resultDescription || callback?.resultDesc || "Safaricom STK Query confirmed payment.",
     }),
   });
-}
-
-async function updatePayment(env: PremiumEnv, checkoutRequestId: string, data: { status: string; mpesa_receipt?: string; result_code?: number; result_desc?: string; callback_received: boolean }): Promise<void> {
-  await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutRequestId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      ...data,
-      updated_at: new Date().toISOString(),
-    }),
-  });
-}
-
-async function fetchPaymentByCheckout(env: PremiumEnv, checkoutRequestId: string): Promise<{ status: string; member_phone: string; plan_id: string; amount_ksh: number } | null> {
-  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutRequestId)}&select=status,member_phone,plan_id,amount_ksh`);
-  if (!res.ok) return null;
-  const rows = await res.json() as Array<{ status: string; member_phone: string; plan_id: string; amount_ksh: number }>;
-  return rows[0] || null;
-}
-
-async function upsertMember(env: PremiumEnv, phone: string, planId: string, durationDays: number): Promise<{ session_token: string; expires_at: string } | null> {
-  const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
-  const sessionToken = crypto.randomUUID();
-
-  const existingRes = await supabaseFetch(env, `/rest/v1/members?phone=eq.${encodeURIComponent(phone)}&select=id`);
-  const existing = await existingRes.json() as Array<{ id: string }>;
-
-  if (existing.length > 0) {
-    const updateRes = await supabaseFetch(env, `/rest/v1/members?id=eq.${existing[0].id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        plan_id: planId,
-        status: "active",
-        session_token: sessionToken,
-        expires_at: expiresAt,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-    if (!updateRes.ok) return null;
-  } else {
-    const insertRes = await supabaseFetch(env, "/rest/v1/members", {
-      method: "POST",
-      body: JSON.stringify({
-        phone,
-        plan_id: planId,
-        status: "active",
-        session_token: sessionToken,
-        expires_at: expiresAt,
-      }),
-    });
-    if (!insertRes.ok) return null;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error("Premium activation rejected:", res.status, detail.slice(0, 300));
   }
-
-  return { session_token: sessionToken, expires_at: expiresAt };
 }
-
-async function fetchMemberByToken(env: PremiumEnv, token: string): Promise<{ id: string; phone: string; status: string; expires_at: string; plan_id: string } | null> {
-  const res = await supabaseFetch(env, `/rest/v1/members?session_token=eq.${encodeURIComponent(token)}&select=id,phone,status,expires_at,plan_id`);
-  if (!res.ok) return null;
-  const rows = await res.json() as Array<{ id: string; phone: string; status: string; expires_at: string; plan_id: string }>;
-  if (!rows.length) return null;
-  const member = rows[0];
-  if (member.expires_at && new Date(member.expires_at).getTime() < Date.now()) {
-    await supabaseFetch(env, `/rest/v1/members?id=eq.${member.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "expired", updated_at: new Date().toISOString() }),
-    });
-    member.status = "expired";
-  }
-  return member;
-}
-
-function getSessionToken(request: Request): string | null {
+function sessionToken(request: Request): string | null {
   const auth = request.headers.get("Authorization");
-  if (auth && auth.startsWith("Bearer ")) return auth.slice(7).trim();
-  return null;
+  return auth?.startsWith("Bearer ") ? auth.slice(7).trim() : null;
+}
+function validOrigin(request: Request): boolean {
+  const origin = request.headers.get("Origin");
+  if (!origin) return true; // provider callbacks do not send browser Origin
+  try { return new URL(origin).host === new URL(request.url).host; } catch { return false; }
 }
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: PremiumEnv }) => {
-  const url = new URL(request.url);
-  const path = url.pathname.replace(/\/$/, "");
-
+  const path = new URL(request.url).pathname.replace(/\/$/, "");
+  if (!validOrigin(request)) return json({ error: "Invalid request origin." }, 403);
   try {
     if (path === "/api/premium/subscribe") {
       const body = await request.json() as { phone?: string; plan_id?: string };
       const phone = body.phone ? normalizePhone(body.phone) : null;
-      if (!phone) return json({ error: "Please enter a valid Safaricom phone number (e.g. 0712345678)." }, 400);
-      if (!body.plan_id) return json({ error: "Please select a subscription plan." }, 400);
-
+      if (!phone) return json({ error: "Enter a valid Safaricom phone number." }, 400);
+      if (!body.plan_id) return json({ error: "Select a subscription plan." }, 400);
       const plan = await fetchPlan(env, body.plan_id);
-      if (!plan) return json({ error: "The selected plan is not available." }, 400);
+      if (!plan || !Number.isInteger(plan.price_ksh) || plan.price_ksh < 1 || plan.duration_days < 1)
+        return json({ error: "The selected plan is unavailable." }, 400);
+      const recent = await supabaseFetch(env, `/rest/v1/payments?member_phone=eq.${phone}&created_at=gte.${encodeURIComponent(new Date(Date.now() - 15 * 60_000).toISOString())}&select=id&limit=4`);
+      if (!recent.ok) throw new Error("Could not check recent payment attempts.");
+      const recentAttempts = await recent.json() as Array<{ id: string }>;
+      if (recentAttempts.length >= 3) return json({ error: "Too many payment attempts. Please wait 15 minutes before trying again." }, 429);
 
-      const darajaEnv: DarajaEnv = {
-        DARAJA_CONSUMER_KEY: env.DARAJA_CONSUMER_KEY,
-        DARAJA_CONSUMER_SECRET: env.DARAJA_CONSUMER_SECRET,
-        DARAJA_SHORTCODE: env.DARAJA_SHORTCODE,
-        DARAJA_PASSKEY: env.DARAJA_PASSKEY,
-        DARAJA_ENV: env.DARAJA_ENV,
-        DARAJA_CALLBACK_URL: env.DARAJA_CALLBACK_URL,
-      };
-
-      const accessToken = await getDarajaAccessToken(darajaEnv);
-      const result = await stkPush(darajaEnv, accessToken, {
+      const token = await getDarajaAccessToken(darajaEnv(env));
+      const pushed = await stkPush(darajaEnv(env), token, {
         phoneNumber: phone,
         amount: plan.price_ksh,
         accountReference: "AccaForge Premium",
         transactionDesc: `Premium subscription - ${plan.name}`,
         callbackUrl: env.DARAJA_CALLBACK_URL,
       });
+      if (!pushed.success || !pushed.checkoutRequestId)
+        return json({ error: pushed.errorMessage || "Could not send the M-Pesa prompt." }, 502);
 
-      if (!result.success || !result.checkoutRequestId) {
-        return json({ error: result.errorMessage || "Could not send the M-Pesa payment prompt. Please try again." }, 502);
-      }
-
+      const pollToken = crypto.randomUUID() + crypto.randomUUID();
       await createPayment(env, {
-        checkout_request_id: result.checkoutRequestId,
+        checkout_request_id: pushed.checkoutRequestId,
         member_phone: phone,
         plan_id: plan.id,
         amount_ksh: plan.price_ksh,
+        poll_token_hash: await sha256(pollToken),
       });
-
       return json({
-        checkout_request_id: result.checkoutRequestId,
-        message: "Check your phone for the M-Pesa payment prompt. Enter your M-Pesa PIN to complete the subscription.",
+        checkout_request_id: pushed.checkoutRequestId,
+        poll_token: pollToken,
+        message: "Check your phone for the M-Pesa prompt and enter your PIN.",
       });
+    }
+
+    if (path === "/api/premium/verify") {
+      const body = await request.json() as { checkout_request_id?: string; poll_token?: string };
+      if (!body.checkout_request_id || !body.poll_token || body.poll_token.length < 40) {
+        return json({ error: "Invalid payment verification request." }, 400);
+      }
+      await verifyAndActivate(env, body.checkout_request_id, undefined, body.poll_token);
+      return json({ ok: true });
     }
 
     if (path === "/api/premium/callback") {
       const raw = await request.json();
       const parsed = parseStkCallback(raw);
-
-      const payment = await fetchPaymentByCheckout(env, parsed.checkoutRequestId);
-      if (!payment) return json({ ok: true });
-
-      if (parsed.success) {
-        await updatePayment(env, parsed.checkoutRequestId, {
-          status: "success",
-          mpesa_receipt: parsed.mpesaReceipt,
-          result_code: parsed.resultCode,
-          result_desc: parsed.resultDesc,
-          callback_received: true,
-        });
-
-        const plan = await fetchPlan(env, payment.plan_id);
-        if (plan) {
-          await upsertMember(env, payment.member_phone, payment.plan_id, plan.duration_days);
-        }
-      } else {
-        const status = parsed.resultCode === 1032 ? "cancelled" : parsed.resultCode === 1037 ? "timeout" : "failed";
-        await updatePayment(env, parsed.checkoutRequestId, {
-          status,
-          result_code: parsed.resultCode,
-          result_desc: parsed.resultDesc,
-          callback_received: true,
-        });
-      }
-
+      // A forged callback cannot activate access: the payment is independently
+      // queried with Safaricom and all callback metadata must match the intent.
+      await verifyAndActivate(env, parsed.checkoutRequestId, parsed);
       return json({ ok: true });
     }
-
     return json({ error: "Not found." }, 404);
   } catch (error) {
-    console.error("Premium API error:", error);
-    return json({ error: "Something went wrong. Please try again." }, 500);
+    console.error("Premium API error:", error instanceof Error ? error.message : "unknown");
+    return json({ error: "Payment service is temporarily unavailable. Please try again." }, 500);
   }
 };
 
 export const onRequestGet = async ({ request, env }: { request: Request; env: PremiumEnv }) => {
-  const url = new URL(request.url);
-  const path = url.pathname.replace(/\/$/, "");
-
+  const path = new URL(request.url).pathname.replace(/\/$/, "");
   try {
     if (path === "/api/premium/me") {
-      const token = getSessionToken(request);
-      if (!token) return json({ member: null });
-      const member = await fetchMemberByToken(env, token);
-      if (!member) return json({ member: null });
-      const isActive = member.status === "active" && member.expires_at && new Date(member.expires_at).getTime() > Date.now();
-      return json({
-        member: {
-          phone: member.phone,
-          status: isActive ? "active" : member.status,
-          expires_at: member.expires_at,
-          is_premium: isActive,
-        },
-      });
+      const token = sessionToken(request);
+      if (!token || token.length > 256) return json({ member: null });
+      const res = await supabaseFetch(env, `/rest/v1/members?session_token=eq.${encodeURIComponent(token)}&select=phone,status,expires_at`);
+      if (!res.ok) throw new Error("Could not load member.");
+      const rows = await res.json() as Array<{ phone: string; status: string; expires_at: string | null }>;
+      const member = rows[0];
+      const active = !!member && member.status === "active" && !!member.expires_at && Date.parse(member.expires_at) > Date.now();
+      return json({ member: member ? {
+        phone: member.phone,
+        status: active ? "active" : "expired",
+        expires_at: member.expires_at,
+        is_premium: active,
+      } : null });
     }
 
-    const statusMatch = path.match(/^\/api\/premium\/status\/(.+)$/);
+    const statusMatch = path.match(/^\/api\/premium\/status\/([A-Za-z0-9_-]{8,160})$/);
     if (statusMatch) {
-      const checkoutRequestId = decodeURIComponent(statusMatch[1]);
-      const payment = await fetchPaymentByCheckout(env, checkoutRequestId);
-      if (!payment) return json({ error: "Payment not found." }, 404);
-
-      let memberSession: { session_token: string; expires_at: string } | null = null;
-      if (payment.status === "success") {
-        const plan = await fetchPlan(env, payment.plan_id);
-        if (plan) {
-          memberSession = await upsertMember(env, payment.member_phone, payment.plan_id, plan.duration_days);
-        }
+      const checkoutId = statusMatch[1];
+      const pollToken = new URL(request.url).searchParams.get("token") || "";
+      if (pollToken.length < 40 || pollToken.length > 256) return json({ error: "Payment not found." }, 404);
+      const payment = await fetchPayment(env, checkoutId);
+      if (!payment || !payment.poll_token_hash || !(await safeEqualToken(pollToken, payment.poll_token_hash))) {
+        return json({ error: "Payment not found." }, 404);
       }
-
       return json({
         status: payment.status,
-        session_token: memberSession?.session_token || null,
-        expires_at: memberSession?.expires_at || null,
+        session_token: payment.status === "success" ? payment.session_token : null,
+        expires_at: payment.status === "success" ? payment.expires_at : null,
       });
     }
 
     if (path === "/api/premium/plans") {
       const res = await supabaseFetch(env, "/rest/v1/subscription_plans?is_active=eq.true&order=sort_order.asc&select=id,name,price_ksh,duration_days,description,features");
-      if (!res.ok) return json({ plans: [] });
-      const plans = await res.json();
-      return json({ plans });
+      if (!res.ok) throw new Error("Could not load plans.");
+      return json({ plans: await res.json() });
     }
-
     return json({ error: "Not found." }, 404);
   } catch (error) {
-    console.error("Premium API error:", error);
-    return json({ error: "Something went wrong." }, 500);
+    console.error("Premium API read error:", error instanceof Error ? error.message : "unknown");
+    return json({ error: "Premium service is temporarily unavailable." }, 500);
   }
 };

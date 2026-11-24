@@ -15,6 +15,8 @@ interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string; product_type:string;
