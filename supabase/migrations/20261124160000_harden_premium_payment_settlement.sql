@@ -49,8 +49,7 @@ BEGIN
   END IF;
   IF p_result_code <> 0
      OR p_amount_ksh <> v_payment.amount_ksh
-     OR p_member_phone <> v_payment.member_phone
-     OR length(coalesce(p_mpesa_receipt, '')) < 6 THEN
+     OR p_member_phone <> v_payment.member_phone THEN
     RAISE EXCEPTION 'payment_verification_mismatch';
   END IF;
 
@@ -58,7 +57,7 @@ BEGIN
   IF NOT FOUND OR v_plan.duration_days < 1 THEN
     RAISE EXCEPTION 'invalid_subscription_plan';
   END IF;
-  IF EXISTS (
+  IF p_mpesa_receipt IS NOT NULL AND EXISTS (
     SELECT 1 FROM public.payments
     WHERE mpesa_receipt = p_mpesa_receipt AND checkout_request_id <> p_checkout_request_id
   ) THEN
