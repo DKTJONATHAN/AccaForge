@@ -254,7 +254,7 @@ async function main() {
     return;
   }
 
-  const published = await supabase("/rest/v1/premium_predictions?publication_date=eq." + publicationDate + "&status=eq.validated", {
+  const published = await supabase("/rest/v1/premium_predictions?id=in.(" + validated.join(",") + ")&status=eq.validated", {
     method: "PATCH", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
   });
