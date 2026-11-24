@@ -53,6 +53,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
   const [account, setAccount] = useState<AccountData | null>(null);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -88,8 +89,9 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
     if (!session?.access_token) { setAccount(null); return; }
     const data = await accountRequest("/api/premium/account/me") as unknown as AccountData;
     setAccount(data);
+    if (!displayName && data.account.display_name) setDisplayName(data.account.display_name);
     if (!phone && data.verified_phones[0]) setPhone(data.verified_phones[0]);
-  }, [accountRequest, session, phone]);
+  }, [accountRequest, session, phone, displayName]);
 
 
 
@@ -196,6 +198,21 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
       window.location.assign(target.toString());
     } catch (e) { setBusy(false); setError(e instanceof Error ? e.message : "Google sign-in could not start."); }
   };
+  const saveProfile = async () => {
+    if (!config || !session?.access_token || !account) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(config.supabase_url + "/rest/v1/profiles?id=eq." + encodeURIComponent(account.account.id), {
+        method: "PATCH",
+        headers: { apikey: config.supabase_anon_key, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ display_name: displayName.trim() || null, updated_at: new Date().toISOString() })
+      });
+      if (!response.ok) throw new Error("Could not update your account profile.");
+      setNotice("Your profile has been updated.");
+      await loadAccount();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not save profile."); }
+    finally { setBusy(false); }
+  };
   const signOut = async () => {
     try { if (session?.access_token) await authRequest("/auth/v1/logout", "POST", undefined, session.access_token); } catch { /* local sign-out still proceeds */ }
     writeSession(null); setSession(null); setAccount(null); setCheckout(null); setCheckoutState("idle"); setNotice(""); setError("");
@@ -276,6 +293,12 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
       <div className="premium-auth-benefits"><h3>One account, all your devices</h3><p>Keep your Premium access, verified M-PESA number, subscription dates and payment receipts together.</p><ul><li><ShieldCheck size={15}/> Secure sign-in with Google or email</li><li><Smartphone size={15}/> Verified phone for M-PESA prompts</li><li><Clock3 size={15}/> Subscription and payment history</li><li><Download size={15}/> Downloadable payment receipts</li></ul></div>
     </div> : <>
       <div className="premium-account-toolbar"><div className="premium-account-user"><UserRound size={18}/><span>{account?.account.display_name || account?.account.email || session.user?.email || "Signed-in member"}</span></div><button className="text-link" onClick={signOut}><LogOut size={15}/> Sign out</button></div>
+      <div className="premium-account-card premium-profile-card">
+        <h3><UserRound size={17}/> Profile details</h3>
+        <label className="premium-account-field">Display name<input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name"/></label>
+        <label className="premium-account-field">Email address<input value={account?.account.email || session.user?.email || ""} readOnly/></label>
+        <button className="button button-secondary" disabled={busy} onClick={saveProfile}>Save profile</button>
+      </div>
       {account?.entitlement.is_premium ? <div className="premium-account-entitlement"><div><span className="eyebrow">SUBSCRIPTION ACTIVE</span><h3><Crown size={19}/> Premium access is active</h3><p>Access remains active until {new Date(account.entitlement.expires_at!).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}. Renew any time with a new M-PESA prompt.</p></div><span className="premium-account-status">ACTIVE</span></div> : <div className="premium-account-entitlement is-inactive"><div><span className="eyebrow">SUBSCRIPTION</span><h3>Premium is not active</h3><p>Choose a plan below and approve the M-PESA prompt to unlock Premium.</p></div><span className="premium-account-status">FREE</span></div>}
       <div className="premium-account-columns">
         <div className="premium-account-card">
