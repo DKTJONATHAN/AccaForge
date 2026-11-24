@@ -94,13 +94,19 @@ async function verifyAndActivate(
   env: PremiumEnv,
   checkoutId: string,
   callback?: { amount?: number; phoneNumber?: string; mpesaReceipt?: string; resultCode: number; resultDesc: string },
+  pollToken?: string,
 ): Promise<void> {
   const payment = await fetchPayment(env, checkoutId);
-  if (!payment || payment.status === "success" || payment.status !== "pending") return;
-  // Only a successful callback containing all transaction metadata can be settled.
-  if (!callback || callback.resultCode !== 0 || !callback.mpesaReceipt ||
+  if (!payment || payment.status !== "pending") return;
+  // Browser verification requires the unguessable token returned with this payment.
+  if (pollToken && (!payment.poll_token_hash || !(await safeEqualToken(pollToken, payment.poll_token_hash)))) return;
+  // When callback metadata is available, cross-check all three values against
+  // the immutable STK intent. Without a callback, STK Query is still bound to
+  // the checkout created with the stored amount and phone number.
+  if (callback && (callback.resultCode !== 0 || !callback.mpesaReceipt ||
       callback.amount !== payment.amount_ksh ||
-      normalizePhone(String(callback.phoneNumber || "")) !== payment.member_phone) return;
+      normalizePhone(String(callback.phoneNumber || "")) !== payment.member_phone)) return;
+  if (!callback && !pollToken) return;
 
   const token = await getDarajaAccessToken(darajaEnv(env));
   const result = await queryStkStatus(darajaEnv(env), token, checkoutId);
@@ -111,11 +117,11 @@ async function verifyAndActivate(
     method: "POST",
     body: JSON.stringify({
       p_checkout_request_id: checkoutId,
-      p_amount_ksh: callback.amount,
-      p_member_phone: payment.member_phone,
-      p_mpesa_receipt: callback.mpesaReceipt,
+      p_amount_ksh: callback?.amount ?? payment.amount_ksh,
+      p_member_phone: callback ? normalizePhone(String(callback.phoneNumber)) : payment.member_phone,
+      p_mpesa_receipt: callback?.mpesaReceipt ?? null,
       p_result_code: result.resultCode,
-      p_result_desc: result.resultDescription || callback.resultDesc,
+      p_result_desc: result.resultDescription || callback?.resultDesc || "Safaricom STK Query confirmed payment.",
     }),
   });
   if (!res.ok) {
@@ -170,6 +176,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         poll_token: pollToken,
         message: "Check your phone for the M-Pesa prompt and enter your PIN.",
       });
+    }
+
+    if (path === "/api/premium/verify") {
+      const body = await request.json() as { checkout_request_id?: string; poll_token?: string };
+      if (!body.checkout_request_id || !body.poll_token || body.poll_token.length < 40) {
+        return json({ error: "Invalid payment verification request." }, 400);
+      }
+      await verifyAndActivate(env, body.checkout_request_id, undefined, body.poll_token);
+      return json({ ok: true });
     }
 
     if (path === "/api/premium/callback") {
