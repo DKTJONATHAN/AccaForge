@@ -55,6 +55,6 @@ test("market allowlist excludes markets without automatic settlement",()=>{
 
 test("cup scores without regulation-time breakdown stay pending",()=>{
  assert.equal(hasUnverifiedExtraTime("soccer_england_fa_cup"),true);
- assert.equal(settleSelection({...row("h2h","Arsenal"),sport_key:"soccer_uefa_champions_league"},2,0).outcome,"PENDING");
+ assert.equal(settleSelection({...row("h2h","Arsenal"),sport_key:"soccer_uefa_champs_league"},2,0).outcome,"PENDING");
  assert.equal(hasUnverifiedExtraTime("soccer_england_premier_league"),false);
 });
