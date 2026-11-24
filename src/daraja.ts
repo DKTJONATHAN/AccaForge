@@ -75,6 +75,14 @@ export interface StkPushParams {
   callbackUrl: string;
 }
 
+interface StkPushResponse {
+  errorMessage?: string;
+  ResponseDescription?: string;
+  ResponseCode?: string;
+  CheckoutRequestID?: string;
+  MerchantRequestID?: string;
+}
+
 export interface StkPushResult {
   success: boolean;
   checkoutRequestId?: string;
@@ -109,7 +117,7 @@ export async function stkPush(env: DarajaEnv, accessToken: string, params: StkPu
     },
     body: JSON.stringify(body),
   });
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => ({})) as StkPushResponse;
   if (!response.ok) {
     return {
       success: false,
