@@ -26,6 +26,11 @@ const db = (env: Env, path: string, init: RequestInit = {}) => {
   headers.set("Content-Type", "application/json");
   return fetch(`${env.SUPABASE_URL}${path}`, { ...init, headers });
 };
+async function dbJson(env: Env, path: string, init: RequestInit = {}) {
+  const response = await db(env, path, init);
+  if (!response.ok) throw new Error("Premium database request failed.");
+  return response.json();
+}
 const daraja = (env: Env): DarajaEnv => ({
   DARAJA_CONSUMER_KEY: env.DARAJA_CONSUMER_KEY,
   DARAJA_CONSUMER_SECRET: env.DARAJA_CONSUMER_SECRET,
@@ -132,10 +137,10 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     }
     if (path === "/api/premium/preview") {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      const published = await db(env, `/rest/v1/premium_predictions?status=eq.published&publication_date=gte.${today}&select=fixture_id,publication_date&order=publication_date.desc&limit=24`);
+      const published = await dbJson(env, `/rest/v1/premium_predictions?status=eq.published&publication_date=gte.${today}&select=fixture_id,publication_date&order=publication_date.desc&limit=24`);
       const ids = [...new Set((published as Array<{ fixture_id: string }>).map(row => row.fixture_id))];
       if (!ids.length) return json({ fixtures: [], updated_at: null });
-      const fixtures = await db(env, `/rest/v1/premium_fixtures?id=in.(${ids.join(",")})&select=id,competition,commence_time,home_team,away_team`);
+      const fixtures = await dbJson(env, `/rest/v1/premium_fixtures?id=in.(${ids.join(",")})&select=id,competition,commence_time,home_team,away_team`);
       const dateById = new Map((published as Array<{ fixture_id: string; publication_date: string }>).map(row => [row.fixture_id, row.publication_date]));
       const safeFixtures = (fixtures as Array<{ id: string; competition: string; commence_time: string; home_team: string; away_team: string }>).map(item => ({
         publication_date: dateById.get(item.id) || today,
@@ -150,17 +155,17 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     if (!user) return json({ error: "Sign in to view your Premium account." }, 401);
     if (path === "/api/premium/account/predictions") {
       const nowIso = new Date().toISOString();
-      const activeRows = await db(env, `/rest/v1/subscriptions?user_id=eq.${user.id}&status=eq.active&expires_at=gt.${encodeURIComponent(nowIso)}&select=plan_id,expires_at&order=expires_at.desc&limit=1`);
+      const activeRows = await dbJson(env, `/rest/v1/subscriptions?user_id=eq.${user.id}&status=eq.active&expires_at=gt.${encodeURIComponent(nowIso)}&select=plan_id,expires_at&order=expires_at.desc&limit=1`);
       const active = (activeRows as Array<{ plan_id: string; expires_at: string }>)[0];
       if (!active) return json({ error: "An active Premium subscription is required to view Premium predictions." }, 403);
-      const planRows = await db(env, `/rest/v1/subscription_plans?id=eq.${active.plan_id}&select=duration_days`);
+      const planRows = await dbJson(env, `/rest/v1/subscription_plans?id=eq.${active.plan_id}&select=duration_days`);
       const duration = Math.max(1, Math.min(365, Number((planRows as Array<{ duration_days: number }>)[0]?.duration_days || 30)));
       const cutoff = new Date(Date.now() - duration * 86400000);
       const cutoffDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(cutoff);
-      const predictions = await db(env, `/rest/v1/premium_predictions?publication_date=gte.${cutoffDate}&or=(status.eq.published,status.eq.settled)&select=id,fixture_id,publication_date,market_key,market_name,selection_name,odds,bookmaker,estimated_probability,confidence_score,reasoning,status,result,published_at&order=publication_date.desc,published_at.desc&limit=150`);
+      const predictions = await dbJson(env, `/rest/v1/premium_predictions?publication_date=gte.${cutoffDate}&or=(status.eq.published,status.eq.settled)&select=id,fixture_id,publication_date,market_key,market_name,selection_name,odds,bookmaker,estimated_probability,confidence_score,reasoning,status,result,published_at&order=publication_date.desc,published_at.desc&limit=150`);
       const rows = predictions as Array<Record<string, unknown> & { fixture_id: string }>;
       const ids = [...new Set(rows.map(row => row.fixture_id))];
-      const fixtures = ids.length ? await db(env, `/rest/v1/premium_fixtures?id=in.(${ids.join(",")})&select=id,competition,commence_time,home_team,away_team,fixture_status`) : [];
+      const fixtures = ids.length ? await dbJson(env, `/rest/v1/premium_fixtures?id=in.(${ids.join(",")})&select=id,competition,commence_time,home_team,away_team,fixture_status`) : [];
       const byId = new Map((fixtures as Array<{ id: string; competition: string; commence_time: string; home_team: string; away_team: string; fixture_status: string }>).map(item => [item.id, item]));
       return json({
         predictions: rows.map(row => ({
