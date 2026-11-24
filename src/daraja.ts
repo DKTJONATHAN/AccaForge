@@ -22,17 +22,21 @@ export function darajaBaseUrl(env: DarajaEnv): string {
   return env.DARAJA_ENV === "production" ? PRODUCTION_BASE : SANDBOX_BASE;
 }
 
-export function timestampNow(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    now.getUTCFullYear().toString() +
-    pad(now.getUTCMonth() + 1) +
-    pad(now.getUTCDate()) +
-    pad(now.getUTCHours()) +
-    pad(now.getUTCMinutes()) +
-    pad(now.getUTCSeconds())
-  );
+export function timestampNow(date = new Date()): string {
+  // Match the working Maua Marketplace integration: Daraja timestamps are
+  // generated in the merchant's local timezone (Africa/Nairobi), not UTC.
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}${value.month}${value.day}${value.hour}${value.minute}${value.second}`;
 }
 
 export function generatePassword(shortcode: string, passkey: string, timestamp: string): string {
@@ -73,6 +77,7 @@ export interface StkPushParams {
   accountReference: string;
   transactionDesc: string;
   callbackUrl: string;
+  tillNumber: string;
 }
 
 interface StkPushResponse {
@@ -96,14 +101,19 @@ export async function stkPush(env: DarajaEnv, accessToken: string, params: StkPu
   const base = darajaBaseUrl(env);
   const timestamp = timestampNow();
   const password = generatePassword(env.DARAJA_SHORTCODE, env.DARAJA_PASSKEY, timestamp);
+  if (!params.tillNumber || !/^\\d{5,8}$/.test(params.tillNumber)) {
+    return { success: false, errorMessage: "A valid M-PESA Buy Goods Till number is required." };
+  }
   const body = {
+    // The PayBill/head-office shortcode signs the request; the linked Till
+    // receives the Buy Goods payment. This matches Maua Marketplace.
     BusinessShortCode: env.DARAJA_SHORTCODE,
     Password: password,
     Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline",
+    TransactionType: "CustomerBuyGoodsOnline",
     Amount: params.amount,
     PartyA: params.phoneNumber,
-    PartyB: env.DARAJA_SHORTCODE,
+    PartyB: params.tillNumber,
     PhoneNumber: params.phoneNumber,
     CallBackURL: params.callbackUrl,
     AccountReference: params.accountReference,
@@ -207,6 +217,8 @@ export async function queryStkStatus(
   accessToken: string,
   checkoutRequestId: string,
 ): Promise<StkQueryResult> {
+  // Use the same Nairobi-local timestamp convention as the working Maua
+  // integration for STK Query password generation as well as STK Push.
   const timestamp = timestampNow();
   const password = generatePassword(env.DARAJA_SHORTCODE, env.DARAJA_PASSKEY, timestamp);
   const response = await fetch(`${darajaBaseUrl(env)}/mpesa/stkpushquery/v1/query`, {
