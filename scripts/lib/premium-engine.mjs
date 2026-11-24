@@ -89,7 +89,7 @@ export function summarizeTeamForm(fixtures, teamId) {
   };
 }
 export function validatePremiumPick(pick, candidates, options = {}) {
-  if (!pick || pick.decision !== "pick") return { ok: false, reason: "model_passed" };
+  if (!pick || String(pick.decision || "").toLowerCase() !== "pick") return { ok: false, reason: "model_passed" };
   const candidate = candidates.find(item => item.candidate_id === pick.candidate_id);
   if (!candidate) return { ok: false, reason: "unknown_candidate" };
   const odds = Number(candidate.odds);
