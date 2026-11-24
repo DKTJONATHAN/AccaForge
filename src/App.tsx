@@ -93,10 +93,10 @@ async function initiateSubscription(phone:string,planId:string):Promise<{checkou
 async function pollPaymentStatus(checkoutRequestId:string,pollToken:string):Promise<PremiumStatus>{
  await fetch("/api/premium/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({checkout_request_id:checkoutRequestId,poll_token:pollToken})});
  const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId)+"?token="+encodeURIComponent(pollToken));
- const data=await response.json() as {status?:string;session_token?:string|null;expires_at?:string|null;error?:string};
+ const data=await response.json() as {status?:string;result_code?:number|null;result_desc?:string|null;session_token?:string|null;expires_at?:string|null;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not check payment status.");
  if(!data.status)throw new Error("Payment status response was incomplete.");
- return {status:data.status,session_token:data.session_token||null,expires_at:data.expires_at||null};
+ return {status:data.status,result_code:data.result_code??null,result_desc:data.result_desc??null,session_token:data.session_token||null,expires_at:data.expires_at||null};
 }
 function getPremiumToken():string|null{
  try{return localStorage.getItem("accaforge-premium-token");}catch{return null;}
@@ -248,8 +248,14 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
      refreshMember();
      return;
     }
-    if(result.status==="failed"||result.status==="cancelled"){
-     setError(result.status==="cancelled"?"Payment was cancelled. You can try again.":"Payment failed. Please try again.");
+    if(result.status==="failed"||result.status==="cancelled"||result.status==="timeout"){
+     const providerMessage=result.result_desc||"";
+     const message=/insufficient|not enough.{0,20}balance|low balance/i.test(providerMessage)
+      ?"Your M-PESA balance is insufficient to complete this payment. Please top up your M-PESA account and try again."
+      :result.status==="cancelled"?"You cancelled the M-PESA payment. You can try again."
+      :result.status==="timeout"?"The M-PESA payment request timed out. Please try again."
+      :providerMessage||"M-PESA could not complete the payment. Please try again.";
+     setError(message);
      setStatus("error");
      return;
     }
