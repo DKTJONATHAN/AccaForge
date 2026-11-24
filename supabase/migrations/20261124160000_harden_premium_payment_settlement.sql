@@ -108,3 +108,38 @@ REVOKE ALL ON public.members, public.payments FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.members, public.payments TO service_role;
 
 GRANT SELECT ON public.subscription_plans TO service_role;
+
+-- Three archive tiers. Daily public coverage stays free; paid tiers unlock
+-- private archive depth and the full recorded reasoning through the API.
+UPDATE public.subscription_plans
+SET name = 'Monthly Premium',
+    price_ksh = 499,
+    duration_days = 30,
+    description = '30 days of published AccaForge editions with full match and selection reasoning.',
+    features = ARRAY[
+      'All four daily formats with complete match and selection reasoning',
+      '30-day searchable edition archive',
+      'Detailed market and selection notes',
+      'Published results and transparent track record'
+    ],
+    is_active = true,
+    sort_order = 1
+WHERE id = (
+  SELECT id FROM public.subscription_plans
+  WHERE name = 'Monthly Premium'
+  ORDER BY created_at ASC LIMIT 1
+);
+
+INSERT INTO public.subscription_plans (name, price_ksh, duration_days, description, features, is_active, sort_order)
+SELECT 'Quarterly Premium', 1299, 90,
+       '90 days of published editions, full match reasoning and selection notes.',
+       ARRAY['All four daily formats with complete reasoning','90-day searchable edition archive','Detailed market and selection notes','Published results and transparent track record'],
+       true, 2
+WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE name = 'Quarterly Premium');
+
+INSERT INTO public.subscription_plans (name, price_ksh, duration_days, description, features, is_active, sort_order)
+SELECT 'Annual Premium', 4499, 365,
+       '365 days of published editions, full match reasoning and selection notes.',
+       ARRAY['All four daily formats with complete reasoning','365-day searchable edition archive','Detailed market and selection notes','Published results and transparent track record'],
+       true, 3
+WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE name = 'Annual Premium');
