@@ -111,7 +111,14 @@ async function verifyAndActivate(
   const token = await getDarajaAccessToken(darajaEnv(env));
   const result = await queryStkStatus(darajaEnv(env), token, checkoutId);
   if (result.checkoutRequestId && result.checkoutRequestId !== checkoutId) return;
-  if (result.resultCode !== 0) return;
+  if (result.resultCode !== 0) {
+    const status = result.resultCode === 1032 ? "cancelled" : result.resultCode === 1037 ? "timeout" : "failed";
+    await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&status=eq.pending`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, result_code: result.resultCode, result_desc: result.resultDescription || "Safaricom confirmed the payment did not complete.", callback_received: !!callback, updated_at: new Date().toISOString() }),
+    });
+    return;
+  }
 
   const res = await supabaseFetch(env, "/rest/v1/rpc/finalize_premium_payment", {
     method: "POST",
@@ -151,6 +158,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
       const plan = await fetchPlan(env, body.plan_id);
       if (!plan || !Number.isInteger(plan.price_ksh) || plan.price_ksh < 1 || plan.duration_days < 1)
         return json({ error: "The selected plan is unavailable." }, 400);
+      const recent = await supabaseFetch(env, `/rest/v1/payments?member_phone=eq.${phone}&created_at=gte.${encodeURIComponent(new Date(Date.now() - 15 * 60_000).toISOString())}&select=id&limit=4`);
+      if (!recent.ok) throw new Error("Could not check recent payment attempts.");
+      const recentAttempts = await recent.json() as Array<{ id: string }>;
+      if (recentAttempts.length >= 3) return json({ error: "Too many payment attempts. Please wait 15 minutes before trying again." }, 429);
 
       const token = await getDarajaAccessToken(darajaEnv(env));
       const pushed = await stkPush(darajaEnv(env), token, {
