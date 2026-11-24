@@ -101,7 +101,7 @@ export async function stkPush(env: DarajaEnv, accessToken: string, params: StkPu
   const base = darajaBaseUrl(env);
   const timestamp = timestampNow();
   const password = generatePassword(env.DARAJA_SHORTCODE, env.DARAJA_PASSKEY, timestamp);
-  if (!params.tillNumber || !/^\\d{5,8}$/.test(params.tillNumber)) {
+  if (!params.tillNumber || !/^\d{5,8}$/.test(params.tillNumber)) {
     return { success: false, errorMessage: "A valid M-PESA Buy Goods Till number is required." };
   }
   const body = {
