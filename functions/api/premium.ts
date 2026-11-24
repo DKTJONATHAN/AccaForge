@@ -259,9 +259,47 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pr
     }
 
     if (path === "/api/premium/plans") {
-      const res = await supabaseFetch(env, "/rest/v1/subscription_plans?is_active=eq.true&order=sort_order.asc&select=id,name,price_ksh,duration_days,description,features");
-      if (!res.ok) throw new Error("Could not load plans.");
-      return json({ plans: await res.json() });
+      // Return safe diagnostic codes so configuration and upstream failures can
+      // be distinguished without exposing credentials or raw provider responses.
+      const missing = [
+        !env.SUPABASE_URL?.trim() ? "SUPABASE_URL" : null,
+        !env.SUPABASE_SERVICE_ROLE_KEY?.trim() ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+      ].filter((name): name is string => !!name);
+      if (missing.length) {
+        console.error("Premium plans configuration missing:", missing.join(", "));
+        return json({ error: "Premium service is temporarily unavailable.", code: "PREMIUM_CONFIG_MISSING", missing }, 503);
+      }
+
+      let supabaseUrl: URL;
+      try {
+        supabaseUrl = new URL(env.SUPABASE_URL);
+      } catch {
+        console.error("Premium plans configuration has an invalid SUPABASE_URL.");
+        return json({ error: "Premium service is temporarily unavailable.", code: "PREMIUM_CONFIG_INVALID" }, 503);
+      }
+      if (supabaseUrl.protocol !== "https:" || !supabaseUrl.hostname.endsWith(".supabase.co")) {
+        console.error("Premium plans configuration has an unsupported SUPABASE_URL host.");
+        return json({ error: "Premium service is temporarily unavailable.", code: "PREMIUM_CONFIG_INVALID" }, 503);
+      }
+
+      let res: Response;
+      try {
+        res = await supabaseFetch(env, "/rest/v1/subscription_plans?is_active=eq.true&order=sort_order.asc&select=id,name,price_ksh,duration_days,description,features");
+      } catch (error) {
+        console.error("Premium plans Supabase network error:", error instanceof Error ? error.message : "unknown");
+        return json({ error: "Premium service is temporarily unavailable.", code: "SUPABASE_NETWORK_ERROR" }, 503);
+      }
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        console.error("Premium plans Supabase response:", res.status, detail.slice(0, 300));
+        return json({ error: "Premium service is temporarily unavailable.", code: `SUPABASE_HTTP_${res.status}` }, 503);
+      }
+      try {
+        return json({ plans: await res.json() });
+      } catch {
+        console.error("Premium plans Supabase response was not valid JSON.");
+        return json({ error: "Premium service is temporarily unavailable.", code: "SUPABASE_INVALID_RESPONSE" }, 503);
+      }
     }
     return json({ error: "Not found." }, 404);
   } catch (error) {
