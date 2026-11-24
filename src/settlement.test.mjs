@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {settleSelection,calculateEdition} from "./settlement.mjs";
+import {settleSelection,calculateEdition,isAutoSettleableMarket} from "./settlement.mjs";
 const row=(market_key,selection_name,market_name="")=>({market_key,selection_name,market_name,home_team:"Arsenal",away_team:"Chelsea"});
 test("settles match result including draw",()=>{
  assert.equal(settleSelection(row("h2h","Arsenal"),2,0).outcome,"WON");
@@ -46,4 +46,9 @@ test("pending legs keep edition pending; all void legs make edition void",()=>{
 test("PASS rows do not count as accumulator legs",()=>{
  const result=calculateEdition([{selection_name:"PASS",outcome:"PASS",selection_status:"PASS",odds:1},{selection_name:"A",outcome:"WON",odds:2}]);
  assert.equal(result.legs,1);assert.equal(result.pass,1);assert.equal(result.outcome,"WON");
+});
+
+test("market allowlist excludes markets without automatic settlement",()=>{
+ for(const key of ["spreads","alternate_spreads","team_totals","alternate_team_totals","spreads_h1"])assert.equal(isAutoSettleableMarket(key),false);
+ for(const key of ["h2h","totals","alternate_totals","btts","double_chance","draw_no_bet"])assert.equal(isAutoSettleableMarket(key),true);
 });
