@@ -19,13 +19,11 @@ test("preserves the AI-selected market even when another market has a higher raw
  assert.equal(result[0].candidate_id,"c2");
 });
 
-test("accepts an explicit PASS with a specific explanation instead of forcing a pick",()=>{
- const result=normalizeAllMatchesBatch(fixtures,[
+test("withholds the entire edition when any fixture has no defensible market",()=>{
+ assert.throws(()=>normalizeAllMatchesBatch(fixtures,[
   {event_id:"e1",status:"PASS",note:"No market has a reliable edge because prices conflict across bookmakers and team news is unavailable."},
   {event_id:"e2",status:"PICK",candidate_id:"c3",probability:58,note:reason2}
- ],rows);
- assert.equal(result[0].status,"PASS");
- assert.equal(result[1].status,"PICK");
+ ],rows),/edition withheld.*PASS is not publishable/);
 });
 
 test("rejects missing or generic PICK rationales",()=>{
@@ -42,7 +40,7 @@ test("rejects unknown candidate IDs and mismatched fixture decisions",()=>{
 
 test("requires the AI to assess every fixture exactly once",()=>{
  assert.throws(()=>normalizeAllMatchesBatch(fixtures,[
-  {event_id:"e1",status:"PASS",note:"No defensible market because the available prices conflict and reliable team news is unavailable."}
+  {event_id:"e1",status:"PICK",candidate_id:"c1",probability:62,note:reason1}
  ],rows),/assess every fixture/);
 });
 
