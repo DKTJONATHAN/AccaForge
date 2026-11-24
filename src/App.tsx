@@ -223,9 +223,9 @@ const PREMIUM_PACKAGE_PREVIEW:SubscriptionPlan[]=[
 function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
  const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
  const packageOptions=plans?.length?plans:PREMIUM_PACKAGE_PREVIEW;
- const checkoutReady=!!plans?.some(plan=>plan.id===selectedPlan);
  const [phone,setPhone]=useState("");
  const [selectedPlan,setSelectedPlan]=useState<string>("");
+ const checkoutReady=!!plans?.some(plan=>plan.id===selectedPlan);
  const [status,setStatus]=useState<"idle"|"initiating"|"waiting"|"checking"|"success"|"error">("idle");
  const [error,setError]=useState<string|null>(null);
  const [checkoutId,setCheckoutId]=useState<string|null>(null);
