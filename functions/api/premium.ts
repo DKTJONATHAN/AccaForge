@@ -155,21 +155,43 @@ function validOrigin(request: Request): boolean {
 export const onRequestPost = async ({ request, env }: { request: Request; env: PremiumEnv }) => {
   const path = new URL(request.url).pathname.replace(/\/$/, "");
   if (!validOrigin(request)) return json({ error: "Invalid request origin." }, 403);
+  let subscribeStage = "request";
   try {
     if (path === "/api/premium/subscribe") {
+      const requiredConfig = [
+        "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
+        "DARAJA_CONSUMER_KEY", "DARAJA_CONSUMER_SECRET",
+        "DARAJA_SHORTCODE", "DARAJA_PASSKEY", "DARAJA_CALLBACK_URL",
+      ] as const;
+      const missingConfig = requiredConfig.filter((key) =>
+        !String((env as unknown as Record<string, unknown>)[key] ?? "").trim()
+      );
+      if (missingConfig.length) {
+        console.error("Premium subscribe configuration missing:", missingConfig.join(", "));
+        return json({
+          error: "Payment service is not fully configured.",
+          code: "PREMIUM_CONFIG_MISSING",
+          missing: missingConfig,
+        }, 503);
+      }
+      subscribeStage = "request_validation";
       const body = await request.json() as { phone?: string; plan_id?: string };
       const phone = body.phone ? normalizePhone(body.phone) : null;
       if (!phone) return json({ error: "Enter a valid Safaricom phone number." }, 400);
       if (!body.plan_id) return json({ error: "Select a subscription plan." }, 400);
+      subscribeStage = "plan_lookup";
       const plan = await fetchPlan(env, body.plan_id);
       if (!plan || !Number.isInteger(plan.price_ksh) || plan.price_ksh < 1 || plan.duration_days < 1)
         return json({ error: "The selected plan is unavailable." }, 400);
+      subscribeStage = "recent_attempt_check";
       const recent = await supabaseFetch(env, `/rest/v1/payments?member_phone=eq.${phone}&created_at=gte.${encodeURIComponent(new Date(Date.now() - 15 * 60_000).toISOString())}&select=id&limit=4`);
       if (!recent.ok) throw new Error("Could not check recent payment attempts.");
       const recentAttempts = await recent.json() as Array<{ id: string }>;
       if (recentAttempts.length >= 3) return json({ error: "Too many payment attempts. Please wait 15 minutes before trying again." }, 429);
 
+      subscribeStage = "daraja_oauth";
       const token = await getDarajaAccessToken(darajaEnv(env));
+      subscribeStage = "stk_push";
       const pushed = await stkPush(darajaEnv(env), token, {
         phoneNumber: phone,
         amount: plan.price_ksh,
@@ -180,6 +202,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
       if (!pushed.success || !pushed.checkoutRequestId)
         return json({ error: pushed.errorMessage || "Could not send the M-Pesa prompt." }, 502);
 
+      subscribeStage = "payment_persistence";
       const pollToken = crypto.randomUUID() + crypto.randomUUID();
       await createPayment(env, {
         checkout_request_id: pushed.checkoutRequestId,
@@ -188,6 +211,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         amount_ksh: plan.price_ksh,
         poll_token_hash: await sha256(pollToken),
       });
+      subscribeStage = "complete";
       return json({
         checkout_request_id: pushed.checkoutRequestId,
         poll_token: pollToken,
@@ -214,7 +238,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
     }
     return json({ error: "Not found." }, 404);
   } catch (error) {
-    console.error("Premium API error:", error instanceof Error ? error.message : "unknown");
+    console.error("Premium API error:", subscribeStage, error instanceof Error ? error.message : "unknown");
+    if (path === "/api/premium/subscribe") {
+      return json({
+        error: "Payment service is temporarily unavailable. Please try again.",
+        code: `PREMIUM_SUBSCRIBE_${subscribeStage.toUpperCase()}_FAILED`,
+      }, 502);
+    }
     return json({ error: "Payment service is temporarily unavailable. Please try again." }, 500);
   }
 };
