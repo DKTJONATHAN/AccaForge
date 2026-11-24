@@ -60,10 +60,11 @@ async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
-async function safeEqual(a: string, b: string): Promise<boolean> {
-  const [left, right] = await Promise.all([sha256(a), sha256(b)]);
+async function safeEqualToken(token: string, expectedHash: string): Promise<boolean> {
+  const actualHash = await sha256(token);
+  if (!/^[a-f0-9]{64}$/i.test(expectedHash)) return false;
   let diff = 0;
-  for (let i = 0; i < left.length; i++) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  for (let i = 0; i < actualHash.length; i++) diff |= actualHash.charCodeAt(i) ^ expectedHash.charCodeAt(i);
   return diff === 0;
 }
 async function fetchPlan(env: PremiumEnv, id: string): Promise<Plan | null> {
@@ -211,7 +212,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pr
       const pollToken = new URL(request.url).searchParams.get("token") || "";
       if (pollToken.length < 40 || pollToken.length > 256) return json({ error: "Payment not found." }, 404);
       const payment = await fetchPayment(env, checkoutId);
-      if (!payment || !payment.poll_token_hash || !(await safeEqual(pollToken, payment.poll_token_hash))) {
+      if (!payment || !payment.poll_token_hash || !(await safeEqualToken(pollToken, payment.poll_token_hash))) {
         return json({ error: "Payment not found." }, 404);
       }
       return json({
