@@ -38,16 +38,22 @@ const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =
   status,
   headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra },
 });
-const supabaseFetch = (env: PremiumEnv, path: string, options: RequestInit = {}) =>
-  fetch(`${env.SUPABASE_URL}${path}`, {
+const supabaseFetch = (env: PremiumEnv, path: string, options: RequestInit = {}) => {
+  const apiKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  // New sb_secret_* keys are opaque API keys, not JWTs. They must be sent
+  // only through apikey; putting one in Authorization makes Supabase reject
+  // the request as an invalid JWT. Keep Bearer auth for legacy service_role JWTs.
+  const authHeaders = apiKey.startsWith("sb_secret_") ? {} : { Authorization: `Bearer ${apiKey}` };
+  return fetch(`${env.SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: apiKey,
+      ...authHeaders,
       ...options.headers,
     },
   });
+};
 const darajaEnv = (env: PremiumEnv): DarajaEnv => ({
   DARAJA_CONSUMER_KEY: env.DARAJA_CONSUMER_KEY,
   DARAJA_CONSUMER_SECRET: env.DARAJA_CONSUMER_SECRET,
