@@ -1,3 +1,4 @@
+import { calculateEdition, settleSelection } from "./settlement.mjs";
 export interface ResultsEnv { DB: D1Database; ODDSAPI_KEY?: string; ODDSAPI_KEY1?: string; ODDSAPI_KEY2?: string; ODDSAPI_KEY3?: string; ODDS_API_KEY?: string }
 type PickRow={selection_id:string;acca_id:string;product_type:string;headline:string;publish_date:string;event_id:string;sport_key:string;commence_time:string;home_team:string;away_team:string;market_key:string;market_name:string;selection_name:string;odds:number;selection_status:string};
 type ScoreEvent={id:string;sport_key:string;home_team:string;away_team:string;completed:boolean;scores?:Array<{name:string;score:string|null}>};
@@ -24,43 +25,6 @@ async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<S
 }
 function yesterdayNairobi(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(parts+"T12:00:00Z");date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
 function scoreMap(event:ScoreEvent){const scores=event.scores||[];const home=Number(scores.find(item=>item.name===event.home_team)?.score);const away=Number(scores.find(item=>item.name===event.away_team)?.score);return Number.isFinite(home)&&Number.isFinite(away)?{home,away}:null;}
-function settle(row:PickRow,home:number,away:number){
- const market=row.market_key.toLowerCase(),pick=row.selection_name.trim(),total=home+away;
- if(row.selection_status==="PASS"||pick.toUpperCase()==="PASS")return {outcome:"PASS",note:"No selection was published for this fixture."};
- if(["h2h","moneyline","match_winner"].includes(market)){
-  const winner=home>away?row.home_team:away>home?row.away_team:"Draw";
-  const won=pick.toLowerCase()===winner.toLowerCase()||((pick.toLowerCase()==="1"||pick.toLowerCase()==="home")&&home>away)||((pick.toLowerCase()==="2"||pick.toLowerCase()==="away")&&away>home)||((pick.toLowerCase()==="x"||pick.toLowerCase()==="draw")&&home===away);
-  return {outcome:won?"WON":"LOST",note:"Full-time result: "+home+"–"+away+"."};
- }
- if(market==="btts"||market==="both_teams_to_score"){
-  const yes=home>0&&away>0;const wantsYes=/yes|both teams to score/i.test(pick);const wantsNo=/no|not/i.test(pick);
-  if(!wantsYes&&!wantsNo)return {outcome:"PENDING",note:"Market selection could not be interpreted safely."};
-  return {outcome:yes===wantsYes?"WON":"LOST",note:"Full-time score: "+home+"–"+away+"."};
- }
- if(market==="totals"||market==="alternate_totals"){
-  const line=Number((pick+" "+row.market_name).match(/\b(\d+(?:\.\d+)?)\b/)?.[1]);
-  const isOver=/over/i.test(pick),isUnder=/under/i.test(pick);
-  if(!Number.isFinite(line)||(!isOver&&!isUnder))return {outcome:"PENDING",note:"Goal line could not be interpreted safely."};
-  const won=isOver?total>line:total<line;
-  if(total===line)return {outcome:"VOID",note:"The total landed exactly on the line; selection is treated as a push."};
-  return {outcome:won?"WON":"LOST",note:"Full-time total: "+total+" goals."};
- }
- if(market==="double_chance"){
-  const draw=home===away,homeWin=home>away,awayWin=away>home;
-  const value=pick.toLowerCase().replace(/\s/g,"");
-  const won=value.includes("1x")?(homeWin||draw):value.includes("x2")?(awayWin||draw):value.includes("12")?(homeWin||awayWin):false;
-  if(!/1x|x2|12/.test(value))return {outcome:"PENDING",note:"Double-chance selection could not be interpreted safely."};
-  return {outcome:won?"WON":"LOST",note:"Full-time result: "+home+"–"+away+"."};
- }
- if(market==="draw_no_bet"){
-  const selectedHome=pick.toLowerCase()===row.home_team.toLowerCase();
-  const selectedAway=pick.toLowerCase()===row.away_team.toLowerCase();
-  if(home===away)return {outcome:"VOID",note:"Match finished level; draw-no-bet selection is void."};
-  if(!selectedHome&&!selectedAway)return {outcome:"PENDING",note:"Team selection could not be identified safely."};
-  return {outcome:(selectedHome?home>away:away>home)?"WON":"LOST",note:"Full-time result: "+home+"–"+away+"."};
- }
- return {outcome:"PENDING",note:"This market needs a specialist result feed; no outcome has been guessed."};
-}
 export async function refreshYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
@@ -76,7 +40,7 @@ export async function refreshYesterdayResults(env:ResultsEnv){
    const score=scoreMap(event);if(!score)continue;
    const picks=(await env.DB.prepare("SELECT selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status FROM result_selections WHERE event_id=? AND outcome='PENDING' AND publish_date >= date(?, '-2 days')").bind(event.id,date).all<PickRow>()).results||[];
    for(const pick of picks){
-    const result=settle(pick,score.home,score.away);
+    const result=settleSelection(pick,score.home,score.away);
     await env.DB.prepare("UPDATE result_selections SET home_score=?,away_score=?,outcome=?,settled_at=CURRENT_TIMESTAMP,result_note=? WHERE selection_id=?").bind(score.home,score.away,result.outcome,result.note,pick.selection_id).run();
     if(result.outcome!=="PENDING")settled++;
    }
