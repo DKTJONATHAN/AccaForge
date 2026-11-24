@@ -1,7 +1,7 @@
 import React, {useCallback,useEffect,useMemo,useState} from "react";
 import PremiumAccountPanel from "./premium-account";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Sparkles} from "lucide-react";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Sparkles,Lock} from "lucide-react";
 import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo} from "./types";
 
 const products:[ProductType,string,string,string][]=[
@@ -200,6 +200,28 @@ function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
 }
+type PremiumPreviewFixture={publication_date:string;competition:string;commence_time:string;home_team:string;away_team:string};
+async function loadPremiumPreview():Promise<{fixtures:PremiumPreviewFixture[];updated_at:string|null}>{
+ const response=await fetch("/api/premium/preview");
+ if(!response.ok)throw new Error("Premium preview is temporarily unavailable.");
+ return response.json();
+}
+function PremiumPreviewSection(){
+ const {data,isLoading}=useQuery({queryKey:["premium-preview"],queryFn:loadPremiumPreview,staleTime:60000,refetchOnWindowFocus:false});
+ return <section className="premium-home-preview" aria-labelledby="premium-preview-title">
+  <div className="premium-home-preview-copy">
+   <span className="eyebrow"><Lock size={12}/> MEMBERS-ONLY RESEARCH</span>
+   <h2 id="premium-preview-title">A separate level of match analysis.</h2>
+   <p>Premium fixtures and selections are researched independently. Public editions stay free; the actual Premium markets, prices and reasoning remain locked until you have an active subscription.</p>
+   <a className="button button-primary" href="/premium">Explore Premium <ArrowUpRight size={15}/></a>
+  </div>
+  <div className="premium-home-preview-list">
+   {isLoading?<div className="premium-preview-empty">Loading the latest Premium preview…</div>:data?.fixtures?.length?<>{data.fixtures.map((fixture,index)=><article className="premium-preview-fixture" key={fixture.home_team+"-"+fixture.away_team+"-"+index}>
+    <div><small>{fixture.competition} · {kenyaTime(fixture.commence_time)}</small><strong>{fixture.home_team} <span>vs</span> {fixture.away_team}</strong><em>Premium pick locked</em></div><Lock size={17}/>
+   </article>)}</>:<div className="premium-preview-empty"><Lock size={19}/><strong>Premium research is being prepared.</strong><span>Only fixtures that pass the evidence and odds checks will appear here.</span></div>}
+  </div>
+ </section>;
+}
 function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
  void refreshMember;
  const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
@@ -310,6 +332,7 @@ export default function App({initialData,initialContent,initialResults,initialTr
      <span className="scene-ground-glow"/>
     </div>
    </section>
+   <PremiumPreviewSection/>
    <section className="home-board-stage" aria-labelledby="daily-board-title">
     <div className="home-board-preview">
      <div className="board-card-top">

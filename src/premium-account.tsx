@@ -2,8 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertCircle, CheckCircle2, Clock3, Crown, Download, KeyRound, Loader2, LogIn, LogOut, Mail, ShieldCheck, Smartphone, UserRound, UserPlus } from "lucide-react";
 import type { SubscriptionPlan } from "./types";
 
-type AuthConfig = { supabase_url: string; supabase_anon_key: string };
+type AuthConfig = { supabase_url: string; supabase_anon_key: string; support_whatsapp?: string };
 type AuthSession = { access_token: string; refresh_token: string; expires_at?: number; user?: { id: string; email?: string; phone?: string } };
+type PremiumPrediction = {
+  id: string; publication_date: string; market_key: string; market_name: string;
+  selection_name: string; odds: number; bookmaker: string; estimated_probability: number;
+  confidence_score: number; reasoning: string; status: string; result: string | null;
+  fixture: { competition: string; commence_time: string; home_team: string; away_team: string; fixture_status: string } | null;
+};
 type AccountData = {
   account: { id: string; email: string | null; display_name: string; avatar_url: string | null };
   verified_phones: string[];
@@ -51,6 +57,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [account, setAccount] = useState<AccountData | null>(null);
+  const [predictions, setPredictions] = useState<PremiumPrediction[]>([]);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -79,16 +86,40 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
 
   const accountRequest = useCallback(async (path: string, method = "GET", body?: unknown) => {
     if (!session?.access_token) throw new Error("Sign in to continue.");
-    const response = await fetch(path, { method, headers: { Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const send = (token: string) => fetch(path, {
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) })
+    });
+    let response = await send(session.access_token);
+    if (response.status === 401 && session.refresh_token && config) {
+      try {
+        const refreshed = await authRequest("/auth/v1/token?grant_type=refresh_token", "POST", { refresh_token: session.refresh_token }) as unknown as AuthSession;
+        if (!refreshed.access_token) throw new Error("Session expired.");
+        writeSession(refreshed);
+        setSession(refreshed);
+        response = await send(refreshed.access_token);
+      } catch {
+        writeSession(null);
+        setSession(null);
+        throw new Error("Your sign-in session expired. Please sign in again.");
+      }
+    }
     const data = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) throw new Error(String(data.error || "Could not load your Premium account."));
     return data;
-  }, [session]);
+  }, [session, config, authRequest]);
 
   const loadAccount = useCallback(async () => {
     if (!session?.access_token) { setAccount(null); return; }
     const data = await accountRequest("/api/premium/account/me") as unknown as AccountData;
     setAccount(data);
+    if (data.entitlement.is_premium) {
+      const premiumData = await accountRequest("/api/premium/account/predictions") as { predictions?: PremiumPrediction[] };
+      setPredictions(premiumData.predictions || []);
+    } else {
+      setPredictions([]);
+    }
     if (!displayName && data.account.display_name) setDisplayName(data.account.display_name);
     if (!phone && data.verified_phones[0]) setPhone(data.verified_phones[0]);
   }, [accountRequest, session, phone, displayName]);
@@ -205,7 +236,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
       const response = await fetch(config.supabase_url + "/rest/v1/profiles?id=eq." + encodeURIComponent(account.account.id), {
         method: "PATCH",
         headers: { apikey: config.supabase_anon_key, Authorization: "Bearer " + session.access_token, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ display_name: displayName.trim() || null, updated_at: new Date().toISOString() })
+        body: JSON.stringify({ display_name: displayName.trim() || null })
       });
       if (!response.ok) throw new Error("Could not update your account profile.");
       setNotice("Your profile has been updated.");
@@ -300,6 +331,16 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
         <button className="button button-secondary" disabled={busy} onClick={saveProfile}>Save profile</button>
       </div>
       {account?.entitlement.is_premium ? <div className="premium-account-entitlement"><div><span className="eyebrow">SUBSCRIPTION ACTIVE</span><h3><Crown size={19}/> Premium access is active</h3><p>Access remains active until {new Date(account.entitlement.expires_at!).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}. Renew any time with a new M-PESA prompt.</p></div><span className="premium-account-status">ACTIVE</span></div> : <div className="premium-account-entitlement is-inactive"><div><span className="eyebrow">SUBSCRIPTION</span><h3>Premium is not active</h3><p>Choose a plan below and approve the M-PESA prompt to unlock Premium.</p></div><span className="premium-account-status">FREE</span></div>}
+      {account?.entitlement.is_premium && <div className="premium-account-card premium-predictions-card">
+        <div className="premium-predictions-heading"><div><h3><Crown size={17}/> Premium predictions</h3><p>Separate Premium research. Each published pick is checked against real bookmaker odds and fixture evidence.</p></div><span>{predictions.length} picks</span></div>
+        {!predictions.length ? <div className="premium-predictions-empty">No Premium picks have passed today's evidence and price checks yet. We never publish a forced selection.</div> :
+          <div className="premium-predictions-list">{predictions.map(pick => <article key={pick.id}>
+            <div className="premium-prediction-fixture"><small>{pick.fixture?.competition || "Football"} · {pick.fixture?.commence_time ? new Date(pick.fixture.commence_time).toLocaleString("en-KE", { timeZone: "Africa/Nairobi", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : pick.publication_date}</small><strong>{pick.fixture?.home_team || "Home"} vs {pick.fixture?.away_team || "Away"}</strong></div>
+            <div className="premium-prediction-selection"><span>{pick.market_name}</span><strong>{pick.selection_name}</strong></div>
+            <div className="premium-prediction-metrics"><span><small>Odds</small><strong>{Number(pick.odds).toFixed(2)}</strong></span><span><small>Model estimate</small><strong>{Number(pick.estimated_probability).toFixed(1)}%</strong></span><span><small>Confidence</small><strong>{Number(pick.confidence_score).toFixed(0)}%</strong></span><span><small>Result</small><strong>{pick.result ? pick.result.toUpperCase() : "PENDING"}</strong></span></div>
+            <p>{pick.reasoning}</p><small className="premium-prediction-bookmaker">Price source: {pick.bookmaker}</small>
+          </article>)}</div>}
+      </div>}
       <div className="premium-account-columns">
         <div className="premium-account-card">
           <h3><Smartphone size={17}/> Verified M-PESA number</h3>
@@ -321,6 +362,11 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
           <small>The Till number is selected securely by AccaForge. You only approve the prompt on your phone. Renewals are customer-initiated; no recurring deductions are enabled.</small>
         </div>
       </div>
+      {config?.support_whatsapp && <div className="premium-account-card premium-support-card">
+        <h3><Smartphone size={17}/> Premium customer support</h3>
+        <p>Need help with a payment, receipt or subscription? Message the AccaForge team on WhatsApp.</p>
+        <a className="button button-secondary" href={"https://wa.me/" + config.support_whatsapp + "?text=" + encodeURIComponent("Hello AccaForge, I need help with my Premium account.")} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+      </div>}
       <div className="premium-account-card premium-billing-card">
         <h3><Activity size={17}/> Billing history</h3>
         {!account?.payments.length ? <p>No payments recorded on this account yet.</p> : <div className="premium-billing-list">{account.payments.map(payment => <article key={payment.id}>
