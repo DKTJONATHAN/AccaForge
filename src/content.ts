@@ -152,7 +152,7 @@ export async function cacheSportsArtwork(env: ContentEnv) {
   let leaguesCached = 0;
   const cacheImage = async (sourceUrl: string, folder: "teams" | "leagues") => {
     const response = await fetch(sourceUrl, {
-      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.eu.cc)" },
+      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.co.ke)" },
       signal: AbortSignal.timeout(12000)
     });
     if (!response.ok) throw new Error("Artwork download returned HTTP " + response.status);

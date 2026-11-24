@@ -78,7 +78,7 @@ async function sportsDb(path, params) {
   for (let attempt = 0; attempt < 3; attempt++) {
     requestCount++;
     const response = await fetch(url, {
-      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.eu.cc)" },
+      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.co.ke)" },
       signal: AbortSignal.timeout(20000)
     });
     if (response.status === 429) {
