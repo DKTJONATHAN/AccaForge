@@ -1,7 +1,6 @@
-import {isAutoSettleableMarket} from "./settlement.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import {settleSelection,calculateEdition} from "./settlement.mjs";
+import {settleSelection,calculateEdition,isAutoSettleableMarket,hasUnverifiedExtraTime} from "./settlement.mjs";
 const row=(market_key,selection_name,market_name="")=>({market_key,selection_name,market_name,home_team:"Arsenal",away_team:"Chelsea"});
 test("settles match result including draw",()=>{
  assert.equal(settleSelection(row("h2h","Arsenal"),2,0).outcome,"WON");
@@ -19,6 +18,8 @@ test("settles half-goal totals and pushes whole-goal totals",()=>{
 });
 test("settles double chance and draw no bet",()=>{
  assert.equal(settleSelection(row("double_chance","1X"),1,1).outcome,"WON");
+ assert.equal(settleSelection(row("double_chance","Home or Draw"),1,0).outcome,"WON");
+ assert.equal(settleSelection(row("double_chance","Draw or Away"),1,0).outcome,"LOST");
  assert.equal(settleSelection(row("double_chance","12"),0,0).outcome,"LOST");
  assert.equal(settleSelection(row("draw_no_bet","Arsenal"),1,1).outcome,"VOID");
 });
@@ -47,7 +48,13 @@ test("PASS rows do not count as accumulator legs",()=>{
  assert.equal(result.legs,1);assert.equal(result.pass,1);assert.equal(result.outcome,"WON");
 });
 
-test("market allowlist excludes handicap and team-total markets that are not safely settled",()=>{
+test("market allowlist excludes markets without automatic settlement",()=>{
  for(const key of ["spreads","alternate_spreads","team_totals","alternate_team_totals","spreads_h1"])assert.equal(isAutoSettleableMarket(key),false);
  for(const key of ["h2h","totals","alternate_totals","btts","double_chance","draw_no_bet"])assert.equal(isAutoSettleableMarket(key),true);
+});
+
+test("cup scores without regulation-time breakdown stay pending",()=>{
+ assert.equal(hasUnverifiedExtraTime("soccer_england_fa_cup"),true);
+ assert.equal(settleSelection({...row("h2h","Arsenal"),sport_key:"soccer_uefa_champions_league"},2,0).outcome,"PENDING");
+ assert.equal(hasUnverifiedExtraTime("soccer_england_premier_league"),false);
 });
