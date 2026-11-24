@@ -1157,3 +1157,59 @@ html,body,.app{background:var(--page)}
   .premium-plan-option{padding:14px}
   .premium-plan-price strong{font-size:22px}
 }
+
+
+/* Premium account and billing experience */
+.premium-legacy-notice,.premium-account-intro,.premium-account-toolbar,.premium-account-entitlement,.premium-account-user,.premium-account-alert,.premium-account-waiting{display:flex;align-items:center;gap:14px}
+.premium-legacy-notice{margin:20px 0;padding:17px 20px;border:1px solid #d7e7dc;border-radius:14px;background:#f0f8f2;color:#17452f}
+.premium-legacy-notice p,.premium-legacy-notice small{display:block;margin:4px 0 0;color:#486456}
+.premium-account-panel{margin:24px 0 50px;padding:clamp(18px,3vw,30px);border:1px solid #dce6df;border-radius:18px;background:#fff;box-shadow:0 12px 34px rgba(15,35,52,.055)}
+.premium-account-intro{justify-content:space-between;padding-bottom:20px;border-bottom:1px solid #e6ede8}
+.premium-account-intro h2{margin:5px 0;font-size:27px}
+.premium-account-intro p{margin:0;color:#647267;max-width:72ch}
+.premium-account-loading{display:flex;align-items:center;gap:10px;padding:25px;color:#486456}
+.premium-account-alert{margin:16px 0;padding:12px 14px;border-radius:10px;font-size:13px}
+.premium-account-alert.is-error{background:#fff1f0;color:#9c2f27;border:1px solid #f3d0cc}
+.premium-account-alert.is-notice{background:#eff8f2;color:#1d6942;border:1px solid #d5e8dc}
+.premium-auth-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,.95fr);gap:24px;padding-top:22px}
+.premium-auth-card,.premium-auth-benefits,.premium-account-card{padding:20px;border:1px solid #e0e8e2;border-radius:14px;background:#fbfdfb}
+.premium-auth-tabs{display:flex;gap:8px;margin-bottom:18px}
+.premium-auth-tabs button{padding:9px 14px;border:1px solid #dbe5de;border-radius:8px;background:#fff;color:#465568;font-weight:600;cursor:pointer}
+.premium-auth-tabs button.active{background:#eaf5ed;border-color:#8dbda0;color:#075f3a}
+.premium-auth-card label{display:flex;flex-direction:column;gap:7px;margin:13px 0;color:#31473a;font-size:13px;font-weight:600}
+.premium-auth-card label svg{display:inline}
+.premium-auth-card input,.premium-account-field input,.premium-account-field select,.premium-account-otp input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #d5dfd8;border-radius:8px;background:#fff;color:#152231;font:inherit}
+.premium-account-action{width:100%;margin-top:10px;gap:9px}
+.premium-auth-divider{display:flex;align-items:center;gap:12px;margin:17px 0;color:#849087;font-size:11px}
+.premium-auth-divider:before,.premium-auth-divider:after{content:"";height:1px;flex:1;background:#e1e8e3}
+.google-mark{display:inline-grid;place-items:center;width:19px;height:19px;border:1px solid #dce4de;border-radius:50%;background:#fff;color:#4285f4;font-weight:800}
+.premium-auth-benefits h3{margin:4px 0 10px;color:#173b29}
+.premium-auth-benefits p,.premium-auth-benefits li{color:#627267;font-size:13px}
+.premium-auth-benefits ul{display:grid;gap:13px;padding:0;margin:22px 0 0;list-style:none}
+.premium-auth-benefits li{display:flex;align-items:center;gap:9px}
+.premium-account-toolbar{justify-content:space-between;padding:18px 0}
+.premium-account-user{color:#43564a;font-weight:600}
+.premium-account-toolbar .text-link,.premium-account-card .text-link,.premium-billing-list .text-link{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:#075f3a;font:600 12px inherit;cursor:pointer}
+.premium-account-entitlement{justify-content:space-between;margin:8px 0 20px;padding:17px 19px;border:1px solid #cde5d4;border-radius:13px;background:#f0f8f2}
+.premium-account-entitlement.is-inactive{border-color:#e0e6e1;background:#f8faf8}
+.premium-account-entitlement h3{display:flex;align-items:center;gap:8px;margin:5px 0;color:#17452f}
+.premium-account-entitlement p{margin:4px 0 0;color:#627267;font-size:13px}
+.premium-account-status{padding:6px 10px;border-radius:999px;background:#d9f0df;color:#17643d;font-size:10px;font-weight:800;letter-spacing:.06em}
+.is-inactive .premium-account-status{background:#e9eeea;color:#65736a}
+.premium-account-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.premium-account-card h3{display:flex;align-items:center;gap:8px;margin:0 0 13px;color:#173b29}
+.premium-account-card p{color:#66756a;font-size:13px}
+.premium-account-field{display:flex;flex-direction:column;gap:7px;margin:14px 0;color:#344b3c;font-size:12px;font-weight:600}
+.premium-account-otp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:10px 0 14px}
+.premium-account-otp .button{white-space:nowrap}
+.premium-account-card small{display:block;margin-top:12px;color:#77847b;font-size:11px;line-height:1.6}
+.premium-account-waiting{margin-top:13px;color:#41634d;font-size:12px}
+.premium-billing-card{margin-top:17px}
+.premium-billing-list article{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:13px 0;border-top:1px solid #e5ece7}
+.premium-billing-list article:first-child{border-top:0}
+.premium-billing-list article strong,.premium-billing-list article small{display:block}
+.premium-billing-list article small{margin-top:3px}
+.premium-billing-status{font-size:10px;font-weight:800;text-transform:uppercase;color:#68776d}
+.premium-billing-status.status-success{color:#167043}
+.premium-billing-status.status-failed,.premium-billing-status.status-cancelled,.premium-billing-status.status-timeout{color:#a13b32}
+@media(max-width:760px){.premium-auth-grid,.premium-account-columns{grid-template-columns:1fr}.premium-account-panel{padding:16px}.premium-account-intro{align-items:flex-start}.premium-account-intro>svg{flex:0 0 auto}.premium-account-toolbar{align-items:flex-start}.premium-billing-list article{grid-template-columns:minmax(0,1fr) auto}.premium-billing-list .text-link{grid-column:1/-1;justify-self:start}.premium-account-otp{grid-template-columns:1fr}.premium-legacy-notice{align-items:flex-start;padding:14px}.premium-account-entitlement{align-items:flex-start}.premium-account-status{flex:0 0 auto}}
