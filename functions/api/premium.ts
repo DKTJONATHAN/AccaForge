@@ -36,6 +36,7 @@ interface Payment {
   expires_at: string | null;
   result_code?: number | null;
   result_desc?: string | null;
+  user_id?: string | null;
 }
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), {
   status,
@@ -80,7 +81,7 @@ async function fetchPlan(env: PremiumEnv, id: string): Promise<Plan | null> {
   return rows[0] || null;
 }
 async function fetchPayment(env: PremiumEnv, checkoutId: string): Promise<Payment | null> {
-  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&select=status,member_phone,plan_id,amount_ksh,poll_token_hash,session_token,expires_at,result_code,result_desc`);
+  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&select=status,member_phone,plan_id,amount_ksh,poll_token_hash,session_token,expires_at,result_code,result_desc,user_id`);
   if (!res.ok) throw new Error("Could not load payment.");
   const rows = await res.json() as Payment[];
   return rows[0] || null;
@@ -129,7 +130,8 @@ async function verifyAndActivate(
   // let the authenticated browser verification path complete settlement.
   if (callback && callback.resultCode !== 0) return;
 
-  const res = await supabaseFetch(env, "/rest/v1/rpc/finalize_premium_payment", {
+  const settlementRpc = payment.user_id ? "finalize_account_premium_payment" : "finalize_premium_payment";
+  const res = await supabaseFetch(env, `/rest/v1/rpc/${settlementRpc}`, {
     method: "POST",
     body: JSON.stringify({
       p_checkout_request_id: checkoutId,
