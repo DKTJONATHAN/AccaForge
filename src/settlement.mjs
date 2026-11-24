@@ -1,5 +1,6 @@
 export function hasUnverifiedExtraTime(sportKey){return /(?:_cup|cup_|champions_league|europa_league|conference_league|world_cup|nations_league|european_championship|copa|coppa|pokal|beker|coupe|super_cup)/i.test(String(sportKey||""));}
-export function isAutoSettleableMarket(key){return new Set(["h2h","moneyline","match_winner","btts","both_teams_to_score","totals","alternate_totals","double_chance","draw_no_bet"]).has(String(key||"").toLowerCase());}
+const AUTO_SETTLEABLE_MARKETS=new Set(["h2h","moneyline","match_winner","btts","both_teams_to_score","totals","alternate_totals","double_chance","draw_no_bet"]);
+export function isAutoSettleableMarket(key){return AUTO_SETTLEABLE_MARKETS.has(String(key||"").toLowerCase());}
 export function settleSelection(row,home,away){
  const market=String(row.market_key||"").toLowerCase();
  const pick=String(row.selection_name||"").trim();
