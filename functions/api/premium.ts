@@ -43,16 +43,12 @@ const supabaseFetch = (env: PremiumEnv, path: string, options: RequestInit = {})
   // New sb_secret_* keys are opaque API keys, not JWTs. They must be sent
   // only through apikey; putting one in Authorization makes Supabase reject
   // the request as an invalid JWT. Keep Bearer auth for legacy service_role JWTs.
-  const authHeaders = apiKey.startsWith("sb_secret_") ? {} : { Authorization: `Bearer ${apiKey}` };
-  return fetch(`${env.SUPABASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: apiKey,
-      ...authHeaders,
-      ...options.headers,
-    },
-  });
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+  headers.set("apikey", apiKey);
+  if (apiKey.startsWith("sb_secret_")) headers.delete("Authorization");
+  else headers.set("Authorization", `Bearer ${apiKey}`);
+  return fetch(`${env.SUPABASE_URL}${path}`, { ...options, headers });
 };
 const darajaEnv = (env: PremiumEnv): DarajaEnv => ({
   DARAJA_CONSUMER_KEY: env.DARAJA_CONSUMER_KEY,
