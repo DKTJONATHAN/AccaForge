@@ -1,7 +1,7 @@
-import React, {useEffect,useMemo,useState} from "react";
+import React, {useCallback,useEffect,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3} from "lucide-react";
-import type {Acca,AccasResponse,ProductType,Selection} from "./types";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Lock,Phone,Sparkles,Loader2,AlertCircle,CheckCircle2} from "lucide-react";
+import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo,PremiumStatus} from "./types";
 
 const products:[ProductType,string,string,string][]=[
  ["safe_picks","10-Leg Accumulator","10 legs · 1.20–1.50 each · all 10 must win","/safe-picks"],
@@ -67,18 +67,80 @@ async function loadAccas():Promise<AccasResponse>{
  if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
 }
+async function loadPlans():Promise<SubscriptionPlan[]>{
+ const response=await fetch("/api/premium/plans");
+ if(!response.ok)return [];
+ const data=await response.json() as {plans:SubscriptionPlan[]};
+ return data.plans||[];
+}
+async function loadMember(token:string):Promise<MemberInfo|null>{
+ const response=await fetch("/api/premium/me",{headers:{Authorization:`Bearer ${token}`}});
+ if(!response.ok)return null;
+ const data=await response.json() as {member:MemberInfo|null};
+ return data.member;
+}
+async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;message:string}>{
+ const response=await fetch("/api/premium/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,plan_id:planId})});
+ const data=await response.json();
+ if(!response.ok)throw new Error(data.error||"Could not start the payment.");
+ return data;
+}
+async function pollPaymentStatus(checkoutRequestId:string):Promise<PremiumStatus>{
+ const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId));
+ const data=await response.json();
+ if(!response.ok)throw new Error(data.error||"Could not check payment status.");
+ return data;
+}
+function getPremiumToken():string|null{
+ try{return localStorage.getItem("accaforge-premium-token");}catch{return null;}
+}
+function setPremiumToken(token:string){try{localStorage.setItem("accaforge-premium-token",token);}catch{}}
+function clearPremiumToken(){try{localStorage.removeItem("accaforge-premium-token");}catch{}}
+function usePremiumMember(){
+ const [member,setMember]=useState<MemberInfo|null>(null);
+ const [loading,setLoading]=useState(true);
+ useEffect(()=>{
+  const token=getPremiumToken();
+  if(!token){setLoading(false);return;}
+  loadMember(token).then(m=>{setMember(m);setLoading(false);}).catch(()=>setLoading(false));
+  const interval=setInterval(()=>{
+   const t=getPremiumToken();if(!t){setMember(null);return;}
+   loadMember(t).then(setMember).catch(()=>{});
+  },60000);
+  return()=>clearInterval(interval);
+ },[]);
+  const refresh=useCallback(()=>{
+  const token=getPremiumToken();if(!token){setMember(null);return;}
+  loadMember(token).then(setMember).catch(()=>{});
+ },[]);
+  return{member,loading,refresh};
+}
+function PremiumBadge({member}:{member:MemberInfo|null}){
+ if(!member||!member.is_premium)return null;
+ return <span className="premium-badge"><Crown size={13}/> Premium</span>;
+}
+function LockedContent({onUpgrade,message}:{onUpgrade:()=>void;message?:string}){
+ return <div className="premium-locked">
+  <div className="premium-locked-inner">
+   <div className="premium-locked-icon"><Lock size={28}/></div>
+   <h3>{message||"Premium content"}</h3>
+   <p>This section is available to AccaForge Premium subscribers. Unlock full fixture breakdowns, deeper analysis and the extended archive.</p>
+   <button className="button button-primary" onClick={onUpgrade}><Crown size={15}/> Go Premium</button>
+  </div>
+ </div>;
+}
 function PageHeading({title,description,aside}:{title:string;description:string;aside?:React.ReactNode}){
  return <div className="page-heading"><div><span className="eyebrow">ACCAFORGE · FOOTBALL ANALYSIS</span><h1>{title}</h1><p>{description}</p></div>{aside&&<div className="page-heading-aside">{aside}</div>}</div>;
 }
 function SiteHeader({pathname}:{pathname:string}){
  const [menuOpen,setMenuOpen]=useState(false);
- const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/results","Results"],["/track-record","Track record"],["/competitions","Competitions"],["/guides","Guides"]];
+ const links=[["/","Home"],["/daily","Daily board"],["/recent","Recent editions"],["/results","Results"],["/track-record","Track record"],["/competitions","Competitions"],["/guides","Guides"],["/premium","Premium"]]
  return <>
   <header className="site-header">
    <a className="brand" href="/" aria-label="AccaForge home"><img className="brand-logo" src="/logo%20(4).png" alt="AccaForge"/></a>
    <nav className="desktop-nav" aria-label="Main navigation">{links.map(([href,label])=><a key={href} className={pathname===href?"nav-active":""} href={href}>{label}</a>)}</nav>
    <button className="icon-button mobile-menu-button" onClick={()=>setMenuOpen(value=>!value)} aria-label="Toggle navigation menu" aria-expanded={menuOpen}>{menuOpen?<X size={19}/>:<Menu size={19}/>}</button>
-   {menuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation">{links.map(([href,label])=><a key={href} href={href} onClick={()=>setMenuOpen(false)}>{label}</a>)}<a href="/responsible-gambling" onClick={()=>setMenuOpen(false)}>Responsible play</a></nav>}
+    {menuOpen&&<nav className="mobile-menu" aria-label="Mobile navigation">{links.map(([href,label])=><a key={href} href={href} onClick={()=>setMenuOpen(false)}>{label}</a>)}<a href="/responsible-gambling" onClick={()=>setMenuOpen(false)}>Responsible play</a></nav>}
   </header>
   <nav className="mobile-dock" aria-label="Main mobile navigation">
    <a className={pathname==="/"?"active":""} href="/"><Home size={18}/><span>Home</span></a>
@@ -163,6 +225,123 @@ function FormatGuide({type}:{type:ProductType}){
 function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
+}
+function PremiumPage({pathname,member,memberLoading,refreshMember}:{pathname:string;member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
+ const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
+ const [phone,setPhone]=useState("");
+ const [selectedPlan,setSelectedPlan]=useState<string>("");
+ const [status,setStatus]=useState<"idle"|"initiating"|"waiting"|"checking"|"success"|"error">("idle");
+ const [error,setError]=useState<string|null>(null);
+ const [checkoutId,setCheckoutId]=useState<string|null>(null);
+ useEffect(()=>{if(plans&&plans.length&&!selectedPlan)setSelectedPlan(plans[0].id);},[plans,selectedPlan]);
+
+ useEffect(()=>{
+  if(status!=="waiting"||!checkoutId)return;
+  let cancelled=false;
+  const poll=async()=>{
+   try{
+    const result=await pollPaymentStatus(checkoutId);
+    if(cancelled)return;
+    if(result.status==="success"&&result.session_token){
+     setPremiumToken(result.session_token);
+     setStatus("success");
+     refreshMember();
+     return;
+    }
+    if(result.status==="failed"||result.status==="cancelled"){
+     setError(result.status==="cancelled"?"Payment was cancelled. You can try again.":"Payment failed. Please try again.");
+     setStatus("error");
+     return;
+    }
+   }catch{ /* keep polling */ }
+  };
+  const interval=setInterval(poll,4000);
+  poll();
+  return()=>{cancelled=true;clearInterval(interval);};
+ },[status,checkoutId,refreshMember]);
+
+ const handleSubmit=async()=>{
+  setError(null);
+  if(!phone.trim()){setError("Please enter your Safaricom phone number.");return;}
+  if(!selectedPlan){setError("Please select a plan.");return;}
+  setStatus("initiating");
+  try{
+   const result=await initiateSubscription(phone.trim(),selectedPlan);
+   setCheckoutId(result.checkout_request_id);
+   setStatus("waiting");
+  }catch(err){
+   setError(err instanceof Error?err.message:"Could not start the payment. Please try again.");
+   setStatus("error");
+  }
+ };
+
+ if(memberLoading){
+  return <main className="page-shell premium-page"><PageHeading title="AccaForge Premium" description="Unlock full fixture breakdowns, deeper analysis and the extended archive."/><div className="state-panel"><span className="loader"/><p>Loading…</p></div></main>;
+ }
+
+ if(member&&member.is_premium){
+  const expiry=member.expires_at?new Date(member.expires_at).toLocaleDateString("en-KE",{day:"numeric",month:"long",year:"numeric"}):null;
+  return <main className="page-shell premium-page">
+   <PageHeading title="AccaForge Premium" description="Your subscription is active. Enjoy full access to every edition."/>
+   <section className="premium-active-card">
+    <div className="premium-active-header"><div className="premium-active-icon"><Crown size={32}/></div><div><span className="eyebrow">PREMIUM MEMBER</span><h2>You have full access</h2></div></div>
+    <div className="premium-active-details">
+     <div><span>Phone</span><strong>{member.phone}</strong></div>
+     <div><span>Status</span><strong className="premium-status-active">Active</strong></div>
+     {expiry&&<div><span>Expires</span><strong>{expiry}</strong></div>}
+    </div>
+    <div className="premium-active-actions">
+     <a className="button button-primary" href="/daily">Browse daily editions <ArrowUpRight size={15}/></a>
+     <a className="text-link" href="/track-record">View track record <ArrowUpRight size={14}/></a>
+    </div>
+   </section>
+  </main>;
+ }
+
+ const activePlan=plans?.find(p=>p.id===selectedPlan);
+
+ return <main className="page-shell premium-page">
+  <PageHeading title="AccaForge Premium" description="Unlock every daily edition with full fixture breakdowns, deeper analysis notes and the extended archive."/>
+  <section className="premium-hero-section">
+   <div className="premium-hero-inner">
+    <span className="eyebrow">PREMIUM PACKAGE</span>
+    <h2>Get more from every match day</h2>
+    <p>AccaForge Premium gives you full access to all four daily formats with complete fixture details, market breakdowns, individual prices and edition analysis notes. Pay once with M-Pesa and unlock 30 days of premium football analysis.</p>
+    <div className="premium-features-grid">
+     <article><Sparkles size={20}/><h3>All daily formats</h3><p>Safe Picks, Super 5, Super 10 and the All-Matches Challenge with full details.</p></article>
+     <article><BarChart3 size={20}/><h3>Deep analysis</h3><p>Read the edition notes and reasoning behind each published selection.</p></article>
+     <article><CalendarRange size={20}/><h3>Extended archive</h3><p>Browse recent editions beyond the standard three-day window.</p></article>
+     <article><Target size={20}/><h3>Track record</h3><p>Review the full recorded performance history by format and market.</p></article>
+    </div>
+   </div>
+  </section>
+  <section className="premium-pay-section">
+   <div className="premium-pay-card">
+    <div className="premium-pay-header"><Crown size={22}/><h3>Choose your plan</h3></div>
+    {plansLoading?<div className="premium-plan-loading"><Loader2 size={20} className="animate-spin"/> Loading plans…</div>:plans&&plans.length?<>
+     <div className="premium-plan-options">
+      {plans.map(plan=><label key={plan.id} className={"premium-plan-option "+(selectedPlan===plan.id?"selected":"")}>
+       <input type="radio" name="plan" value={plan.id} checked={selectedPlan===plan.id} onChange={()=>setSelectedPlan(plan.id)}/>
+       <div className="premium-plan-info"><strong>{plan.name}</strong><small>{plan.duration_days} days access</small></div>
+       <div className="premium-plan-price"><span>Ksh</span><strong>{plan.price_ksh}</strong></div>
+      </label>)}
+     </div>
+     {activePlan&&<div className="premium-plan-features"><strong>What you get:</strong><ul>{activePlan.features.map((f,i)=><li key={i}><Check size={14}/>{f}</li>)}</ul></div>}
+     <div className="premium-phone-input">
+      <label htmlFor="premium-phone"><Phone size={15}/> M-Pesa phone number</label>
+      <input id="premium-phone" type="tel" inputMode="tel" placeholder="0712345678" value={phone} onChange={e=>setPhone(e.target.value)} disabled={status==="initiating"||status==="waiting"} autoComplete="tel"/>
+      <small>Enter your Safaricom number. You will receive an M-Pesa payment prompt on your phone.</small>
+     </div>
+     {error&&<div className="premium-error"><AlertCircle size={16}/><span>{error}</span></div>}
+     {status==="waiting"&&<div className="premium-waiting"><div className="premium-waiting-icon"><Loader2 size={28} className="animate-spin"/></div><div><strong>Check your phone</strong><p>An M-Pesa payment prompt has been sent. Enter your PIN to complete the subscription. This page will update automatically when payment is confirmed.</p></div></div>}
+     {status==="success"&&<div className="premium-success"><CheckCircle2 size={28}/><div><strong>Payment successful!</strong><p>Your Premium subscription is now active. You have full access to all editions.</p></div></div>}
+     {status!=="waiting"&&status!=="success"&&<button className="button button-primary premium-pay-button" onClick={handleSubmit} disabled={status==="initiating"}>{status==="initiating"?<><Loader2 size={16} className="animate-spin"/> Sending prompt…</>:<><Crown size={16}/> Pay Ksh {activePlan?.price_ksh||""} with M-Pesa</>}</button>}
+     {status==="success"&&<a className="button button-primary premium-pay-button" href="/daily">Start browsing editions <ArrowUpRight size={15}/></a>}
+    </>:<div className="premium-no-plans"><p>Plans are being configured. Please check back shortly.</p></div>}
+    <div className="premium-trust"><ShieldCheck size={14}/><span>Payments are processed securely by Safaricom M-Pesa. Your phone number is used only for payment and subscription management.</span></div>
+   </div>
+  </section>
+ </main>;
 }
 export default function App({initialData,initialContent,initialResults,initialTrackRecord,todayLabel,pathname="/"}:{initialData?:AccasResponse;initialContent?:SiteContent;initialResults?:ResultsPayload;initialTrackRecord?:TrackRecordPayload;todayLabel?:string;pathname?:string}){
  void React;

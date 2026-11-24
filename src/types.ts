@@ -10,3 +10,25 @@ export interface Acca {
  analysis_note:string; publish_date:string; created_at:string; product_type:ProductType; selections:Selection[];
 }
 export interface AccasResponse { accas:Acca[]; updatedAt:string|null; error?:string }
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price_ksh: number;
+  duration_days: number;
+  description: string;
+  features: string[];
+}
+
+export interface MemberInfo {
+  phone: string;
+  status: string;
+  expires_at: string;
+  is_premium: boolean;
+}
+
+export interface PremiumStatus {
+  status: string;
+  session_token: string | null;
+  expires_at: string | null;
+}
