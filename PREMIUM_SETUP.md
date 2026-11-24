@@ -19,7 +19,7 @@ Add these under **Repository → Settings → Secrets and variables → Actions 
 
 **Important:** `PREMIUM_API_KEY1` through `PREMIUM_API_KEY5` must contain Groq credentials. They are a separate pool and do not replace or rename the existing public-edition `GEMINI_API_KEY*` secrets (which continue to contain the public workflows' Groq credentials).
 
-The Supabase publishable key is public and is bundled as the default browser Auth key. An optional Cloudflare Worker variable/secret named `SUPABASE_ANON_KEY` can override it when rotating the public key. Never put the service-role key in frontend code.
+Add a Cloudflare Worker variable named `PREMIUM_SUPPORT_WHATSAPP` containing the support WhatsApp number in international digits-only format (for example, country code followed by subscriber number, without `+`). The account dashboard shows the WhatsApp support link only when this variable is configured.\n\nThe Supabase publishable key is public and is bundled as the default browser Auth key. An optional Cloudflare Worker variable/secret named `SUPABASE_ANON_KEY` can override it when rotating the public key. Never put the service-role key in frontend code.
 
 ## Football data provider
 
