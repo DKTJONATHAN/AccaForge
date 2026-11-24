@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertCircle, ArrowUpRight, CheckCircle2, Clock3, Crown, Download, KeyRound, Loader2, LogIn, LogOut, Mail, Phone, ShieldCheck, Smartphone, UserRound, UserPlus } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle2, Clock3, Crown, Download, KeyRound, Loader2, LogIn, LogOut, Mail, ShieldCheck, Smartphone, UserRound, UserPlus } from "lucide-react";
 import type { SubscriptionPlan } from "./types";
 
 type AuthConfig = { supabase_url: string; supabase_anon_key: string };
@@ -91,20 +91,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
     if (!phone && data.verified_phones[0]) setPhone(data.verified_phones[0]);
   }, [accountRequest, session, phone]);
 
-  const refreshAuth = useCallback(async (current: AuthSession) => {
-    try {
-      const user = await authRequest("/auth/v1/user", "GET", undefined, current.access_token);
-      if (user && typeof user === "object") return current;
-    } catch {
-      if (!current.refresh_token) { writeSession(null); return null; }
-      try {
-        const refreshed = await authRequest("/auth/v1/token?grant_type=refresh_token", "POST", { refresh_token: current.refresh_token }) as unknown as AuthSession;
-        if (refreshed.access_token) { writeSession(refreshed); return refreshed; }
-      } catch { /* session expired */ }
-      writeSession(null);
-    }
-    return null;
-  }, [authRequest]);
+
 
   useEffect(() => {
     let active = true;
@@ -131,15 +118,25 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
         } else {
           const saved = readSession();
           if (saved) {
-            const valid = await refreshAuth(saved);
-            if (active) setSession(valid);
+            const check = await fetch(cfg.supabase_url + "/auth/v1/user", { headers: { apikey: cfg.supabase_anon_key, Authorization: "Bearer " + saved.access_token } });
+            if (check.ok) {
+              if (active) setSession(saved);
+            } else if (saved.refresh_token) {
+              const refreshed = await fetch(cfg.supabase_url + "/auth/v1/token?grant_type=refresh_token", {
+                method: "POST", headers: { apikey: cfg.supabase_anon_key, "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: saved.refresh_token })
+              });
+              const next = await refreshed.json() as AuthSession;
+              if (refreshed.ok && next.access_token) { writeSession(next); if (active) setSession(next); }
+              else { writeSession(null); if (active) setSession(null); }
+            } else { writeSession(null); if (active) setSession(null); }
           }
         }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "Authentication could not be initialized."); }
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, [refreshAuth]);
+  }, []);
 
   useEffect(() => {
     if (!session?.access_token) { setAccount(null); return; }
@@ -194,7 +191,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
       const challenge = await makeChallenge(verifier);
       const redirect = window.location.origin + "/premium";
       const target = new URL(config.supabase_url + "/auth/v1/authorize");
-      target.searchParams.set("provider", "google"); target.searchParams.set("redirect_to", redirect);
+      target.searchParams.set("provider", "google"); target.searchParams.set("redirect_to", redirect); target.searchParams.set("apikey", config.supabase_anon_key);
       target.searchParams.set("code_challenge", challenge); target.searchParams.set("code_challenge_method", "s256");
       window.location.assign(target.toString());
     } catch (e) { setBusy(false); setError(e instanceof Error ? e.message : "Google sign-in could not start."); }
