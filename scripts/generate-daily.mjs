@@ -421,9 +421,9 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=[
     "Return JSON only: {\"all_matches\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"fixtures\":[{\"event_id\":\"...\",\"status\":\"PICK\",\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
-    "Independently assess every fixture and return exactly one decision per fixture: PICK only when a specific supplied market is genuinely defensible, otherwise PASS. Do not force a bet to achieve coverage. Do not prefer or prohibit a market merely because of its name (including Over 0.5 or Under 0.5); choose the market that the evidence supports. Never select a market solely because it is available or has the highest raw probability.",
+    "Independently assess every fixture and return exactly one decision per fixture. A publishable edition requires a defensible priced PICK for every fixture. If even one fixture has no defensible market, return PASS for that fixture and the entire edition will be withheld. Never force a bet, substitute an arbitrary market, or publish a partial slate. Do not prefer or prohibit a market merely because of its name (including Over 0.5 or Under 0.5); choose only the market that the evidence supports. Never select a market solely because it is available or has the highest raw probability.",
     "For every PICK, provide a concrete rationale of at least 40 characters that identifies the selected market and explains why it is supported by the supplied de-vigged consensus probability, price edge, bookmaker coverage and relevant verified match research. Explicitly address meaningful risks or uncertainty. Do not invent statistics or claim research that is marked unverified. Give a calibrated probability estimate consistent with the supplied market evidence. For every PASS, explain why no supplied market meets the evidence standard.",
-    "Return JSON fixture objects with status PICK or PASS, candidate_id and probability for PICK, and a specific note for both statuses. No generic boilerplate, automatic market substitution, or deterministic fallback is allowed.",
+    "Return JSON fixture objects with status PICK or PASS, candidate_id and probability for PICK, and a specific note for both statuses. PASS is a hard edition-level veto: the validator will reject the complete edition if any fixture is PASS. No generic boilerplate, automatic market substitution, partial publishing, or deterministic fallback is allowed.",
     "Fixtures:",JSON.stringify(batch.map(x=>({event_id:x.id,home_team:x.home_team,away_team:x.away_team,commence_time:x.commence_time}))),
     ...common,"Candidate rows:",JSON.stringify(batchRows)
    ].join("\n\n");
@@ -548,8 +548,8 @@ function validateProducts(result,candidates,events,onlyType=null){
    if(picked.note.length<40)throw new Error("Every published All-Matches pick needs a specific evidence-based rationale.");
    return [picked];
   });
-  if(!allSelections.length)throw new Error("AI passed every fixture; no All-Matches edition will be published.");
-  return {product_type:"all_matches",target:allSelections.length,actual:Number(allSelections.reduce((total,item)=>total*item.odds,1).toFixed(4)),headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Only independently assessed, evidence-justified markets are included. Fixtures without a defensible selection are passed.",selections:allSelections};
+  if(allSelections.length!==events.length)throw new Error("All-Matches edition withheld: every eligible fixture must have exactly one defensible priced selection.");
+  return {product_type:"all_matches",target:allSelections.length,actual:Number(allSelections.reduce((total,item)=>total*item.odds,1).toFixed(4)),headline:cleanText(result.all_matches.headline,100)||"All-Matches Challenge",analysis_note:cleanText(result.all_matches.analysis_note,400)||"Every eligible fixture has one independently assessed, evidence-justified priced market selection.",selections:allSelections};
  });
 
  return products;
