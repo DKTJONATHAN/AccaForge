@@ -25,7 +25,7 @@ async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<S
  return null;
 }
 function yesterdayNairobi(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(parts+"T12:00:00Z");date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
-function scoreMap(event:ScoreEvent){const scores=event.scores||[];const home=Number(scores.find(item=>item.name===event.home_team)?.score);const away=Number(scores.find(item=>item.name===event.away_team)?.score);return Number.isFinite(home)&&Number.isFinite(away)?{home,away}:null;}
+function scoreMap(event:ScoreEvent){const scores=event.scores||[];const homeValue=scores.find(item=>item.name===event.home_team)?.score;const awayValue=scores.find(item=>item.name===event.away_team)?.score;if(homeValue===null||homeValue===undefined||awayValue===null||awayValue===undefined)return null;const home=Number(homeValue),away=Number(awayValue);return Number.isInteger(home)&&Number.isInteger(away)&&home>=0&&away>=0?{home,away}:null;}
 
 async function recalculateEdition(env:ResultsEnv,accaId:string){
  const rows=(await env.DB.prepare("SELECT selection_status,selection_name,outcome,odds FROM result_selections WHERE acca_id=? ORDER BY selection_id").bind(accaId).all()).results||[];
