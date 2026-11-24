@@ -81,21 +81,22 @@ async function loadMember(token:string):Promise<MemberInfo|null>{
 }
 async function initiateSubscription(phone:string,planId:string):Promise<{checkout_request_id:string;message:string}>{
  const response=await fetch("/api/premium/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone,plan_id:planId})});
- const data=await response.json();
+ const data=await response.json() as {checkout_request_id?:string;message?:string;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not start the payment.");
- return data;
+ if(!data.checkout_request_id)throw new Error("Payment provider did not return a checkout reference.");
+ return {checkout_request_id:data.checkout_request_id,message:data.message||"Payment prompt sent."};
 }
 async function pollPaymentStatus(checkoutRequestId:string):Promise<PremiumStatus>{
  const response=await fetch("/api/premium/status/"+encodeURIComponent(checkoutRequestId));
- const data=await response.json();
+ const data=await response.json() as {status?:string;session_token?:string|null;expires_at?:string|null;error?:string};
  if(!response.ok)throw new Error(data.error||"Could not check payment status.");
- return data;
+ if(!data.status)throw new Error("Payment status response was incomplete.");
+ return {status:data.status,session_token:data.session_token||null,expires_at:data.expires_at||null};
 }
 function getPremiumToken():string|null{
  try{return localStorage.getItem("accaforge-premium-token");}catch{return null;}
 }
 function setPremiumToken(token:string){try{localStorage.setItem("accaforge-premium-token",token);}catch{}}
-function clearPremiumToken(){try{localStorage.removeItem("accaforge-premium-token");}catch{}}
 function usePremiumMember(){
  const [member,setMember]=useState<MemberInfo|null>(null);
  const [loading,setLoading]=useState(true);
@@ -114,20 +115,6 @@ function usePremiumMember(){
   loadMember(token).then(setMember).catch(()=>{});
  },[]);
   return{member,loading,refresh};
-}
-function PremiumBadge({member}:{member:MemberInfo|null}){
- if(!member||!member.is_premium)return null;
- return <span className="premium-badge"><Crown size={13}/> Premium</span>;
-}
-function LockedContent({onUpgrade,message}:{onUpgrade:()=>void;message?:string}){
- return <div className="premium-locked">
-  <div className="premium-locked-inner">
-   <div className="premium-locked-icon"><Lock size={28}/></div>
-   <h3>{message||"Premium content"}</h3>
-   <p>This section is available to AccaForge Premium subscribers. Unlock full fixture breakdowns, deeper analysis and the extended archive.</p>
-   <button className="button button-primary" onClick={onUpgrade}><Crown size={15}/> Go Premium</button>
-  </div>
- </div>;
 }
 function PageHeading({title,description,aside}:{title:string;description:string;aside?:React.ReactNode}){
  return <div className="page-heading"><div><span className="eyebrow">ACCAFORGE · FOOTBALL ANALYSIS</span><h1>{title}</h1><p>{description}</p></div>{aside&&<div className="page-heading-aside">{aside}</div>}</div>;
@@ -226,7 +213,7 @@ function ProductCard({type,acca}:{type:ProductType;acca?:Acca}){
  const product=products.find(item=>item[0]===type)!;
  return <a className="product-row" href={product[3]}><span className="product-row-main"><strong>{product[1]}</strong><small>{product[2]}</small></span><span className="product-row-result">{acca?(type==="all_matches"?acca.selections.length+" fixtures":acca.actual_odds.toFixed(2)+" odds"):"No edition published"}</span><ArrowUpRight size={17}/></a>;
 }
-function PremiumPage({pathname,member,memberLoading,refreshMember}:{pathname:string;member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
+function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
  const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
  const [phone,setPhone]=useState("");
  const [selectedPlan,setSelectedPlan]=useState<string>("");
@@ -484,7 +471,7 @@ export default function App({initialData,initialContent,initialResults,initialTr
   const editionSummary=trackData?.editions.summary;
   page=<main className="page-shell results-page"><PageHeading title="AccaForge track record" description={trackData?.coverage.firstDate&&trackData?.coverage.lastDate?"Recorded selections from "+dateLabel(trackData.coverage.firstDate)+" to "+dateLabel(trackData.coverage.lastDate)+". This reflects the history currently available in our results database.":"Historical performance is calculated from recorded and settled selections."} aside={<span className="updated"><BarChart3 size={15}/>Recorded performance</span>}/>{trackLoading?<div className="state-panel"><span className="loader"/><p>Loading recorded performance…</p></div>:trackError?<div className="state-panel"><h2>Track record temporarily unavailable</h2><button className="button button-secondary" onClick={()=>refetchTrack()}>Try again</button></div>:<>{summary&&summary.settled>0?<><div className="results-summary"><div><strong>{summary.settled}</strong><span>Settled picks</span></div><div className="result-won"><strong>{summary.won}</strong><span>Won</span></div><div className="result-lost"><strong>{summary.lost}</strong><span>Lost</span></div><div><strong>{accuracy===null?"—":accuracy.toFixed(1)+"%"}</strong><span>Strike rate</span></div><div><strong>{pct(summary.roi)}</strong><span>Flat-stake ROI</span></div></div><section className="results-group"><div className="section-heading"><div><h2>Accumulator edition performance</h2><p>Each published accumulator counts once. Every active leg must win; void legs are removed from the combined odds.</p></div></div>{editionSummary&&<div className="results-summary"><div><strong>{editionSummary.total}</strong><span>Recorded editions</span></div><div className="result-won"><strong>{editionSummary.won}</strong><span>Won</span></div><div className="result-lost"><strong>{editionSummary.lost}</strong><span>Lost</span></div><div><strong>{editionSummary.void}</strong><span>Void</span></div><div className="result-pending"><strong>{editionSummary.pending}</strong><span>Pending</span></div></div>}{renderTrackRows(trackData?.editions.byFormat||[])}</section><section className="results-group"><div className="section-heading"><div><h2>Performance by format</h2><p>Only settled wins and losses contribute to strike rate and ROI.</p></div></div>{renderTrackRows(trackData?.byFormat||[])}</section><section className="results-group"><div className="section-heading"><div><h2>Performance by market</h2><p>Market groups are shown only where recorded selections exist.</p></div></div>{renderTrackRows(trackData?.byMarket||[])}</section><section className="results-group"><div className="section-heading"><div><h2>Monthly record</h2><p>Recorded outcomes grouped by publication month.</p></div></div>{renderTrackRows(trackData?.byMonth||[])}</section></>:<div className="state-panel"><Trophy size={27}/><h2>Not enough settled history yet</h2><p>We will display performance once the results database contains settled selections. No historical figures are estimated or filled in.</p></div>}<section className="results-group"><div className="section-heading"><div><h2>How the figures are calculated</h2><p>Flat-stake accounting for transparent comparison.</p></div></div><div className="panel"><p><strong>Stake assumption:</strong> 1 unit per selection.</p><p><strong>Profit:</strong> a win earns odds minus 1 unit; a loss loses 1 unit.</p><p><strong>ROI:</strong> net profit divided by the number of settled wins and losses. Voids, pending selections and PASS rows are excluded from the denominator.</p><p><strong>Strike rate:</strong> wins divided by wins plus losses. It is not a measure of profitability by itself.</p><p>{trackData?.methodology.scope||"Only selections present in the results database are included. The displayed date range is the available recorded history, not a claim of complete lifetime coverage."}</p><p>See <a href="/results">yesterday’s results</a> for the latest daily settlement breakdown.</p></div></section></>}</main>;
  }else if(pathname==="/premium"){
-  page=<PremiumPage pathname={pathname} member={premiumMember} memberLoading={premiumLoading} refreshMember={refreshPremiumMember}/>;
+  page=<PremiumPage member={premiumMember} memberLoading={premiumLoading} refreshMember={refreshPremiumMember}/>;
  }else if(pathname==="/competitions"){
   const featured=leagueDirectory.filter(item=>competitionProfiles[item.key]).slice(0,4);
   const profileFor=(key:string)=>competitionProfiles[key]||{region:"ADDITIONAL COVERAGE",intro:"This competition is included when eligible fixtures, reliable market information and supporting match details are available.",focus:"Opponent quality, current team availability, home and away performance, relevant scoring and defensive indicators, tactical match-ups and the listed price.",seasonLens:"We avoid filling gaps with assumptions. Where a standings table or fixture evidence is unavailable, the page makes that limitation clear."};
