@@ -31,4 +31,6 @@ export interface PremiumStatus {
   status: string;
   session_token: string | null;
   expires_at: string | null;
+  result_code?: number | null;
+  result_desc?: string | null;
 }
