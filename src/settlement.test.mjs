@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {settleSelection,calculateEdition,isAutoSettleableMarket} from "./settlement.mjs";
+import {settleSelection,calculateEdition,isAutoSettleableMarket,hasUnverifiedExtraTime} from "./settlement.mjs";
 const row=(market_key,selection_name,market_name="")=>({market_key,selection_name,market_name,home_team:"Arsenal",away_team:"Chelsea"});
 test("settles match result including draw",()=>{
  assert.equal(settleSelection(row("h2h","Arsenal"),2,0).outcome,"WON");
@@ -51,4 +51,10 @@ test("PASS rows do not count as accumulator legs",()=>{
 test("market allowlist excludes markets without automatic settlement",()=>{
  for(const key of ["spreads","alternate_spreads","team_totals","alternate_team_totals","spreads_h1"])assert.equal(isAutoSettleableMarket(key),false);
  for(const key of ["h2h","totals","alternate_totals","btts","double_chance","draw_no_bet"])assert.equal(isAutoSettleableMarket(key),true);
+});
+
+test("cup scores without regulation-time breakdown stay pending",()=>{
+ assert.equal(hasUnverifiedExtraTime("soccer_england_fa_cup"),true);
+ assert.equal(settleSelection({...row("h2h","Arsenal"),sport_key:"soccer_uefa_champions_league"},2,0).outcome,"PENDING");
+ assert.equal(hasUnverifiedExtraTime("soccer_england_premier_league"),false);
 });
