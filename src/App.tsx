@@ -1,4 +1,5 @@
 import React, {useCallback,useEffect,useMemo,useState} from "react";
+import PremiumAccountPanel from "./premium-account";
 import {useQuery} from "@tanstack/react-query";
 import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Phone,Sparkles,Loader2,AlertCircle,CheckCircle2} from "lucide-react";
 import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo,PremiumStatus} from "./types";
@@ -225,131 +226,26 @@ const PREMIUM_PACKAGE_PREVIEW:SubscriptionPlan[]=[
 ];
 function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|null;memberLoading:boolean;refreshMember:()=>void}){
  const {data:plans,isLoading:plansLoading}=useQuery({queryKey:["premium-plans"],queryFn:loadPlans,staleTime:300000});
- const packageOptions=plans?.length?plans:PREMIUM_PACKAGE_PREVIEW;
- const [phone,setPhone]=useState("");
- const [selectedPlan,setSelectedPlan]=useState<string>("");
- const checkoutReady=!!plans?.some(plan=>plan.id===selectedPlan);
- const [status,setStatus]=useState<"idle"|"initiating"|"waiting"|"checking"|"success"|"error">("idle");
- const [error,setError]=useState<string|null>(null);
- const [checkoutId,setCheckoutId]=useState<string|null>(null);
- const [pollToken,setPollToken]=useState<string|null>(null);
- useEffect(()=>{if(packageOptions.length&&!selectedPlan)setSelectedPlan(packageOptions[0].id);},[packageOptions,selectedPlan]);
-
- useEffect(()=>{
-  if(status!=="waiting"||!checkoutId||!pollToken)return;
-  let cancelled=false;
-  const poll=async()=>{
-   try{
-    const result=await pollPaymentStatus(checkoutId,pollToken);
-    if(cancelled)return;
-    if(result.status==="success"&&result.session_token){
-     setPremiumToken(result.session_token);
-     setStatus("success");
-     refreshMember();
-     return;
-    }
-    if(result.status==="failed"||result.status==="cancelled"||result.status==="timeout"){
-     const providerMessage=result.result_desc||"";
-     const message=/insufficient|not enough.{0,20}balance|low balance/i.test(providerMessage)
-      ?"Your M-PESA balance is insufficient to complete this payment. Please top up your M-PESA account and try again."
-      :result.status==="cancelled"?"You cancelled the M-PESA payment. You can try again."
-      :result.status==="timeout"?"The M-PESA payment request timed out. Please try again."
-      :providerMessage||"M-PESA could not complete the payment. Please try again.";
-     setError(message);
-     setStatus("error");
-     return;
-    }
-   }catch{ /* keep polling */ }
-  };
-  const interval=setInterval(poll,7000);
-  poll();
-  return()=>{cancelled=true;clearInterval(interval);};
- },[status,checkoutId,pollToken,refreshMember]);
-
- const handleSubmit=async()=>{
-  setError(null);
-  if(!phone.trim()){setError("Please enter your Safaricom phone number.");return;}
-  if(!selectedPlan){setError("Please select a plan.");return;}
-  if(!checkoutReady){setError("These packages are visible now, but checkout is waiting for the Premium database setup to be completed.");return;}
-  setStatus("initiating");
-  try{
-   const result=await initiateSubscription(phone.trim(),selectedPlan);
-   setCheckoutId(result.checkout_request_id);
-   setPollToken(result.poll_token);
-   setStatus("waiting");
-  }catch(err){
-   setError(err instanceof Error?err.message:"Could not start the payment. Please try again.");
-   setStatus("error");
-  }
- };
-
  if(memberLoading){
-  return <main className="page-shell premium-page"><PageHeading title="AccaForge Premium" description="Unlock full fixture breakdowns, deeper analysis and the extended archive."/><div className="state-panel"><span className="loader"/><p>Loading…</p></div></main>;
+  return <main className="page-shell premium-page"><PageHeading title="AccaForge Premium" description="Unlock dedicated Premium football analysis and manage your subscription."/><div className="state-panel"><span className="loader"/><p>Loading…</p></div></main>;
  }
-
- if(member&&member.is_premium){
-  const expiry=member.expires_at?new Date(member.expires_at).toLocaleDateString("en-KE",{day:"numeric",month:"long",year:"numeric"}):null;
-  return <main className="page-shell premium-page">
-   <PageHeading title="AccaForge Premium" description="Your subscription is active. Enjoy full access to every edition."/>
-   <section className="premium-active-card">
-    <div className="premium-active-header"><div className="premium-active-icon"><Crown size={32}/></div><div><span className="eyebrow">PREMIUM MEMBER</span><h2>You have full access</h2></div></div>
-    <div className="premium-active-details">
-     <div><span>Phone</span><strong>{member.phone}</strong></div>
-     <div><span>Status</span><strong className="premium-status-active">Active</strong></div>
-     {expiry&&<div><span>Expires</span><strong>{expiry}</strong></div>}
-    </div>
-    <div className="premium-active-actions">
-     <a className="button button-primary" href="/daily">Browse daily editions <ArrowUpRight size={15}/></a>
-     <a className="text-link" href="/track-record">View track record <ArrowUpRight size={14}/></a>
-    </div>
-   </section>
-  </main>;
- }
-
- const activePlan=packageOptions.find(p=>p.id===selectedPlan);
-
  return <main className="page-shell premium-page">
-  <PageHeading title="AccaForge Premium" description="Unlock every daily edition with full fixture breakdowns, deeper analysis notes and the extended archive."/>
+  <PageHeading title="AccaForge Premium" description="Dedicated Premium predictions, deeper match research and a secure account for your subscription."/>
+  {member?.is_premium&&<section className="premium-legacy-notice"><Crown size={20}/><div><strong>Your existing Premium access is still active.</strong><p>Sign in or create an account below, verify the phone number used for your existing subscription, and link it without purchasing again.</p><small>Legacy access expiry: {member.expires_at?new Date(member.expires_at).toLocaleDateString("en-KE",{day:"numeric",month:"long",year:"numeric"}):"Active"}</small></div></section>}
   <section className="premium-hero-section">
    <div className="premium-hero-inner">
-    <span className="eyebrow">PREMIUM PACKAGE</span>
-    <h2>Get more from every match day</h2>
-    <p>AccaForge Premium gives you full access to all four daily formats with complete fixture details, market breakdowns, individual prices and edition analysis notes. Choose a 30-day, 90-day or 365-day package and pay securely with M-Pesa.</p>
+    <span className="eyebrow">ACCAFORGE PREMIUM</span>
+    <h2>Research built for the details that matter</h2>
+    <p>Premium is a separate football prediction product with its own fixture research, market validation and publication process. Public daily editions remain available without an account.</p>
     <div className="premium-features-grid">
-     <article><Sparkles size={20}/><h3>All daily formats</h3><p>Safe Picks, Super 5, Super 10 and the All-Matches Challenge with full details.</p></article>
-     <article><BarChart3 size={20}/><h3>Deep analysis</h3><p>Read the edition notes and reasoning behind each published selection.</p></article>
-     <article><CalendarRange size={20}/><h3>Extended archive</h3><p>Browse recent editions beyond the standard three-day window.</p></article>
-     <article><Target size={20}/><h3>Track record</h3><p>Review the full recorded performance history by format and market.</p></article>
+     <article><Sparkles size={20}/><h3>Dedicated predictions</h3><p>Premium selections are researched and published separately from the public editions.</p></article>
+     <article><BarChart3 size={20}/><h3>Evidence-led analysis</h3><p>Market choices must be supported by fixture-specific evidence and price validation.</p></article>
+     <article><CalendarRange size={20}/><h3>Account access</h3><p>Recover your subscription across browsers and devices with one secure account.</p></article>
+     <article><ShieldCheck size={20}/><h3>Transparent billing</h3><p>Review payment status, M-PESA receipts, plan details and expiry dates.</p></article>
     </div>
    </div>
   </section>
-  <section className="premium-pay-section">
-   <div className="premium-pay-card">
-    <div className="premium-pay-header"><Crown size={22}/><h3>Choose your plan</h3></div>
-    {plansLoading?<div className="premium-plan-loading"><Loader2 size={20} className="animate-spin"/> Loading plans…</div>:packageOptions.length?<>
-     <div className="premium-plan-options">
-      {packageOptions.map(plan=><label key={plan.id} className={"premium-plan-option "+(selectedPlan===plan.id?"selected":"")+(plan.id==="preview-quarterly"?" premium-plan-popular":"")}>
-       <input type="radio" name="plan" value={plan.id} checked={selectedPlan===plan.id} onChange={()=>setSelectedPlan(plan.id)}/>
-       <div className="premium-plan-info"><strong>{plan.name}</strong><small>{plan.duration_days} days access</small>{plan.id==="preview-quarterly"&&<small className="premium-plan-value-label">SAVE KSH 198</small>}{plan.id==="preview-annual"&&<small className="premium-plan-value-label">BEST VALUE · SAVE KSH 1,489</small>}</div>
-       <div className="premium-plan-price"><span>Ksh</span><strong>{plan.price_ksh}</strong></div>
-      </label>)}
-     </div>
-     {activePlan&&<div className="premium-plan-features"><strong>What you get:</strong><ul>{activePlan.features.map((f,i)=><li key={i}><Check size={14}/>{f}</li>)}</ul></div>}
-     {!checkoutReady&&<div className="premium-error premium-setup-notice"><ShieldCheck size={16}/><span>Packages are now displayed. M-Pesa checkout will activate after the Premium database migration is connected.</span></div>}
-     <div className="premium-phone-input">
-      <label htmlFor="premium-phone"><Phone size={15}/> M-Pesa phone number</label>
-      <input id="premium-phone" type="tel" inputMode="tel" placeholder="0712345678" value={phone} onChange={e=>setPhone(e.target.value)} disabled={status==="initiating"||status==="waiting"} autoComplete="tel"/>
-      <small>Enter your Safaricom number. You will receive an M-Pesa payment prompt on your phone.</small>
-     </div>
-     {error&&<div className="premium-error"><AlertCircle size={16}/><span>{error}</span></div>}
-     {status==="waiting"&&<div className="premium-waiting"><div className="premium-waiting-icon"><Loader2 size={28} className="animate-spin"/></div><div><strong>Check your phone</strong><p>An M-Pesa payment prompt has been sent. Enter your PIN to complete the subscription. This page will update automatically when payment is confirmed.</p></div></div>}
-     {status==="success"&&<div className="premium-success"><CheckCircle2 size={28}/><div><strong>Payment successful!</strong><p>Your Premium subscription is now active. You have full access to all editions.</p></div></div>}
-     {status!=="waiting"&&status!=="success"&&<button className="button button-primary premium-pay-button" onClick={handleSubmit} disabled={status==="initiating"||!checkoutReady}>{status==="initiating"?<><Loader2 size={16} className="animate-spin"/> Sending prompt…</>:!checkoutReady?<><ShieldCheck size={16}/> M-Pesa checkout coming online</>:<><Crown size={16}/> Pay Ksh {activePlan?.price_ksh||""} with M-Pesa</>}</button>}
-     {status==="success"&&<a className="button button-primary premium-pay-button" href="/daily">Start browsing editions <ArrowUpRight size={15}/></a>}
-    </>:<div className="premium-no-plans"><p>Plans are being configured. Please check back shortly.</p></div>}
-    <div className="premium-trust"><ShieldCheck size={14}/><span>Payments are processed securely by Safaricom M-Pesa. Your phone number is used only for payment and subscription management.</span></div>
-   </div>
-  </section>
+  <PremiumAccountPanel plans={plans||[]} plansLoading={plansLoading}/>
  </main>;
 }
 export default function App({initialData,initialContent,initialResults,initialTrackRecord,todayLabel,pathname="/"}:{initialData?:AccasResponse;initialContent?:SiteContent;initialResults?:ResultsPayload;initialTrackRecord?:TrackRecordPayload;todayLabel?:string;pathname?:string}){
