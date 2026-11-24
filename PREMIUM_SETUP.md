@@ -19,7 +19,19 @@ Add these under **Repository → Settings → Secrets and variables → Actions 
 
 **Important:** `PREMIUM_API_KEY1` through `PREMIUM_API_KEY5` must contain Groq credentials. They are a separate pool and do not replace or rename the existing public-edition `GEMINI_API_KEY*` secrets (which continue to contain the public workflows' Groq credentials).
 
-Add a Cloudflare Worker variable named `PREMIUM_SUPPORT_WHATSAPP` containing the support WhatsApp number in international digits-only format (for example, country code followed by subscriber number, without `+`). The account dashboard shows the WhatsApp support link only when this variable is configured.\n\nThe Supabase publishable key is public and is bundled as the default browser Auth key. An optional Cloudflare Worker variable/secret named `SUPABASE_ANON_KEY` can override it when rotating the public key. Never put the service-role key in frontend code.
+Add a Cloudflare Worker variable named `PREMIUM_SUPPORT_WHATSAPP` containing the support WhatsApp number in international digits-only format (for example, country code followed by subscriber number, without `+`). The account dashboard shows the WhatsApp support link only when this variable is configured.\n\n## Cloudflare Worker configuration
+
+Confirm these bindings exist in the production Worker environment:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only secret; never expose it to browser code)
+- Existing Daraja secrets: `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE`, `DARAJA_TILL_NUMBER`, `DARAJA_PASSKEY`, `DARAJA_CALLBACK_URL`, and `DARAJA_ENV=production`
+- Optional public variable `SUPABASE_ANON_KEY` if you need to override the publishable key bundled with the app
+- `PREMIUM_SUPPORT_WHATSAPP` for the account-dashboard WhatsApp support link
+
+The STK checkout uses the configured Buy Goods Till. Customers do not need to know or enter the Till number; they receive the Safaricom prompt and approve it with their PIN.
+
+The Supabase publishable key is public and is bundled as the default browser Auth key. An optional Cloudflare Worker variable/secret named `SUPABASE_ANON_KEY` can override it when rotating the public key. Never put the service-role key in frontend code.
 
 ## Football data provider
 
