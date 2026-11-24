@@ -1,7 +1,7 @@
 import React, {useCallback,useEffect,useMemo,useState} from "react";
 import PremiumAccountPanel from "./premium-account";
 import {useQuery} from "@tanstack/react-query";
-import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Phone,Sparkles,Loader2,AlertCircle,CheckCircle2} from "lucide-react";
+import {Activity,ArrowUpRight,CalendarDays,Check,ChevronDown,Clock3,Home,Menu,ShieldCheck,Target,Trophy,X,CalendarRange,ClipboardCheck,BarChart3,Crown,Sparkles} from "lucide-react";
 import type {Acca,AccasResponse,ProductType,Selection,SubscriptionPlan,MemberInfo} from "./types";
 
 const products:[ProductType,string,string,string][]=[
