@@ -308,7 +308,7 @@ export default {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getHealth({ request, env });
     }
-    if (url.pathname === "/api/premium/preview" || url.pathname.startsWith("/api/premium/account/")) {
+    if (url.pathname === "/api/premium/preview" || url.pathname === "/api/premium/subscribe" || url.pathname.startsWith("/api/premium/account/")) {
       const premiumAccountEnv = env as unknown as Record<string,string>;
       const { onRequestGet: accountGet, onRequestPost: accountPost } = await import("../functions/api/premium-account");
       if (request.method === "GET" && accountGet) return accountGet({ request, env: premiumAccountEnv as unknown as Parameters<typeof accountGet>[0]["env"] });
