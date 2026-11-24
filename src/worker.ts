@@ -278,7 +278,6 @@ export default {
     }
     if (url.pathname.startsWith("/api/premium/")) {
       const premiumEnv = env as unknown as Record<string,string>;
-      const premiumRequest = request as Request & { env?: unknown };
       const { onRequestGet: premiumGet, onRequestPost: premiumPost } = await import("../functions/api/premium");
       if (request.method === "GET" && premiumGet) return premiumGet({ request, env: premiumEnv as unknown as Parameters<typeof premiumGet>[0]["env"] });
       if (request.method === "POST" && premiumPost) return premiumPost({ request, env: premiumEnv as unknown as Parameters<typeof premiumPost>[0]["env"] });
