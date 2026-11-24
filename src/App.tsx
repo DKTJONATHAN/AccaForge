@@ -63,7 +63,8 @@ const pct=(value:number|null)=>value===null?"—":(value>0?"+":"")+value.toFixed
 const unit=(value:number)=>((value>0?"+":"")+value.toFixed(2)+" units");
 
 async function loadAccas():Promise<AccasResponse>{
- const response=await fetch("/api/accas?days=3");
+ const token=getPremiumToken();
+ const response=await fetch("/api/accas?days=3",token?{headers:{Authorization:`Bearer ${token}`}}:{});
  if(!response.ok)throw new Error("Could not load the latest football editions.");
  return response.json();
 }
