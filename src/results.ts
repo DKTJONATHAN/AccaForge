@@ -36,7 +36,7 @@ async function recalculateEdition(env:ResultsEnv,accaId:string){
  await env.DB.prepare(sql).bind(accaId,meta.product_type,meta.headline,meta.publish_date,edition.legs,edition.won,edition.lost,edition.void,edition.pending,edition.pass,edition.outcome,edition.effectiveOdds,edition.profit,edition.note,edition.outcome).run();
 }
 async function syncEditionResults(env:ResultsEnv){
- const editions=(await env.DB.prepare("SELECT DISTINCT acca_id FROM result_selections").all()).results||[];
+ const editions=(await env.DB.prepare("SELECT DISTINCT r.acca_id FROM result_selections r LEFT JOIN edition_results e ON e.acca_id=r.acca_id WHERE e.acca_id IS NULL").all()).results||[];
  for(const edition of editions)await recalculateEdition(env,edition.acca_id);
 }
 export async function refreshYesterdayResults(env:ResultsEnv){
