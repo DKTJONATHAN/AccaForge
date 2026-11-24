@@ -11,6 +11,7 @@ const products:[ProductType,string,string,string][]=[
 ];
 const productLabel=(type:ProductType)=>products.find(item=>item[0]===type)?.[1]||"Football picks";
 const productPath=(type:ProductType)=>products.find(item=>item[0]===type)?.[3]||"/daily";
+const displayEditionHeadline=(productType:ProductType,headline:string)=>productType==="safe_picks"?headline.replace(/Safe Picks/gi,"10-Leg Accumulator"):headline;
 const leagues=[
  {key:"soccer_epl",name:"Premier League",logo:"/media/premier-league.svg"},
  {key:"soccer_uefa_champs_league",name:"Champions League",logo:"/media/champions-league.svg"},
@@ -109,7 +110,7 @@ function AccaDetail({acca,badges,leagueBadges}:{acca:Acca;badges:Record<string,s
  return <article className="acca-detail">
   <div className="acca-topline"><span className="published"><i/> Published edition</span><span>{productLabel(acca.product_type)} · {dateLabel(acca.publish_date)}</span></div>
   <div className="acca-summary">
-   <div className="acca-summary-copy"><h2>{acca.headline}</h2><p>{acca.analysis_note}</p></div>
+   <div className="acca-summary-copy"><h2>{displayEditionHeadline(acca.product_type,acca.headline)}</h2><p>{acca.analysis_note}</p></div>
    <div className="combined-odds"><span>{isAll?"Fixtures listed":"Combined odds"}</span><strong>{isAll?acca.selections.length:acca.actual_odds.toFixed(2)}</strong><small>{isAll?"No fixtures skipped":acca.product_type==="super_5"?"5 legs · 1.50–2.00 each":acca.product_type==="super_10"?"10 legs · 1.50–2.00 each":"Target "+acca.target_odds.toFixed(2)}</small></div>
   </div>
   <div className="selection-heading"><span>{isAll?"Fixture coverage":"Match and selection details"}</span><span>{picks.length} picks · {isAll?"all fixtures covered":"all legs selected"}</span></div>
