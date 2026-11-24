@@ -22,6 +22,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Run unit tests (including result settlement)
+        run: npm test
+      - name: Check settlement and daily generator JavaScript syntax
+        run: node --check src/settlement.mjs && node --check scripts/refresh-results.mjs && node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs
       - name: Check daily generator JavaScript syntax
         run: node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs && node --check scripts/refresh-results.mjs
       - name: Validate SEO verification scripts
