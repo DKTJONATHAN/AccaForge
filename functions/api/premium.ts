@@ -34,6 +34,8 @@ interface Payment {
   poll_token_hash: string | null;
   session_token: string | null;
   expires_at: string | null;
+  result_code?: number | null;
+  result_desc?: string | null;
 }
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), {
   status,
@@ -78,7 +80,7 @@ async function fetchPlan(env: PremiumEnv, id: string): Promise<Plan | null> {
   return rows[0] || null;
 }
 async function fetchPayment(env: PremiumEnv, checkoutId: string): Promise<Payment | null> {
-  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&select=status,member_phone,plan_id,amount_ksh,poll_token_hash,session_token,expires_at`);
+  const res = await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&select=status,member_phone,plan_id,amount_ksh,poll_token_hash,session_token,expires_at,result_code,result_desc`);
   if (!res.ok) throw new Error("Could not load payment.");
   const rows = await res.json() as Payment[];
   return rows[0] || null;
@@ -106,7 +108,7 @@ async function verifyAndActivate(
   // When callback metadata is available, cross-check all three values against
   // the immutable STK intent. Without a callback, STK Query is still bound to
   // the checkout created with the stored amount and phone number.
-  if (callback && (callback.resultCode !== 0 || !callback.mpesaReceipt ||
+  if (callback?.resultCode === 0 && (!callback.mpesaReceipt ||
       callback.amount !== payment.amount_ksh ||
       normalizePhone(String(callback.phoneNumber || "")) !== payment.member_phone)) return;
   if (!callback && !pollToken) return;
@@ -123,6 +125,9 @@ async function verifyAndActivate(
     });
     return;
   }
+  // A failed callback alone cannot settle a payment. If STK Query reports success,
+  // let the authenticated browser verification path complete settlement.
+  if (callback && callback.resultCode !== 0) return;
 
   const res = await supabaseFetch(env, "/rest/v1/rpc/finalize_premium_payment", {
     method: "POST",
@@ -294,6 +299,8 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pr
       }
       return json({
         status: payment.status,
+        result_code: payment.result_code ?? null,
+        result_desc: payment.result_desc ?? null,
         session_token: payment.status === "success" ? payment.session_token : null,
         expires_at: payment.status === "success" ? payment.expires_at : null,
       });
