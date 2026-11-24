@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertCircle, CheckCircle2, Clock3, Crown, Download, KeyRound, Loader2, LogIn, LogOut, Mail, ShieldCheck, Smartphone, UserRound, UserPlus } from "lucide-react";
 import type { SubscriptionPlan } from "./types";
 
-type AuthConfig = { supabase_url: string; supabase_anon_key: string };
+type AuthConfig = { supabase_url: string; supabase_anon_key: string; support_whatsapp?: string };
 type AuthSession = { access_token: string; refresh_token: string; expires_at?: number; user?: { id: string; email?: string; phone?: string } };
 type PremiumPrediction = {
   id: string; publication_date: string; market_key: string; market_name: string;
@@ -362,6 +362,11 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
           <small>The Till number is selected securely by AccaForge. You only approve the prompt on your phone. Renewals are customer-initiated; no recurring deductions are enabled.</small>
         </div>
       </div>
+      {config?.support_whatsapp && <div className="premium-account-card premium-support-card">
+        <h3><Smartphone size={17}/> Premium customer support</h3>
+        <p>Need help with a payment, receipt or subscription? Message the AccaForge team on WhatsApp.</p>
+        <a className="button button-secondary" href={"https://wa.me/" + config.support_whatsapp + "?text=" + encodeURIComponent("Hello AccaForge, I need help with my Premium account.")} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+      </div>}
       <div className="premium-account-card premium-billing-card">
         <h3><Activity size={17}/> Billing history</h3>
         {!account?.payments.length ? <p>No payments recorded on this account yet.</p> : <div className="premium-billing-list">{account.payments.map(payment => <article key={payment.id}>
