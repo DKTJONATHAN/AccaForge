@@ -14,7 +14,7 @@ The free experience remains useful and transparent. Premium should feel like a m
 | Quarterly | **KSh 1,299 / 3 months** | About KSh 433 |
 | Annual | **KSh 4,499 / year** | About KSh 375 |
 
-These are pricing hypotheses for a Kenya-first launch, not researched market averages. Start with monthly and quarterly checkout; introduce annual billing only after retention and refund behaviour are understood. Test willingness to pay before treating these prices as final.
+These are target pricing hypotheses for a Kenya-first launch, not researched market averages. The current Supabase migration actually seeds an introductory **KSh 199 / 30-day** plan. Keep that as a clearly labelled limited beta offer if desired; align the database plan rows and checkout display before switching to the target prices above. Start with monthly and quarterly checkout; introduce annual billing only after retention and refund behaviour are understood. Test willingness to pay before treating any price as final.
 
 ## Premium feature bundle
 
