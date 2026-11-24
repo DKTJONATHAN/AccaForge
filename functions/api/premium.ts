@@ -20,6 +20,7 @@ interface PremiumEnv {
   DARAJA_CONSUMER_KEY: string;
   DARAJA_CONSUMER_SECRET: string;
   DARAJA_SHORTCODE: string;
+  DARAJA_TILL_NUMBER: string;
   DARAJA_PASSKEY: string;
   DARAJA_ENV: string;
   DARAJA_CALLBACK_URL: string;
@@ -161,7 +162,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
       const requiredConfig = [
         "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
         "DARAJA_CONSUMER_KEY", "DARAJA_CONSUMER_SECRET",
-        "DARAJA_SHORTCODE", "DARAJA_PASSKEY", "DARAJA_CALLBACK_URL",
+        "DARAJA_SHORTCODE", "DARAJA_TILL_NUMBER", "DARAJA_PASSKEY", "DARAJA_CALLBACK_URL",
       ] as const;
       const missingConfig = requiredConfig.filter((key) =>
         !String((env as unknown as Record<string, unknown>)[key] ?? "").trim()
@@ -198,6 +199,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: P
         accountReference: "AccaForge Premium",
         transactionDesc: `Premium subscription - ${plan.name}`,
         callbackUrl: env.DARAJA_CALLBACK_URL,
+        tillNumber: env.DARAJA_TILL_NUMBER,
       });
       if (!pushed.success || !pushed.checkoutRequestId) {
         console.error("Premium STK push rejected:", {
