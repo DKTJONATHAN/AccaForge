@@ -5,6 +5,7 @@ import {
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_ANON_KEY?: string;
   DARAJA_CONSUMER_KEY: string;
   DARAJA_CONSUMER_SECRET: string;
   DARAJA_SHORTCODE: string;
@@ -125,6 +126,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
 export const onRequestGet = async ({ request, env }: { request: Request; env: Env }) => {
   const path = new URL(request.url).pathname.replace(/\/$/, "");
   try {
+    if (path === "/api/premium/account/config") {
+      if (!env.SUPABASE_ANON_KEY?.trim()) return json({ error: "Supabase public Auth key is not configured." }, 503);
+      return json({ supabase_url: env.SUPABASE_URL, supabase_anon_key: env.SUPABASE_ANON_KEY });
+    }
     const user = await authenticate(request, env);
     if (!user) return json({ error: "Sign in to view your Premium account." }, 401);
     if (path === "/api/premium/account/me") {
