@@ -1213,3 +1213,23 @@ html,body,.app{background:var(--page)}
 .premium-billing-status.status-success{color:#167043}
 .premium-billing-status.status-failed,.premium-billing-status.status-cancelled,.premium-billing-status.status-timeout{color:#a13b32}
 @media(max-width:760px){.premium-auth-grid,.premium-account-columns{grid-template-columns:1fr}.premium-account-panel{padding:16px}.premium-account-intro{align-items:flex-start}.premium-account-intro>svg{flex:0 0 auto}.premium-account-toolbar{align-items:flex-start}.premium-billing-list article{grid-template-columns:minmax(0,1fr) auto}.premium-billing-list .text-link{grid-column:1/-1;justify-self:start}.premium-account-otp{grid-template-columns:1fr}.premium-legacy-notice{align-items:flex-start;padding:14px}.premium-account-entitlement{align-items:flex-start}.premium-account-status{flex:0 0 auto}}
+
+
+/* Public Premium preview: fixture context only, never selections or odds */
+.premium-home-preview{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;margin:28px 0 34px;padding:clamp(20px,3vw,30px);border:1px solid #cddfd2;border-radius:18px;background:linear-gradient(135deg,#f3faf5,#fff 72%);box-shadow:0 10px 28px rgba(12,58,34,.045)}
+.premium-home-preview-copy .eyebrow{display:inline-flex;align-items:center;gap:7px;color:#17643d;font-size:10px;font-weight:800;letter-spacing:.09em}
+.premium-home-preview-copy h2{margin:10px 0 8px;color:#102c1d;font-size:clamp(23px,3vw,31px);line-height:1.1}
+.premium-home-preview-copy p{margin:0 0 18px;color:#617268;font-size:13px;line-height:1.7}
+.premium-home-preview-copy .button{display:inline-flex;align-items:center;gap:7px}
+.premium-home-preview-list{display:grid;align-content:start;gap:9px}
+.premium-preview-fixture{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px 15px;border:1px solid #dfe9e2;border-radius:11px;background:rgba(255,255,255,.92)}
+.premium-preview-fixture>div{display:grid;gap:4px;min-width:0}
+.premium-preview-fixture small{color:#718078;font-size:10px}
+.premium-preview-fixture strong{color:#183626;font-size:13px}
+.premium-preview-fixture strong span{color:#849188;font-weight:500}
+.premium-preview-fixture em{color:#187246;font-size:10px;font-style:normal;font-weight:700}
+.premium-preview-fixture>svg{flex:0 0 auto;color:#47765a}
+.premium-preview-empty{display:flex;min-height:130px;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;border:1px dashed #cbdccf;border-radius:12px;color:#617268;text-align:center;font-size:12px}
+.premium-preview-empty strong{color:#1c412b;font-size:13px}
+.premium-preview-empty span{max-width:38ch}
+@media(max-width:760px){.premium-home-preview{grid-template-columns:1fr;gap:17px;margin:20px 0 26px;padding:17px;border-radius:14px}.premium-preview-fixture{padding:12px}.premium-preview-fixture strong{font-size:12px}}
