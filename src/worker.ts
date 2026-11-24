@@ -158,7 +158,7 @@ async function accumulatorPage(id:string,env:Env,origin:string){
 }
 
 async function matchPage(eventId:string,env:Env,origin:string){
-  const rows=(await env.DB.prepare("SELECT s.*,a.id AS edition_id,a.target_odds,a.actual_odds,a.publish_date,a.headline FROM selections s JOIN accas a ON a.id=s.acca_id WHERE s.event_id=? AND a.status='published' ORDER BY a.publish_date DESC,a.target_odds ASC").bind(eventId).all<MatchRow>()).results||[];
+  const rows=(await env.DB.prepare("SELECT s.*,a.id AS edition_id,a.product_type,a.target_odds,a.actual_odds,a.publish_date,a.headline FROM selections s JOIN accas a ON a.id=s.acca_id WHERE s.event_id=? AND a.status='published' ORDER BY a.publish_date DESC,a.target_odds ASC").bind(eventId).all<MatchRow>()).results||[];
   if(!rows.length)return renderPage({title:"Match page not found | AccaForge",description:"This match is not available in the current AccaForge published editions.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body:"<h1>Match page not found</h1><p>This fixture may have left the recent-editions archive. Visit the <a href='/'>latest AccaForge football tips</a> to explore current selections.</p>"},origin,404);
   const first=rows[0];
   const name=first.home_team+" vs "+first.away_team;
