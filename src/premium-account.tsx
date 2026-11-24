@@ -86,11 +86,29 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
 
   const accountRequest = useCallback(async (path: string, method = "GET", body?: unknown) => {
     if (!session?.access_token) throw new Error("Sign in to continue.");
-    const response = await fetch(path, { method, headers: { Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const send = (token: string) => fetch(path, {
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) })
+    });
+    let response = await send(session.access_token);
+    if (response.status === 401 && session.refresh_token && config) {
+      try {
+        const refreshed = await authRequest("/auth/v1/token?grant_type=refresh_token", "POST", { refresh_token: session.refresh_token }) as unknown as AuthSession;
+        if (!refreshed.access_token) throw new Error("Session expired.");
+        writeSession(refreshed);
+        setSession(refreshed);
+        response = await send(refreshed.access_token);
+      } catch {
+        writeSession(null);
+        setSession(null);
+        throw new Error("Your sign-in session expired. Please sign in again.");
+      }
+    }
     const data = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) throw new Error(String(data.error || "Could not load your Premium account."));
     return data;
-  }, [session]);
+  }, [session, config, authRequest]);
 
   const loadAccount = useCallback(async () => {
     if (!session?.access_token) { setAccount(null); return; }
