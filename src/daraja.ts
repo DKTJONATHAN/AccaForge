@@ -191,3 +191,55 @@ export function normalizePhone(input: string): string | null {
   if (!/^2547\d{8}$/.test(phone) && !/^2541\d{8}$/.test(phone)) return null;
   return phone;
 }
+
+
+export interface StkQueryResult {
+  responseCode?: string;
+  responseDescription?: string;
+  resultCode?: number;
+  resultDescription?: string;
+  checkoutRequestId?: string;
+  merchantRequestId?: string;
+}
+
+export async function queryStkStatus(
+  env: DarajaEnv,
+  accessToken: string,
+  checkoutRequestId: string,
+): Promise<StkQueryResult> {
+  const timestamp = timestampNow();
+  const password = generatePassword(env.DARAJA_SHORTCODE, env.DARAJA_PASSKEY, timestamp);
+  const response = await fetch(`${darajaBaseUrl(env)}/mpesa/stkpushquery/v1/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      BusinessShortCode: env.DARAJA_SHORTCODE,
+      Password: password,
+      Timestamp: timestamp,
+      CheckoutRequestID: checkoutRequestId,
+    }),
+  });
+  const data = await response.json().catch(() => ({})) as {
+    ResponseCode?: string;
+    ResponseDescription?: string;
+    ResultCode?: string | number;
+    ResultDesc?: string;
+    CheckoutRequestID?: string;
+    MerchantRequestID?: string;
+  };
+  if (!response.ok || data.ResponseCode !== "0") {
+    throw new Error(data.ResponseDescription || `Daraja STK query failed (${response.status})`);
+  }
+  const resultCode = data.ResultCode === undefined ? undefined : Number(data.ResultCode);
+  return {
+    responseCode: data.ResponseCode,
+    responseDescription: data.ResponseDescription,
+    resultCode: Number.isFinite(resultCode) ? resultCode : undefined,
+    resultDescription: data.ResultDesc,
+    checkoutRequestId: data.CheckoutRequestID,
+    merchantRequestId: data.MerchantRequestID,
+  };
+}
