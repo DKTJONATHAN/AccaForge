@@ -205,6 +205,7 @@ async function renderHome(request:Request,env:Env){
     "/results":{title:"Yesterday’s Football Prediction Results | AccaForge",description:"Review football selections published yesterday, with available final scores and clearly separated wins, losses, voids and pending outcomes.",keywords:"football prediction results, football tips results, accumulator results, previous day football selections"},
     "/track-record":{title:"AccaForge Football Track Record | Results & ROI",description:"Review AccaForge recorded football selections, settled results, strike rate and flat-stake return calculations with clear coverage dates and methodology.",keywords:"AccaForge track record, football predictions results, football tips ROI, accumulator results history"},
     "/competitions":{title:"Football League Predictions & Competition Guides | AccaForge",description:"Explore football competitions covered by AccaForge, including Premier League, Champions League, La Liga, Bundesliga and Serie A.",keywords:"football league predictions, Premier League predictions, Champions League tips, La Liga predictions, Bundesliga tips"},
+    "/premium":{title:"AccaForge Premium | Full Football Editions & Analysis | M-Pesa",description:"Unlock all AccaForge daily editions with full fixture breakdowns, deeper analysis and the extended archive. Pay with M-Pesa. 18+ only.",keywords:"AccaForge premium, football predictions premium, M-Pesa football analysis, premium football tips Kenya"},
     "/safe-picks":{title:"High-Confidence Football 10-Leg Accumulator Today | AccaForge",description:"Explore AccaForge 10-Leg Accumulator: ten distinct fixtures selected using strict filters, match data and match research and market analysis. Review every market and price.",keywords:"high confidence football predictions, safe picks today, football safe picks, 10 match accumulator, football selections today"},
     "/super-5":{title:"Super 5 Football Accumulator Predictions | AccaForge",description:"Review five researched football selections, match markets, individual prices and the combined odds in the AccaForge Super 5 edition.",keywords:"Super 5 predictions, 5 match accumulator tips, football accumulator picks, daily acca tips"},
     "/super-10":{title:"Super 10 Football Accumulator | AccaForge",description:"Explore the AccaForge Super 10 football accumulator, its researched match selections and combined decimal odds target.",keywords:"Super 10 accumulator, 10 odds accumulator, football accumulator tips, combined odds predictions"},
@@ -275,10 +276,18 @@ export default {
       if (request.method !== "GET") return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET" } });
       return getHealth({ request, env });
     }
+    if (url.pathname.startsWith("/api/premium/")) {
+      const premiumEnv = env as unknown as Record<string,string>;
+      const premiumRequest = request as Request & { env?: unknown };
+      const { onRequestGet: premiumGet, onRequestPost: premiumPost } = await import("../functions/api/premium");
+      if (request.method === "GET" && premiumGet) return premiumGet({ request, env: premiumEnv as unknown as Parameters<typeof premiumGet>[0]["env"] });
+      if (request.method === "POST" && premiumPost) return premiumPost({ request, env: premiumEnv as unknown as Parameters<typeof premiumPost>[0]["env"] });
+      return Response.json({ error: "Method not allowed." }, { status: 405 });
+    }
     if (url.pathname.startsWith("/api/")) return Response.json({ error: "Not found." }, { status: 404 });
     if (url.pathname === "/sitemap.xml") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-      const staticPaths=["/","/daily","/recent","/results","/track-record","/competitions","/safe-picks","/super-5","/super-10","/all-matches","/about","/contact","/terms","/privacy","/cookies","/responsible-gambling","/editorial-policy","/image-credits","/sure-tips","/football-betting-tips","/accumulator-tips","/football-predictions-kenya","/btts-predictions","/over-under-goals-predictions","/premier-league-tips",...Object.keys(editorialPages)];
+      const staticPaths=["/","/daily","/recent","/results","/track-record","/competitions","/premium","/safe-picks","/super-5","/super-10","/all-matches","/about","/contact","/terms","/privacy","/cookies","/responsible-gambling","/editorial-policy","/image-credits","/sure-tips","/football-betting-tips","/accumulator-tips","/football-predictions-kenya","/btts-predictions","/over-under-goals-predictions","/premier-league-tips",...Object.keys(editorialPages)];
       const entries=staticPaths.map(path=>"<url><loc>"+escapeHtml(SITE_ORIGIN+path)+"</loc></url>");
       try {
         const editions=(await env.DB.prepare("SELECT id FROM accas WHERE status='published' AND publish_date >= date('now','-30 days') ORDER BY publish_date DESC").all<{id:string}>()).results||[];
@@ -332,7 +341,7 @@ export default {
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
     if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
     const appPath=url.pathname.replace(/\/+$/,"")||"/";
-    if (["/","/daily","/recent","/results","/track-record","/competitions","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
+    if (["/","/daily","/recent","/results","/track-record","/competitions","/premium","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
     if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
       return env.ASSETS.fetch(request);
     }
