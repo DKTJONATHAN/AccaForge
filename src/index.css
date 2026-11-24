@@ -1233,3 +1233,25 @@ html,body,.app{background:var(--page)}
 .premium-preview-empty strong{color:#1c412b;font-size:13px}
 .premium-preview-empty span{max-width:38ch}
 @media(max-width:760px){.premium-home-preview{grid-template-columns:1fr;gap:17px;margin:20px 0 26px;padding:17px;border-radius:14px}.premium-preview-fixture{padding:12px}.premium-preview-fixture strong{font-size:12px}}
+
+
+.premium-predictions-card{margin:16px 0 18px}
+.premium-predictions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.premium-predictions-heading h3{margin-bottom:5px}
+.premium-predictions-heading p{margin:0;color:#6b796f;font-size:12px}
+.premium-predictions-heading>span{flex:0 0 auto;padding:5px 9px;border-radius:999px;background:#e8f4eb;color:#17643d;font-size:10px;font-weight:800}
+.premium-predictions-empty{margin-top:14px;padding:18px;border:1px dashed #cbdccf;border-radius:10px;color:#66756a;font-size:12px;text-align:center}
+.premium-predictions-list{display:grid;gap:12px;margin-top:15px}
+.premium-predictions-list article{padding:16px;border:1px solid #e0e8e2;border-radius:12px;background:#fff}
+.premium-prediction-fixture{display:grid;gap:4px;padding-bottom:11px;border-bottom:1px solid #edf1ee}
+.premium-prediction-fixture small,.premium-prediction-bookmaker{color:#78857c;font-size:10px}
+.premium-prediction-fixture strong{color:#173b29;font-size:14px}
+.premium-prediction-selection{display:grid;gap:3px;padding:12px 0}
+.premium-prediction-selection span{color:#68776d;font-size:11px}
+.premium-prediction-selection strong{color:#075f3a;font-size:16px}
+.premium-prediction-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.premium-prediction-metrics span{display:grid;gap:3px;padding:8px;border-radius:8px;background:#f4f8f5}
+.premium-prediction-metrics small{color:#78857c;font-size:9px}
+.premium-prediction-metrics strong{color:#233e2d;font-size:12px}
+.premium-predictions-list article>p{margin:12px 0 5px;color:#53675a;font-size:12px;line-height:1.65}
+@media(max-width:560px){.premium-prediction-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.premium-predictions-heading{align-items:flex-start}}
