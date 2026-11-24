@@ -57,6 +57,7 @@ export async function refreshYesterdayResults(env:ResultsEnv){
     const result=settleSelection(pick,score.home,score.away);
     await env.DB.prepare("UPDATE result_selections SET home_score=?,away_score=?,outcome=?,settled_at=CURRENT_TIMESTAMP,result_note=? WHERE selection_id=?").bind(score.home,score.away,result.outcome,result.note,pick.selection_id).run();
     if(result.outcome!=="PENDING")settled++;
+    await recalculateEdition(env,pick.acca_id);
    }
   }
  }
@@ -67,11 +68,13 @@ export async function getYesterdayResults(env:ResultsEnv){
  await ensureResultsSchema(env);
  const date=yesterdayNairobi();
  await env.DB.prepare("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?").bind(date).run();
+ await syncEditionResults(env);
+ const editionRows=(await env.DB.prepare("SELECT * FROM edition_results WHERE publish_date=?").bind(date).all<any>()).results||[];
  const rows=(await env.DB.prepare("SELECT * FROM result_selections WHERE publish_date = ? ORDER BY CASE product_type WHEN 'safe_picks' THEN 1 WHEN 'super_5' THEN 2 WHEN 'super_10' THEN 3 ELSE 4 END,commence_time,acca_id").bind(date).all<any>()).results||[];
  const summary={total:rows.length,won:rows.filter(row=>row.outcome==="WON").length,lost:rows.filter(row=>row.outcome==="LOST").length,pending:rows.filter(row=>row.outcome==="PENDING").length,void:rows.filter(row=>row.outcome==="VOID").length,pass:rows.filter(row=>row.outcome==="PASS").length};
  const accuracy=summary.won+summary.lost?Math.round(summary.won/(summary.won+summary.lost)*100):null;
  const marketSummary=(await env.DB.prepare("SELECT market_key,market_name,COUNT(*) AS total,SUM(CASE WHEN outcome='WON' THEN 1 ELSE 0 END) AS won,SUM(CASE WHEN outcome='LOST' THEN 1 ELSE 0 END) AS lost,SUM(CASE WHEN outcome='PENDING' THEN 1 ELSE 0 END) AS pending FROM result_selections WHERE publish_date = ? GROUP BY market_key,market_name ORDER BY total DESC,market_name").bind(date).all<{market_key:string;market_name:string;total:number;won:number;lost:number;pending:number}>()).results||[];
- return {date,rows,summary,accuracy,marketSummary,windowDays:1,needsOddsApiSecret:!oddsApiKeys(env).length};
+ return {date,rows,summary,accuracy,marketSummary,editions:editionRows,windowDays:1,needsOddsApiSecret:!oddsApiKeys(env).length};
 }
 
 type TrackAggregate={group_key:string;label:string;total:number;won:number;lost:number;void:number;pending:number;pass:number;profit:number;settled:number;average_odds:number|null;first_date:string|null;last_date:string|null};
@@ -81,6 +84,7 @@ function trackRow(row:TrackAggregate){
 }
 export async function getTrackRecord(env:ResultsEnv){
  await ensureResultsSchema(env);
+ await syncEditionResults(env);
  const aggregate="COUNT(*) AS total,SUM(CASE WHEN outcome='WON' THEN 1 ELSE 0 END) AS won,SUM(CASE WHEN outcome='LOST' THEN 1 ELSE 0 END) AS lost,SUM(CASE WHEN outcome='VOID' THEN 1 ELSE 0 END) AS void,SUM(CASE WHEN outcome='PENDING' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN outcome='PASS' THEN 1 ELSE 0 END) AS pass,SUM(CASE WHEN outcome='WON' THEN odds-1 WHEN outcome='LOST' THEN -1 ELSE 0 END) AS profit,SUM(CASE WHEN outcome IN ('WON','LOST') THEN 1 ELSE 0 END) AS settled,AVG(CASE WHEN outcome IN ('WON','LOST') THEN odds END) AS average_odds,MIN(publish_date) AS first_date,MAX(publish_date) AS last_date";
  const overall=await env.DB.prepare("SELECT "+aggregate+" FROM result_selections").first<any>();
  const formats=(await env.DB.prepare("SELECT product_type AS group_key,product_type AS label,"+aggregate+" FROM result_selections GROUP BY product_type ORDER BY product_type").all<TrackAggregate>()).results||[];
