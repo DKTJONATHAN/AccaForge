@@ -34,9 +34,9 @@ interface Payment {
   session_token: string | null;
   expires_at: string | null;
 }
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), {
   status,
-  headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+  headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra },
 });
 const supabaseFetch = (env: PremiumEnv, path: string, options: RequestInit = {}) =>
   fetch(`${env.SUPABASE_URL}${path}`, {
@@ -139,7 +139,10 @@ async function verifyAndActivate(
 }
 function sessionToken(request: Request): string | null {
   const auth = request.headers.get("Authorization");
-  return auth?.startsWith("Bearer ") ? auth.slice(7).trim() : null;
+  if (auth?.startsWith("Bearer ")) return auth.slice(7).trim();
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(/(?:^|;\s*)accaforge_premium=([a-f0-9]{64})/i);
+  return match?.[1] || null;
 }
 function validOrigin(request: Request): boolean {
   const origin = request.headers.get("Origin");
@@ -225,12 +228,16 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: Pr
       const rows = await res.json() as Array<{ phone: string; status: string; expires_at: string | null }>;
       const member = rows[0];
       const active = !!member && member.status === "active" && !!member.expires_at && Date.parse(member.expires_at) > Date.now();
+      const maxAge = active && member?.expires_at ? Math.max(0, Math.floor((Date.parse(member.expires_at) - Date.now()) / 1000)) : 0;
+      const cookie = active
+        ? `accaforge_premium=${token}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`
+        : "accaforge_premium=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax";
       return json({ member: member ? {
         phone: member.phone,
         status: active ? "active" : "expired",
         expires_at: member.expires_at,
         is_premium: active,
-      } : null });
+      } : null }, 200, { "Set-Cookie": cookie });
     }
 
     const statusMatch = path.match(/^\/api\/premium\/status\/([A-Za-z0-9_-]{8,160})$/);

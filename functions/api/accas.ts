@@ -3,7 +3,9 @@ interface AccaRow { id:string; target_odds:number; actual_odds:number; status:st
 interface SelectionRow { id:string; acca_id:string; event_id:string; sport_key:string; commence_time:string; home_team:string; away_team:string; market_key:string; market_name:string; selection_name:string; odds:number; bookmaker:string; note:string; sort_order:number; selection_status:string; probability:number; implied_probability:number }
 
 async function premiumArchiveDays(request: Request, env: Env): Promise<number> {
- const token=request.headers.get("Authorization")?.replace(/^Bearer\s+/i,"").trim();
+ const auth=request.headers.get("Authorization")?.replace(/^Bearer\s+/i,"").trim();
+ const cookie=request.headers.get("Cookie")||"";
+ const token=auth||cookie.match(/(?:^|;\s*)accaforge_premium=([a-f0-9]{64})/i)?.[1];
  if(!token||token.length>256||!env.SUPABASE_URL||!env.SUPABASE_SERVICE_ROLE_KEY)return 0;
  const response=await fetch(`${env.SUPABASE_URL}/rest/v1/members?session_token=eq.${encodeURIComponent(token)}&select=status,expires_at,plan_id`,{
   headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`}

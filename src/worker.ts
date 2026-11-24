@@ -146,9 +146,35 @@ function renderPage(input:{title:string;description:string;path:string;body:stri
   return new Response(html,{status,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":status===200?"public, max-age=0, s-maxage=120, stale-while-revalidate=300":"public, max-age=60","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin"}});
 }
 
-async function accumulatorPage(id:string,env:Env,origin:string){
+
+async function premiumArchiveDaysForRequest(request:Request,env:Env):Promise<number>{
+  const auth=request.headers.get("Authorization")?.replace(/^Bearer\s+/i,"").trim();
+  const cookie=request.headers.get("Cookie")||"";
+  const token=auth||cookie.match(/(?:^|;\s*)accaforge_premium=([a-f0-9]{64})/i)?.[1];
+  if(!token||token.length>256||!env.SUPABASE_URL||!env.SUPABASE_SERVICE_ROLE_KEY)return 0;
+  const headers={apikey:env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`};
+  const memberResponse=await fetch(`${env.SUPABASE_URL}/rest/v1/members?session_token=eq.${encodeURIComponent(token)}&select=status,expires_at,plan_id`,{headers});
+  if(!memberResponse.ok)return 0;
+  const members=await memberResponse.json() as Array<{status:string;expires_at:string|null;plan_id:string|null}>;
+  const member=members[0];
+  if(!member||member.status!=="active"||!member.expires_at||Date.parse(member.expires_at)<=Date.now()||!member.plan_id)return 0;
+  const planResponse=await fetch(`${env.SUPABASE_URL}/rest/v1/subscription_plans?id=eq.${encodeURIComponent(member.plan_id)}&select=duration_days`,{headers});
+  if(!planResponse.ok)return 0;
+  const plans=await planResponse.json() as Array<{duration_days:number}>;
+  return Math.min(365,Math.max(0,Math.floor(plans[0]?.duration_days||0)));
+}
+function archiveCutoff(days:number):string{
+  const date=new Date(new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())+"T12:00:00Z");
+  date.setUTCDate(date.getUTCDate()-(days-1));
+  return date.toISOString().slice(0,10);
+}
+
+async function accumulatorPage(id:string,env:Env,origin:string,request:Request){
   const acca=await env.DB.prepare("SELECT * FROM accas WHERE id=? AND status='published'").bind(id).first<AccaRow>();
   if(!acca)return renderPage({title:"Accumulator edition not found | AccaForge",description:"This football accumulator edition is no longer available.",path:"/accumulators/"+encodeURIComponent(id),robots:"noindex,follow",body:"<h1>Edition not found</h1><p>This accumulator may have expired from the recent-editions archive. Visit the <a href='/'>AccaForge daily football tips page</a> for the latest published selections.</p>"},origin,404);
+  const premiumDays=await premiumArchiveDaysForRequest(request,env);
+  const allowedDays=premiumDays||3;
+  if(acca.publish_date<archiveCutoff(allowedDays))return renderPage({title:"Premium archive access | AccaForge",description:"This older edition is available to active Premium members.",path:"/accumulators/"+encodeURIComponent(id),robots:"noindex,follow",body:"<h1>Premium archive</h1><p>This edition is outside the free three-day window. <a href='/premium'>Explore AccaForge Premium</a> to unlock the extended archive.</p>"},origin,403);
   const editionHeadline=displayEditionHeadline(acca.product_type,acca.headline);
   const selections=(await env.DB.prepare("SELECT * FROM selections WHERE acca_id=? ORDER BY sort_order ASC").bind(id).all<SelectionRow>()).results||[];
   const legs=selections.map(item=>"<li><a href='/matches/"+encodeURIComponent(item.event_id)+"'>"+escapeHtml(item.home_team)+" vs "+escapeHtml(item.away_team)+"</a><small>"+escapeHtml(dateTime(item.commence_time))+" · "+escapeHtml(competitionName(item.sport_key))+" · "+escapeHtml(item.market_name)+" · "+escapeHtml(item.selection_name)+" · "+escapeHtml(item.bookmaker)+" <span class='price'>"+Number(item.odds).toFixed(2)+"</span></small></li>").join("");
@@ -159,13 +185,17 @@ async function accumulatorPage(id:string,env:Env,origin:string){
   return renderPage({title:editionHeadline+" | Football Accumulator "+Number(acca.target_odds).toFixed(2)+" Odds | AccaForge",description:"Review the "+Number(acca.target_odds).toFixed(2)+" target football accumulator published "+acca.publish_date+": "+selections.map(item=>item.home_team+" vs "+item.away_team).join(", ")+".",path:"/accumulators/"+encodeURIComponent(id),robots,body,schema},origin);
 }
 
-async function matchPage(eventId:string,env:Env,origin:string){
+async function matchPage(eventId:string,env:Env,origin:string,request:Request){
   const rows=(await env.DB.prepare("SELECT s.*,a.id AS edition_id,a.product_type,a.target_odds,a.actual_odds,a.publish_date,a.headline FROM selections s JOIN accas a ON a.id=s.acca_id WHERE s.event_id=? AND a.status='published' ORDER BY a.publish_date DESC,a.target_odds ASC").bind(eventId).all<MatchRow>()).results||[];
-  if(!rows.length)return renderPage({title:"Match page not found | AccaForge",description:"This match is not available in the current AccaForge published editions.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body:"<h1>Match page not found</h1><p>This fixture may have left the recent-editions archive. Visit the <a href='/'>latest AccaForge football tips</a> to explore current selections.</p>"},origin,404);
-  const first=rows[0];
+  const premiumDays=await premiumArchiveDaysForRequest(request,env);
+  const allowedDays=premiumDays||3;
+  const cutoff=archiveCutoff(allowedDays);
+  const visibleRows=rows.filter(row=>row.publish_date>=cutoff);
+  if(!visibleRows.length)return renderPage({title:"Match page not found | AccaForge",description:"This match is not available in the current AccaForge published editions.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body:"<h1>Match page not found</h1><p>This fixture is outside the free three-day archive. <a href='/premium'>Explore AccaForge Premium</a> for extended access.</p>"},origin,404);
+  const first=visibleRows[0];
   const name=first.home_team+" vs "+first.away_team;
   const competition=competitionName(first.sport_key);
-  const editionLinks=rows.map(item=>"<li><a href='/accumulators/"+encodeURIComponent(item.edition_id)+"'>"+escapeHtml(displayEditionHeadline(item.product_type,item.headline))+"</a><small>"+escapeHtml(item.publish_date)+" · "+Number(item.target_odds).toFixed(2)+" target · "+Number(item.actual_odds).toFixed(2)+" combined odds · "+escapeHtml(item.market_name)+": "+escapeHtml(item.selection_name)+"</small></li>").join("");
+  const editionLinks=visibleRows.map(item=>"<li><a href='/accumulators/"+encodeURIComponent(item.edition_id)+"'>"+escapeHtml(displayEditionHeadline(item.product_type,item.headline))+"</a><small>"+escapeHtml(item.publish_date)+" · "+Number(item.target_odds).toFixed(2)+" target · "+Number(item.actual_odds).toFixed(2)+" combined odds · "+escapeHtml(item.market_name)+": "+escapeHtml(item.selection_name)+"</small></li>").join("");
   const body="<h1>"+escapeHtml(name)+"</h1><p class='lead'>Football match information and published accumulator selections for "+escapeHtml(name)+", listed in the "+escapeHtml(competition)+".</p><div class='panel'><div class='facts'><span>Competition: <strong>"+escapeHtml(competition)+"</strong></span><span>Kick-off: <strong>"+escapeHtml(dateTime(first.commence_time))+"</strong></span></div></div><h2>AccaForge selections featuring this fixture</h2><ul class='list'>"+editionLinks+"</ul><p class='notice'>These are editorial market selections, not a live score or a guaranteed prediction. Match details and odds may change. 18+ only; information and entertainment only.</p><p><a class='button' href='/'>Explore daily football accumulators</a></p>";
   const schema={"@context":"https://schema.org","@type":"SportsEvent","name":name,"startDate":first.commence_time,"sport":"Soccer","homeTeam":{"@type":"SportsTeam","name":first.home_team},"awayTeam":{"@type":"SportsTeam","name":first.away_team},"url":new URL("/matches/"+encodeURIComponent(eventId),SITE_ORIGIN).toString(),"organizer":{"@type":"Organization","name":"AccaForge","url":SITE_ORIGIN,"logo":organizationLogo}};
   return renderPage({title:name+" | "+competition+" Match Analysis and Accumulator Tips | AccaForge",description:"View "+name+" match information, kick-off time and published AccaForge football accumulator markets and odds.",path:"/matches/"+encodeURIComponent(eventId),robots:"noindex,follow",body,schema},origin);
@@ -338,9 +368,9 @@ export default {
       return renderPage({title:team.name+" | Football Fixtures and Match Analysis | AccaForge",description:team.name+" club spotlight, fixture discovery and football match analysis on AccaForge.",path:url.pathname,robots:"noindex,follow",body},url.origin);
     }
     const accumulatorMatch=url.pathname.match(/^\/accumulators\/([^/]+)\/?$/);
-    if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin);
+    if (accumulatorMatch) return accumulatorPage(decodeURIComponent(accumulatorMatch[1]),env,url.origin,request);
     const matchMatch=url.pathname.match(/^\/matches\/([^/]+)\/?$/);
-    if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin);
+    if (matchMatch) return matchPage(decodeURIComponent(matchMatch[1]),env,url.origin,request);
     const appPath=url.pathname.replace(/\/+$/,"")||"/";
     if (["/","/daily","/recent","/results","/track-record","/competitions","/premium","/safe-picks","/super-5","/super-10","/all-matches"].includes(appPath)) return renderHome(request,env);
     if (url.pathname.includes(".") || url.pathname.startsWith("/assets/")) {
