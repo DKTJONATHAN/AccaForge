@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate settlement script syntax
+        run: node --check scripts/settle-premium.mjs
       - name: Settle completed Premium fixtures
         run: node scripts/settle-premium.mjs
         env:
