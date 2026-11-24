@@ -111,6 +111,7 @@ async function verifyAndActivate(
   const token = await getDarajaAccessToken(darajaEnv(env));
   const result = await queryStkStatus(darajaEnv(env), token, checkoutId);
   if (result.checkoutRequestId && result.checkoutRequestId !== checkoutId) return;
+  if (result.resultCode === undefined) return;
   if (result.resultCode !== 0) {
     const status = result.resultCode === 1032 ? "cancelled" : result.resultCode === 1037 ? "timeout" : "failed";
     await supabaseFetch(env, `/rest/v1/payments?checkout_request_id=eq.${encodeURIComponent(checkoutId)}&status=eq.pending`, {
