@@ -269,8 +269,8 @@ export default function App({initialData,initialContent,initialResults,initialTr
  const accas=data?.accas||[];
  const todayISO=new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Nairobi"});
  const todaysAccas=accas.filter(item=>item.publish_date===todayISO);
- const todaysFixtures=Array.from(new Map(todaysAccas.flatMap(item=>item.selections).filter(item=>item.selection_status!=="PASS").map(item=>[item.event_id,item])).values()).sort((a,b)=>a.commence_time.localeCompare(b.commence_time));
- const groupedTodaysFixtures=leagues.map(league=>({ ...league,fixtures:todaysFixtures.filter(item=>item.sport_key===league.key) })).filter(league=>league.fixtures.length);
+ const todaysFixtures=Array.from(new Map(todaysAccas.flatMap(item=>item.selections).filter(item=>item.selection_status!=="PASS").map(item=>[item.event_id,item] as const)).values()).sort((a,b)=>a.commence_time.localeCompare(b.commence_time));
+ const groupedTodaysFixtures=Array.from(new Set(todaysFixtures.map(item=>item.sport_key))).map(key=>({key,name:leagueNameFor(key),logo:leagueFor(key)?.logo||"",fixtures:todaysFixtures.filter(item=>item.sport_key===key)}));
  const currentProduct=products.find(item=>item[3]===pathname)?.[0];
  const dates=useMemo(()=>Array.from(new Set(accas.map(item=>item.publish_date))).sort((a,b)=>b.localeCompare(a)),[accas]);
  const filteredArchive=archiveDate==="all"?accas:accas.filter(item=>item.publish_date===archiveDate);
