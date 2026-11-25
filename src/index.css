@@ -1281,3 +1281,37 @@ html,body,.app{background:var(--page)}
   .mobile-dock a:focus-visible{outline-offset:-2px}
 }
 @media(prefers-reduced-motion:reduce){.mobile-dock a{transition:none}}
+
+
+/* Mobile action layout: use the full content width instead of left-clustering CTAs. */
+@media (max-width: 760px) {
+  .hero-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hero-actions > .button,
+  .hero-actions > .text-link {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+    text-align: center;
+  }
+  .premium-auth-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+  .premium-auth-tabs button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+  .premium-account-toolbar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
