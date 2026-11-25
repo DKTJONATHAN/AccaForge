@@ -416,7 +416,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   "Research citation metadata:",JSON.stringify(research.citations.slice(0,5))
  ];
  if(type==="all_matches"){
-  const merged=[];let first=null;const batchSize=5;
+  const merged=[];let first=null;const batchSize=4;
   for(let offset=0;offset<events.length;offset+=batchSize){
    const batch=events.slice(offset,offset+batchSize),ids=new Set(batch.map(x=>x.id)),batchRows=rows.filter(x=>ids.has(x[1]));
    const prompt=[
@@ -451,7 +451,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   }
  }
  const commonPrompt=[...common,"Candidate rows (last columns: fair market probability %, price edge percentage points, bookmaker count):",JSON.stringify(rows)];
- let prompt,maxCompletion=type==="safe_picks"?900:1000;
+ let prompt,maxCompletion=type==="safe_picks"?1200:type==="super_5"?1500:1800;
  if(type==="super_5")prompt=[
   "Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
   "SUPER 5: select EXACTLY five different fixtures, one market per match. Every individual decimal price MUST be between 1.50 and 2.00 inclusive. There is NO minimum or target for combined odds. Do not chase a 30.00 combined price, use longshots, or sacrifice outcome probability to inflate the accumulator. Prioritise strongest consensus probability and positive price edge, with verified match context as a secondary factor. Return exactly five distinct candidate IDs.",
@@ -480,9 +480,14 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
  if(type==="super_5"||type==="super_10"){
   const entries=generated?.[type]?.selections,ids=Array.isArray(entries)?entries.map(item=>item?.candidate_id):[];
   const byId=new Map(stage.map(item=>[item.candidate_id,item]));
-  const valid=ids.length===limit&&new Set(ids).size===limit&&new Set(ids.map(id=>byId.get(id)?.event_id)).size===limit&&ids.every(id=>byId.has(id)&&byId.get(id).odds>=1.50&&byId.get(id).odds<=2.00)&&entries.every(item=>Number.isFinite(Number(item.probability))&&Number(item.probability)>0&&Number(item.probability)<100);
+  const uniqueIds=new Set(ids);
+  const uniqueFixtures=new Set(ids.map(id=>byId.get(id)?.event_id).filter(Boolean));
+  const unknownIds=ids.filter(id=>!byId.has(id));
+  const badOdds=ids.filter(id=>byId.has(id)&&(byId.get(id).odds<1.50||byId.get(id).odds>2.00));
+  const badProbabilities=entries.filter(item=>!Number.isFinite(Number(item.probability))||Number(item.probability)<=0||Number(item.probability)>=100).length;
+  const valid=ids.length===limit&&uniqueIds.size===limit&&uniqueFixtures.size===limit&&unknownIds.length===0&&badOdds.length===0&&badProbabilities===0;
   if(!valid){
-   throw new Error(type+" AI response failed exact leg, distinct-fixture, odds-band or probability validation; refusing to substitute algorithmically ranked selections.");
+   throw new Error(type+" AI response validation failed: expected "+limit+" legs, received "+ids.length+"; unique IDs "+uniqueIds.size+"; distinct fixtures "+uniqueFixtures.size+"; unknown IDs "+unknownIds.length+"; out-of-band prices "+badOdds.length+"; invalid probabilities "+badProbabilities+". No algorithmic substitutions are permitted.");
   }
  }
  generated.__allowed_candidate_ids=stage.map(item=>item.candidate_id);
