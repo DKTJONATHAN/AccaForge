@@ -245,6 +245,7 @@ function PremiumPage({member,memberLoading,refreshMember}:{member:MemberInfo|nul
     </div>
    </div>
   </section>
+  <PremiumPreviewSection/>
   <PremiumAccountPanel plans={plans||[]} plansLoading={plansLoading}/>
  </main>;
 }
@@ -284,13 +285,13 @@ export default function App({initialData,initialContent,initialResults,initialTr
     <div className="home-copy">
      <span className="home-kicker">ACCAFORGE MATCH CENTRE · {displayDate.toUpperCase()}</span>
      <h1 id="home-title">Football predictions and fixtures, in one place.</h1>
-     <p>Browse today's published selections by competition. Compare the market, price and kick-off time without digging through oversized cards.</p>
+     <p>Browse all today's free published matches by competition, with markets, prices and kick-off times at a glance.</p>
      <div className="hero-actions"><a className="button button-primary" href="/daily">Today's predictions <ArrowUpRight size={15}/></a><a className="text-link" href="/results">Yesterday's results <ArrowUpRight size={14}/></a></div>
      <div className="home-date"><CalendarDays size={14}/><strong>{displayDate}</strong><span className={todaysAccas.length?"home-live":"home-awaiting"}><i/>{todaysAccas.length?groupedTodaysFixtures.length+" competitions · "+todaysFixtures.length+" listed fixtures":"Today's editions not published yet"}</span></div>
     </div>
    </section>
    <section className="fixture-centre" aria-labelledby="fixture-centre-title">
-    <header className="fixture-centre-head"><div><h2 id="fixture-centre-title">Today's fixtures &amp; selections</h2><p>Fixtures appear here only when included in a published public edition.</p></div><span className="fixture-centre-meta">{todaysFixtures.length} fixtures · EAT</span></header>
+    <header className="fixture-centre-head"><div><h2 id="fixture-centre-title">Today's fixtures &amp; selections</h2><p>Free fixtures and selections published in today's public editions.</p></div><span className="fixture-centre-meta">{todaysFixtures.length} fixtures · EAT</span></header>
     {groupedTodaysFixtures.length?groupedTodaysFixtures.map(group=><section className="fixture-group" key={group.key}>
      <div className="fixture-group-title">{(leagueBadges[group.key]||group.logo)&&<img src={leagueBadges[group.key]||group.logo} alt="" loading="lazy"/>}{group.name}<small>{group.fixtures.length} {group.fixtures.length===1?"match":"matches"}</small></div>
      {group.fixtures.map(fixture=><article className="fixture-row" key={fixture.event_id}>
@@ -300,7 +301,6 @@ export default function App({initialData,initialContent,initialResults,initialTr
      </article>)}
     </section>):<div className="fixture-empty">{isLoading?"Loading today's published fixtures…":"No public fixtures have been published yet. The board will populate when an edition passes its publication checks."}</div>}
    </section>
-   <PremiumPreviewSection/>
    <section className="home-latest"><div className="section-heading"><div><h2>Latest published editions</h2><p>Choose a format to inspect its fixtures and selections</p></div><a className="text-link" href="/recent">Browse archive <ArrowUpRight size={15}/></a></div>{status||<div className="edition-links">{todaysAccas.slice(0,4).map(acca=><EditionLink key={acca.id} acca={acca}/>)}{!todaysAccas.length&&<p className="muted-copy">No editions have been published yet. Check the daily board later.</p>}</div>}</section>
    <section className="home-news"><div className="section-heading"><div><h2>Latest football news</h2><p>Daily headlines from football publishers, saved to the AccaForge cache</p></div><span className="news-updated">Daily update</span></div>{contentData?.news?.length?<div className="news-grid">{contentData.news.slice(0,6).map(item=><article className="news-card" key={item.id}><a className="news-card-link" href={item.url} target="_blank" rel="noopener noreferrer">{item.image_url&&<img src={item.image_url} alt="" loading="lazy"/>}<div className="news-card-copy"><span>{item.source} · {new Date(item.published_at).toLocaleDateString("en-KE",{day:"numeric",month:"short"})}</span><strong>{item.title}</strong><small>Read original story <ArrowUpRight size={13}/></small></div></a>{item.image_credit&&<div className="news-image-credit">Photo: {item.image_credit}{item.image_source_url&&<> · <a href={item.image_source_url} target="_blank" rel="noopener noreferrer">Source</a></>}{item.image_license_url&&<> · <a href={item.image_license_url} target="_blank" rel="noopener noreferrer">{item.image_license||"Licence"}</a></>}</div>}</article>)}</div>:<div className="news-empty">Football headlines will appear after the first scheduled daily refresh.</div>}</section>
    <section className="home-seo" aria-labelledby="football-predictions-guide">
