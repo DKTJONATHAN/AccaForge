@@ -46,7 +46,7 @@ async function recalculateEdition(accaId){
  await d1(sql,[accaId,meta.product_type,meta.headline,meta.publish_date,edition.legs,edition.won,edition.lost,edition.void,edition.pending,edition.pass,edition.outcome,edition.effectiveOdds,edition.profit,edition.note,edition.outcome]);
 }
 const date=yesterdayNairobi();
-await d1("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date=?",[date]);
+await d1("INSERT OR IGNORE INTO result_selections (selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status,outcome) SELECT s.id,a.id,a.product_type,a.headline,a.publish_date,s.event_id,s.sport_key,s.commence_time,s.home_team,s.away_team,s.market_key,s.market_name,s.selection_name,s.odds,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END,CASE WHEN s.selection_status='PASS' THEN 'PASS' ELSE 'PENDING' END FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date BETWEEN date(?,'-2 days') AND ?",[date,date]);
 const pending=await d1("SELECT DISTINCT sport_key FROM result_selections WHERE publish_date>=date(?,'-2 days') AND outcome='PENDING'",[date]);
 console.log("Refreshing results for "+date+" directly from GitHub Actions into Cloudflare D1. Pending competitions: "+pending.length+".");
 if(!keys.length)throw new Error("No Odds API keys configured in GitHub Actions; cannot refresh results.");
@@ -57,7 +57,7 @@ for(const item of pending){
  for(const event of events){
   if(!event.completed)continue;
   const score=scoreMap(event);if(!score)continue;
-  const picks=await d1("SELECT selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status FROM result_selections WHERE event_id=? AND outcome='PENDING' AND publish_date>=date(?,'-2 days')",[event.id,date]);
+  const picks=await d1("SELECT selection_id,acca_id,product_type,headline,publish_date,event_id,sport_key,commence_time,home_team,away_team,market_key,market_name,selection_name,odds,selection_status FROM result_selections WHERE event_id=? AND sport_key=? AND outcome='PENDING' AND publish_date>=date(?,'-2 days')",[event.id,item.sport_key,date]);
   for(const pick of picks){
    const result=settleSelection(pick,score.home,score.away);
    await d1("UPDATE result_selections SET home_score=?,away_score=?,outcome=?,settled_at=CURRENT_TIMESTAMP,result_note=? WHERE selection_id=?",[score.home,score.away,result.outcome,result.note,pick.selection_id]);
@@ -66,5 +66,5 @@ for(const item of pending){
   }
  }
 }
-const counts=await d1("SELECT outcome,COUNT(*) AS count FROM result_selections WHERE publish_date=? GROUP BY outcome",[date]);
+const counts=await d1("SELECT publish_date,outcome,COUNT(*) AS count FROM result_selections WHERE publish_date BETWEEN date(?,'-2 days') AND ? GROUP BY publish_date,outcome ORDER BY publish_date DESC,outcome",[date,date]);
 console.log("Results refresh complete: "+JSON.stringify({date,settled,counts}));
