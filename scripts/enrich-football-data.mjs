@@ -35,6 +35,32 @@ const aliases = {
   "west ham": "west ham united", "newcastle": "newcastle united", "brighton": "brighton and hove albion",
   "athletico madrid": "atletico madrid", "internazionale": "inter", "inter milan": "inter"
 };
+const seededCompetitions = {
+  soccer_epl: ["English Premier League", "Premier League"],
+  soccer_england_championship: ["English League Championship", "EFL Championship", "Championship"],
+  soccer_england_league_one: ["English League One", "League One"],
+  soccer_england_league_two: ["English League Two", "League Two"],
+  soccer_uefa_champs_league: ["UEFA Champions League", "Champions League"],
+  soccer_uefa_europa_league: ["UEFA Europa League", "Europa League"],
+  soccer_uefa_europa_conference_league: ["UEFA Europa Conference League", "Europa Conference League"],
+  soccer_uefa_nations_league: ["UEFA Nations League", "Nations League"],
+  soccer_spain_la_liga: ["Spanish La Liga", "La Liga"],
+  soccer_germany_bundesliga: ["German Bundesliga", "Bundesliga"],
+  soccer_italy_serie_a: ["Italian Serie A", "Serie A"],
+  soccer_france_ligue_one: ["French Ligue 1", "Ligue 1"],
+  soccer_netherlands_eredivisie: ["Dutch Eredivisie", "Eredivisie"],
+  soccer_portugal_primeira_liga: ["Portuguese Primeira Liga", "Primeira Liga"],
+  soccer_scotland_premiership: ["Scottish Premiership", "Premiership"],
+  soccer_belgium_first_div: ["Belgian Pro League", "Belgian First Division A", "Pro League"],
+  soccer_turkey_super_league: ["Turkish Super Lig", "Super Lig"],
+  soccer_usa_mls: ["American Major League Soccer", "Major League Soccer"],
+  soccer_brazil_campeonato: ["Brazilian Serie A", "Campeonato Brasileiro Serie A"],
+  soccer_brazil_serie_b: ["Brazilian Serie B", "Campeonato Brasileiro Serie B"],
+  soccer_australia_aleague: ["Australian A-League Men", "A-League Men"],
+  soccer_japan_j_league: ["Japanese J1 League", "J1 League"],
+  soccer_mexico_ligamx: ["Mexican Liga MX", "Liga MX"],
+  soccer_argentina_primera_division: ["Argentine Primera Division", "Liga Profesional"]
+};
 const teamKey = value => aliases[normalize(value)] || normalize(value);
 const hash = value => createHash("sha256").update(value).digest("hex");
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -61,10 +87,7 @@ const fixtures = await d1(
 const names = [...new Set(fixtures.flatMap(row => [clean(row.home_team), clean(row.away_team)]).filter(Boolean))];
 const representatives = new Map();
 for (const row of fixtures) if (row.sport_key && !representatives.has(row.sport_key)) representatives.set(row.sport_key, row);
-if (!names.length) {
-  console.log("No published fixtures or yesterday result fixtures found for " + yesterday + " and " + today + ".");
-  process.exit(0);
-}
+if (!names.length) console.log("No published fixture teams found; running the configured competition catalogue only.");
 
 let requestCount = 0;
 let matchedTeams = 0;
@@ -145,6 +168,26 @@ function leagueForCompetition(team, sportKey) {
     const normalized = normalize(name);
     if (expected.some(alias => normalized === normalize(alias) || normalized.includes(normalize(alias)) || normalize(alias).includes(normalized))) {
       return { id: Number(id), name: clean(name) };
+    }
+  }
+  return null;
+}
+
+async function findProviderLeague(sportKey) {
+  const candidates = seededCompetitions[sportKey] || [];
+  for (const candidateName of candidates) {
+    const payload = await sportsDb("searchleague.php", { l: candidateName });
+    const leagues = Array.isArray(payload.leagues) ? payload.leagues : [];
+    const exact = leagues.find(item =>
+      item.strSport === "Soccer" &&
+      normalize(item.strLeague) === normalize(candidateName)
+    );
+    if (exact?.idLeague) {
+      return {
+        strLeague: clean(exact.strLeague),
+        idLeague: Number(exact.idLeague),
+        strCountry: clean(exact.strCountry || "")
+      };
     }
   }
   return null;
@@ -231,8 +274,25 @@ async function findProviderTeam(name) {
 
 const resolvedLeagues = new Set();
 console.log("TheSportsDB enrichment starting for " + names.length + " historical published club names across " + representatives.size + " competitions.");
-// Resolve one representative club for every published competition first. This guarantees
-// roster discovery still runs when today's representative club already has a cached image.
+// Seed the core competition catalogue independently of published fixtures. This ensures
+// major competitions such as the Championship and UEFA tournaments are enriched even on
+// days when they have no published selections.
+for (const sportKey of Object.keys(seededCompetitions)) {
+  try {
+    const league = await findProviderLeague(sportKey);
+    if (!league) {
+      console.warn("No exact Soccer league match in TheSportsDB for configured competition " + sportKey);
+      continue;
+    }
+    await saveLeague(league, sportKey, today);
+    resolvedLeagues.add(sportKey);
+    console.log("Configured competition enriched: " + sportKey + " -> " + league.strLeague);
+  } catch (error) {
+    console.warn("Configured competition lookup failed for " + sportKey + ": " + String(error));
+  }
+}
+
+// Resolve one representative club for every additional competition found in published history.
 for (const [sportKey, row] of representatives) {
   let resolved = false;
   for (const candidate of [clean(row.home_team), clean(row.away_team)].filter(Boolean)) {
