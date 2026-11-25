@@ -39,6 +39,7 @@ export class OddsPapiClient {
           error.status = response.status;
           try { error.code = JSON.parse(body)?.error?.code || null; } catch { error.code = null; }
           lastError = error;
+          if (error.status === 404 && error.code === "FIXTURE_NOT_FOUND") throw error;
           continue;
         }
         this.cursor = (index + 1) % this.keys.length;
