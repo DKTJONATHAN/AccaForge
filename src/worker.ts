@@ -300,10 +300,10 @@ export default {
     ];
     if (controller.cron === "15 2 * * *") {
       const { runPremiumResearch } = await import("../scripts/generate-premium.mjs");
-      tasks.push(runPremiumResearch(env).catch(error => { console.error("Cloudflare Premium research failed", error); }));
+      tasks.push(runPremiumResearch(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium research failed", error); }));
     } else if (controller.cron === "0 7 * * *") {
       const { runPremiumSettlement } = await import("../scripts/settle-premium.mjs");
-      tasks.push(runPremiumSettlement(env).catch(error => { console.error("Cloudflare Premium settlement failed", error); }));
+      tasks.push(runPremiumSettlement(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium settlement failed", error); }));
     }
     ctx.waitUntil(Promise.all(tasks));
   },
