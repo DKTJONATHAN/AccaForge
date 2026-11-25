@@ -139,6 +139,8 @@ function leagueForCompetition(team, sportKey) {
     portugal_primeira_liga: ["primeira liga"],
     usa_mls: ["major league soccer", "mls"],
     england_championship: ["championship"],
+    england_league_one: ["league one", "english league one"],
+    england_league_two: ["league two", "english league two"],
     uefa_champs_league: ["uefa champions league", "champions league"],
     uefa_europa_league: ["uefa europa league", "europa league"],
     uefa_europa_conference_league: ["uefa europa conference league", "conference league"],
@@ -348,7 +350,7 @@ for (const name of names) {
   }
 }
 console.log("TheSportsDB enrichment complete: " + JSON.stringify({
-  today, yesterday, publishedFixturesAndResults: fixtures.length, distinctHistoricalClubs: names.length, competitions: representatives.size, matchedTeams, rosterLookups: leagueTeamsCache.size,
+  today, yesterday, publishedFixturesAndResults: fixtures.length, distinctHistoricalClubs: names.length, publishedCompetitions: representatives.size, seededCompetitions: Object.keys(seededCompetitions).length, resolvedCompetitions: [...resolvedLeagues], matchedTeams, rosterLookups: leagueTeamsCache.size,
   savedTeamLogos, savedLeagueLogos, unmatchedTeams: missing, apiRequests: requestCount,
   metadataDestination: "Cloudflare D1 (team_badges and sports_leagues)", cacheDestination: "Cloudflare R2 via the scheduled Worker media-cache task"
 }));
