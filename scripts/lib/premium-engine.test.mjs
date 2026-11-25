@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildOddsCandidates, normalizeMarketName, summarizeTeamForm, validatePremiumPick } from "./premium-engine.mjs";
+import { OddsPapiClient } from "./oddspapi.mjs";
 
 test("normalizes only automatically settleable API-Football markets", () => {
   assert.equal(normalizeMarketName("Match Winner"), "h2h");
@@ -54,4 +55,73 @@ test("withholds picks without a real candidate, enough edge, confidence or evide
   assert.equal(validatePremiumPick({ ...base, estimated_probability: 50 }, candidates).reason, "insufficient_price_edge");
   assert.equal(validatePremiumPick({ ...base, confidence_score: 50 }, candidates).reason, "confidence_below_threshold");
   assert.equal(validatePremiumPick({ ...base, evidence: ["Only one evidence item is available here."] }, candidates).reason, "insufficient_evidence");
+});
+
+test("discovers odds-backed fixtures across a configurable forward window", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl;
+  globalThis.fetch = async input => {
+    requestedUrl = new URL(String(input));
+    return new Response(JSON.stringify([
+      { fixtureId: "in-window", tournamentId: 17, statusId: 0, startTime: "2026-11-27T18:00:00.000Z", hasOdds: true, participant1Id: 1, participant2Id: 2, participant1Name: "Home", participant2Name: "Away", tournamentSlug: "premier-league", tournamentName: "Premier League" },
+      { fixtureId: "outside-window", tournamentId: 17, statusId: 0, startTime: "2026-12-03T18:00:00.000Z", hasOdds: true, participant1Id: 3, participant2Id: 4, participant1Name: "Other", participant2Name: "Side", tournamentSlug: "premier-league", tournamentName: "Premier League" }
+    ]), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    const client = new OddsPapiClient(["test-key"]);
+    const rows = await client.getFixturesForWindow("2026-11-25", 7, [{ tournamentId: 17, tournamentSlug: "premier-league", tournamentName: "Premier League" }]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].fixture.id, "in-window");
+    assert.equal(requestedUrl.pathname, "/v4/fixtures");
+    assert.equal(requestedUrl.searchParams.get("tournamentId"), "17");
+    assert.equal(requestedUrl.searchParams.get("statusId"), "0");
+    assert.equal(requestedUrl.searchParams.get("hasOdds"), "true");
+    assert.equal(requestedUrl.searchParams.get("from"), "2026-11-24T21:00:00.000Z");
+    assert.equal(requestedUrl.searchParams.get("to"), "2026-12-01T21:00:00.000Z");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("parses bookmaker prices from the documented OddsPapi odds response", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    fixtureId: "fixture-1",
+    bookmakerOdds: {
+      pinnacle: {
+        bookmakerIsActive: true,
+        markets: {
+          "101": {
+            marketActive: true,
+            outcomes: {
+              "101": { players: { "0": { active: true, price: 1.82 } } },
+              "102": { players: { "0": { active: true, price: 3.4 } } },
+              "103": { players: { "0": { active: true, price: 4.2 } } }
+            }
+          }
+        }
+      }
+    }
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const client = new OddsPapiClient(["test-key"]);
+    const marketCatalog = new Map([["101", {
+      marketName: "Full Time Result",
+      playerProp: false,
+      handicap: 0,
+      outcomes: [
+        { outcomeId: 101, outcomeName: "1" },
+        { outcomeId: 102, outcomeName: "X" },
+        { outcomeId: 103, outcomeName: "2" }
+      ]
+    }]]);
+    const payload = await client.getOddsPayload("fixture-1", marketCatalog);
+    const candidates = buildOddsCandidates(payload, "Home FC", "Away FC");
+    assert.equal(candidates.length, 3);
+    assert.equal(candidates.find(item => item.selection_name === "Home FC").odds, 1.82);
+    assert.equal(candidates.find(item => item.selection_name === "Draw").odds, 3.4);
+    assert.equal(candidates.find(item => item.selection_name === "Away FC").odds, 4.2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
