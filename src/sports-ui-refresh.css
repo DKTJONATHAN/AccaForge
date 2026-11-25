@@ -258,3 +258,44 @@ body { color: #152231; -webkit-font-smoothing: antialiased; }
 @media (prefers-reduced-motion: reduce) {
   .button-primary:hover, .edition-link:hover { transform: none; }
 }
+
+
+/* Keep the five-item mobile dock evenly distributed, including on the homepage. */
+@media (max-width: 760px) {
+  .app > .mobile-dock {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: stretch;
+    width: auto;
+    box-sizing: border-box;
+  }
+
+  .app > .mobile-dock > a {
+    display: flex;
+    flex: initial;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    justify-self: stretch;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding: 0 2px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .app > .mobile-dock > a > svg {
+    display: block;
+    flex: 0 0 19px;
+    margin: 0 auto;
+  }
+
+  .app > .mobile-dock > a > span {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+}
