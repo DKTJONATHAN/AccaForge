@@ -6,7 +6,7 @@ const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const FOOTBALL_KEYS = ["PREMIUM_FOOTBALL_KEY", "PREMIUM_FOOTBALL_KEY1", "PREMIUM_FOOTBALL_KEY2"].map(name => (env[name] || "").trim()).filter(Boolean);
 const GROQ_KEYS = [...new Set([
-  ...(env.GEMINI_API_KEYS || "").split(","),
+  ...(env.GEMINI_API_KEYS || "").split(/[;,\s]+/),
   ...["GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2", "GROQ_API_KEY3", "GROQ_API_KEY4",
       "GEMINI_API_KEY", "GEMINI_API_KEY1", "GEMINI_API_KEY2", "GEMINI_API_KEY3", "GEMINI_API_KEY4"].map(name => env[name] || "")
 ].map(value => String(value).trim()).filter(Boolean))];
