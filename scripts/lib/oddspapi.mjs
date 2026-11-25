@@ -102,7 +102,7 @@ export class OddsPapiClient {
               ? " " + String(Math.abs(Number(market.handicap))) : "";
             const outcomeName = String(outcomeMeta.outcomeName || "");
             const marketName = String(market.marketName || "");
-            const value = /over|under/i.test(outcomeName) && line && !/\\d/.test(outcomeName) ? outcomeName + line : outcomeName;
+            const value = /over|under/i.test(outcomeName) && line && !/\d/.test(outcomeName) ? outcomeName + line : outcomeName;
             values.push({ value, odd: String(odd) });
           }
         }
