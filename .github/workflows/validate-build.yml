@@ -28,7 +28,7 @@ jobs:
         run: node --check src/settlement.mjs && node --check scripts/refresh-results.mjs && node --check scripts/generate-daily.mjs && node --check scripts/enrich-football-data.mjs
       - name: Validate SEO verification scripts
         run: node --check scripts/verify-seo.mjs && bash -n scripts/verify-seo.sh
-      - name: Validate dedicated Premium workflows
+      - name: Validate Premium Cloudflare runtime modules
         run: node --check scripts/generate-premium.mjs && node --check scripts/settle-premium.mjs
       - name: Type-check and build
         run: npm run build
