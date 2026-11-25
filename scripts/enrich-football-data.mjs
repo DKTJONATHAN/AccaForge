@@ -173,6 +173,7 @@ async function saveLeague(team, sportKey, runDate) {
     "INSERT INTO sports_leagues (sport_key,league_id,season,league_name,country,logo_url,logo_key,standings_json,last_attempt_date,last_enriched_date,last_error,updated_at) " +
     "VALUES (?,?,?,?,?,?, '', '[]',?,?, '',CURRENT_TIMESTAMP) " +
     "ON CONFLICT(sport_key) DO UPDATE SET league_id=excluded.league_id,season=excluded.season,league_name=excluded.league_name,country=excluded.country," +
+    "logo_key=CASE WHEN excluded.logo_url<>'' AND sports_leagues.logo_url<>excluded.logo_url THEN '' ELSE sports_leagues.logo_key END," +
     "logo_url=CASE WHEN excluded.logo_url<>'' THEN excluded.logo_url ELSE sports_leagues.logo_url END," +
     "last_attempt_date=excluded.last_attempt_date,last_enriched_date=excluded.last_enriched_date,last_error='',updated_at=CURRENT_TIMESTAMP",
     [sportKey, selected.id, details.season, details.name, details.country, details.logo, runDate, runDate]
@@ -194,11 +195,12 @@ async function saveLeague(team, sportKey, runDate) {
       for (const club of safeClubs) {
         const clubName = clean(club.strTeam);
         const badge = String(club.strBadge || club.strTeamBadge || club.strLogo || "");
-        if (!clubName || !/^https:\\/\\//i.test(badge)) continue;
+        if (!clubName || !badge.toLowerCase().startsWith("https://")) continue;
         await d1(
           "INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?, '',?,CURRENT_TIMESTAMP) " +
           "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name," +
-          "source_url=CASE WHEN team_badges.source_url<>excluded.source_url THEN excluded.source_url ELSE team_badges.source_url END," +
+          "image_key=CASE WHEN team_badges.source_url<>excluded.source_url THEN '' ELSE team_badges.image_key END," +
+          "source_url=excluded.source_url," +
           "updated_at=CURRENT_TIMESTAMP",
           [clubName, teamKey(clubName), badge]
         );
@@ -233,7 +235,9 @@ for (const name of names) {
     if (badge && /^https:\/\//i.test(badge)) {
       await d1(
         "INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?, '',?,CURRENT_TIMESTAMP) " +
-        "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP",
+        "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name," +
+        "image_key=CASE WHEN team_badges.source_url<>excluded.source_url THEN '' ELSE team_badges.image_key END," +
+        "source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP",
         [name, teamKey(name), badge]
       );
       savedTeamLogos++;
