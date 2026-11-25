@@ -45,4 +45,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          THESPORTSDB_API_KEY: ${{ secrets.THESPORTSDB_API_KEY }}
         run: node scripts/enrich-football-data.mjs
