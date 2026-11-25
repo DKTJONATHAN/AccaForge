@@ -1,6 +1,13 @@
 name: AccaForge Premium Research
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/generate-premium.mjs"
+      - "scripts/lib/oddspapi.mjs"
+      - "scripts/lib/premium-engine.mjs"
+      - ".github/workflows/premium-research.yml"
   schedule:
     - cron: "15 2 * * *" # 05:15 Africa/Nairobi
   workflow_dispatch:
