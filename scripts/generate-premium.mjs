@@ -12,7 +12,7 @@ const GROQ_KEYS = [...new Set([
 ].map(value => String(value).trim()).filter(Boolean))];
 const oddsPapi = new OddsPapiClient(FOOTBALL_KEYS);
 const GROQ_MODEL = (env.PREMIUM_GROQ_MODEL || "openai/gpt-oss-120b").trim();
-const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 10)));
+const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 5)));
 const LEAGUE_SLUGS = new Set((env.PREMIUM_TOURNAMENT_SLUGS || "premier-league,laliga,serie-a,bundesliga,ligue-1").split(",").map(value => value.trim().toLowerCase()).filter(Boolean));
 const PROVIDER = "oddspapi";
 const now = new Date();
@@ -142,13 +142,16 @@ async function analyzeFixture(context) {
     if (response.status === 429 || response.status >= 500) { lastError = new Error("Groq key temporarily rate-limited or unavailable."); continue; }
     if (!response.ok) { lastError = new Error("Groq analysis request rejected (" + response.status + ")."); continue; }
     const payload = await response.json();
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content) { lastError = new Error("Groq returned an empty analysis."); continue; }
+    const choice = payload.choices?.[0] || {};
+    const content = choice.message?.content || "";
+    const usage = payload.usage || {};
+    console.log("Premium Groq response: finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+", reasoning_tokens="+String(usage.completion_tokens_details?.reasoning_tokens??"unknown")+", content_chars="+content.length+".");
+    if (!content) { lastError = new Error("Groq returned empty content (finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+")."); continue; }
     try {
       const parsed = JSON.parse(content);
       return parsed;
     } catch {
-      lastError = new Error("Groq returned invalid JSON.");
+      lastError = new Error("Groq returned invalid JSON (finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+", content_preview="+content.slice(0,240)+").");
     }
   }
   throw lastError || new Error("All Premium Groq keys failed.");
@@ -168,6 +171,21 @@ async function updateRun(status, summary = {}, failureCode = null) {
   });
 }
 async function main() {
+  const activeRuns = await supabase("/rest/v1/premium_workflow_runs?workflow_name=eq.premium-generate&status=eq.running&select=id,started_at&order=started_at.asc&limit=20");
+  const nowMs = Date.now();
+  for (const active of activeRuns || []) {
+    const ageMs = nowMs - Date.parse(active.started_at || "");
+    if (Number.isFinite(ageMs) && ageMs > 20 * 60 * 1000) {
+      await supabase("/rest/v1/premium_workflow_runs?id=eq."+encodeURIComponent(active.id), {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "failed", failure_code: "PREMIUM_RUN_STALE", summary: { reason: "Run exceeded the 20-minute execution lease and was marked stale before retry." }, finished_at: new Date().toISOString() })
+      });
+      console.warn("Marked stale Premium run "+active.id+" as failed after "+Math.round(ageMs/60000)+" minutes.");
+    } else {
+      console.log("Skipping overlapping Premium generation; active run "+active.id+" is still within its execution lease.");
+      return { status: "skipped", reason: "active_run" };
+    }
+  }
   const runRows = await supabase("/rest/v1/premium_workflow_runs", {
     method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ workflow_name: "premium-generate", publication_date: publicationDate, status: "running", summary: { provider: PROVIDER, model: GROQ_MODEL } })
@@ -176,8 +194,10 @@ async function main() {
   if (!runId) throw new Error("Could not create Premium workflow run record.");
 
   const tournamentRows = await oddsPapi.getTournaments();
+  const returnedSlugs = tournamentRows.map(item => String(item.tournamentSlug || "").toLowerCase()).filter(Boolean);
   const tournaments = tournamentRows.filter(item => LEAGUE_SLUGS.has(String(item.tournamentSlug || "").toLowerCase())).slice(0, 10);
-  if (!tournaments.length) throw new Error("OddsPapi returned no configured football tournaments. Check PREMIUM_TOURNAMENT_SLUGS and account coverage.");
+  console.log("Premium tournament discovery: returned="+tournamentRows.length+", configured_matches="+tournaments.length+", configured="+[...LEAGUE_SLUGS].join(",")+", returned_slugs="+returnedSlugs.slice(0,30).join(",")+".");
+  if (!tournaments.length) throw new Error("OddsPapi returned "+tournamentRows.length+" tournaments but none matched PREMIUM_TOURNAMENT_SLUGS. Configured: "+[...LEAGUE_SLUGS].join(",")+"; returned: "+returnedSlugs.slice(0,30).join(",")+".");
   const dates = [publicationDate, addDays(publicationDate, 1)];
   const allFixtures = [];
   for (const date of dates) allFixtures.push(...await oddsPapi.getFixturesForDate(date, tournaments));
