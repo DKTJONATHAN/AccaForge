@@ -8,6 +8,7 @@ import type { SiteContent } from "./App";
 import "./index.css";
 import "./accaforge-ux.css";
 import "./match-centre-redesign.css";
+import "./sports-ui-refresh.css";
 
 const client=new QueryClient({defaultOptions:{queries:{staleTime:60000,refetchOnWindowFocus:false,refetchInterval:300000,retry:1}}});
 let initialData:AccasResponse|undefined;
