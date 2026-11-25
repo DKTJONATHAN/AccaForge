@@ -12,7 +12,8 @@ const GROQ_KEYS = [...new Set([
 ].map(value => String(value).trim()).filter(Boolean))];
 const oddsPapi = new OddsPapiClient(FOOTBALL_KEYS);
 const GROQ_MODEL = (env.PREMIUM_GROQ_MODEL || "openai/gpt-oss-120b").trim();
-const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 10)));
+const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 5)));
+const FIXTURE_WINDOW_DAYS = Math.min(9, Math.max(1, Number(env.PREMIUM_FIXTURE_WINDOW_DAYS || 7)));
 const LEAGUE_SLUGS = new Set((env.PREMIUM_TOURNAMENT_SLUGS || "premier-league,laliga,serie-a,bundesliga,ligue-1").split(",").map(value => value.trim().toLowerCase()).filter(Boolean));
 const PROVIDER = "oddspapi";
 const now = new Date();
@@ -142,13 +143,16 @@ async function analyzeFixture(context) {
     if (response.status === 429 || response.status >= 500) { lastError = new Error("Groq key temporarily rate-limited or unavailable."); continue; }
     if (!response.ok) { lastError = new Error("Groq analysis request rejected (" + response.status + ")."); continue; }
     const payload = await response.json();
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content) { lastError = new Error("Groq returned an empty analysis."); continue; }
+    const choice = payload.choices?.[0] || {};
+    const content = choice.message?.content || "";
+    const usage = payload.usage || {};
+    console.log("Premium Groq response: finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+", reasoning_tokens="+String(usage.completion_tokens_details?.reasoning_tokens??"unknown")+", content_chars="+content.length+".");
+    if (!content) { lastError = new Error("Groq returned empty content (finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+")."); continue; }
     try {
       const parsed = JSON.parse(content);
       return parsed;
     } catch {
-      lastError = new Error("Groq returned invalid JSON.");
+      lastError = new Error("Groq returned invalid JSON (finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(usage.completion_tokens??"unknown")+", content_preview="+content.slice(0,240)+").");
     }
   }
   throw lastError || new Error("All Premium Groq keys failed.");
@@ -168,6 +172,21 @@ async function updateRun(status, summary = {}, failureCode = null) {
   });
 }
 async function main() {
+  const activeRuns = await supabase("/rest/v1/premium_workflow_runs?workflow_name=eq.premium-generate&status=eq.running&select=id,started_at&order=started_at.asc&limit=20");
+  const nowMs = Date.now();
+  for (const active of activeRuns || []) {
+    const ageMs = nowMs - Date.parse(active.started_at || "");
+    if (Number.isFinite(ageMs) && ageMs > 20 * 60 * 1000) {
+      await supabase("/rest/v1/premium_workflow_runs?id=eq."+encodeURIComponent(active.id), {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "failed", failure_code: "PREMIUM_RUN_STALE", summary: { reason: "Run exceeded the 20-minute execution lease and was marked stale before retry." }, finished_at: new Date().toISOString() })
+      });
+      console.warn("Marked stale Premium run "+active.id+" as failed after "+Math.round(ageMs/60000)+" minutes.");
+    } else {
+      console.log("Skipping overlapping Premium generation; active run "+active.id+" is still within its execution lease.");
+      return { status: "skipped", reason: "active_run" };
+    }
+  }
   const runRows = await supabase("/rest/v1/premium_workflow_runs", {
     method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ workflow_name: "premium-generate", publication_date: publicationDate, status: "running", summary: { provider: PROVIDER, model: GROQ_MODEL } })
@@ -176,39 +195,77 @@ async function main() {
   if (!runId) throw new Error("Could not create Premium workflow run record.");
 
   const tournamentRows = await oddsPapi.getTournaments();
+  const returnedSlugs = tournamentRows.map(item => String(item.tournamentSlug || "").toLowerCase()).filter(Boolean);
   const tournaments = tournamentRows.filter(item => LEAGUE_SLUGS.has(String(item.tournamentSlug || "").toLowerCase())).slice(0, 10);
-  if (!tournaments.length) throw new Error("OddsPapi returned no configured football tournaments. Check PREMIUM_TOURNAMENT_SLUGS and account coverage.");
-  const dates = [publicationDate, addDays(publicationDate, 1)];
-  const allFixtures = [];
-  for (const date of dates) allFixtures.push(...await oddsPapi.getFixturesForDate(date, tournaments));
-  const unique = [...new Map(allFixtures.filter(isEligibleFixture).map(item => [String(item.fixture?.id), item])).values()]
-    .sort((a, b) => String(a.fixture.date).localeCompare(String(b.fixture.date)))
-    .slice(0, MAX_FIXTURES);
+  console.log("Premium tournament discovery: returned="+tournamentRows.length+", configured_matches="+tournaments.length+", configured="+[...LEAGUE_SLUGS].join(",")+", returned_slugs="+returnedSlugs.slice(0,30).join(",")+".");
+  if (!tournaments.length) throw new Error("OddsPapi returned "+tournamentRows.length+" tournaments but none matched PREMIUM_TOURNAMENT_SLUGS. Configured: "+[...LEAGUE_SLUGS].join(",")+"; returned: "+returnedSlugs.slice(0,30).join(",")+".");
+  const allFixtures = await oddsPapi.getFixturesForWindow(publicationDate, FIXTURE_WINDOW_DAYS, tournaments);
+  const eligibleFixtures = [...new Map(allFixtures.filter(isEligibleFixture).map(item => [String(item.fixture?.id), item])).values()]
+    .sort((a, b) => String(a.fixture.date).localeCompare(String(b.fixture.date)));
+  const unique = eligibleFixtures.slice(0, MAX_FIXTURES);
+  console.log("Premium fixture shortlist: returned=" + allFixtures.length + ", eligible=" + eligibleFixtures.length + ", selected=" + unique.length + ", window_days=" + FIXTURE_WINDOW_DAYS + ".");
   const marketCatalog = await oddsPapi.getMarketCatalog();
 
-
   const validated = [];
+  const diagnostics = {
+    fixtures_returned: allFixtures.length,
+    fixtures_eligible: eligibleFixtures.length,
+    fixtures_selected: unique.length,
+    provider_data_failed: 0,
+    insufficient_candidates: 0,
+    insufficient_form: 0,
+    groq_failed: 0,
+    ai_withheld_or_rejected: 0,
+    validation_rejections: {}
+  };
   let discovered = 0;
   for (const item of unique) {
     discovered++;
     const fixtureId = await storeFixture(item);
     const home = item.teams.home;
     const away = item.teams.away;
-    const [oddsPayload, homeForm, awayForm] = await Promise.all([
-      oddsPapi.getOddsPayload(item.fixture.id, marketCatalog),
-      getForm(home.id),
-      getForm(away.id)
-    ]);
+    let oddsPayload, homeForm, awayForm;
+    try {
+      [oddsPayload, homeForm, awayForm] = await Promise.all([
+        oddsPapi.getOddsPayload(item.fixture.id, marketCatalog),
+        getForm(home.id),
+        getForm(away.id)
+      ]);
+    } catch (error) {
+      diagnostics.provider_data_failed++;
+      console.warn("Premium provider data unavailable for " + home.name + " vs " + away.name + ": " + String(error?.message || error).slice(0, 220));
+      continue;
+    }
     const candidates = buildOddsCandidates(oddsPayload, home.name, away.name);
-    if (candidates.length < 3 || homeForm.matches < 3 || awayForm.matches < 3) continue;
+    if (candidates.length < 3) {
+      diagnostics.insufficient_candidates++;
+      console.log("Premium skipped " + home.name + " vs " + away.name + ": only " + candidates.length + " supported odds candidates were returned.");
+      continue;
+    }
+    if (homeForm.matches < 3 || awayForm.matches < 3) {
+      diagnostics.insufficient_form++;
+      console.log("Premium skipped " + home.name + " vs " + away.name + ": recent form sample below three completed matches.");
+      continue;
+    }
 
     const context = {
       home_team: home.name, away_team: away.name, competition: item.league.name,
       commence_time: item.fixture.date, home_form: homeForm, away_form: awayForm, candidates
     };
-    const ai = await analyzeFixture(context);
+    let ai;
+    try {
+      ai = await analyzeFixture(context);
+    } catch (error) {
+      diagnostics.groq_failed++;
+      console.warn("Premium AI analysis unavailable for " + home.name + " vs " + away.name + ": " + String(error?.message || error).slice(0, 220));
+      continue;
+    }
     const decision = validatePremiumPick(ai, candidates);
-    if (!decision.ok) continue;
+    if (!decision.ok) {
+      diagnostics.ai_withheld_or_rejected++;
+      diagnostics.validation_rejections[decision.reason] = (diagnostics.validation_rejections[decision.reason] || 0) + 1;
+      continue;
+    }
 
     const evidence = {
       provider: PROVIDER,
@@ -243,8 +300,8 @@ async function main() {
   }
 
   if (!validated.length) {
-    await updateRun("withheld", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: 0, predictions_published: 0, api_calls: apiCalls, reason: "No fixture passed evidence, odds and confidence validation. No Premium picks were published." });
-    console.log(JSON.stringify({ status: "withheld", provider: PROVIDER, fixtures: discovered, picks: 0, api_calls: apiCalls }));
+    await updateRun("withheld", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: 0, predictions_published: 0, api_calls: apiCalls, reason: "No fixture passed evidence, odds and confidence validation. No Premium picks were published.", diagnostics });
+    console.log(JSON.stringify({ status: "withheld", provider: PROVIDER, fixtures: discovered, picks: 0, diagnostics, api_calls: apiCalls }));
     return;
   }
 
@@ -252,8 +309,8 @@ async function main() {
     method: "PATCH", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
   });
-  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, api_calls: apiCalls });
-  console.log(JSON.stringify({ status: "succeeded", provider: PROVIDER, football_keys_available: FOOTBALL_KEYS.length, groq_keys_available: GROQ_KEYS.length, fixtures: discovered, picks: validated.length, api_calls: apiCalls }));
+  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, diagnostics, api_calls: apiCalls });
+  console.log(JSON.stringify({ status: "succeeded", provider: PROVIDER, football_keys_available: FOOTBALL_KEYS.length, groq_keys_available: GROQ_KEYS.length, fixtures: discovered, picks: validated.length, diagnostics, api_calls: apiCalls }));
 }
 return main().catch(async error => {
   console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error");

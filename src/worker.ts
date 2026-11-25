@@ -33,6 +33,7 @@ interface Env {
   GEMINI_API_KEY4?: string;
   PREMIUM_TOURNAMENT_SLUGS?: string;
   PREMIUM_MAX_FIXTURES?: string;
+  PREMIUM_FIXTURE_WINDOW_DAYS?: string;
   PREMIUM_GROQ_MODEL?: string;
 }
 interface AccaRow {

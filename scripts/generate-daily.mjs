@@ -383,9 +383,10 @@ function extractGroqJson(content){
 }
 async function callGroqJson(prompt,label,maxCompletion){
  const result=await groqRequest({model,messages:[{role:"user",content:prompt}],response_format:{type:"json_object"},reasoning_format:"parsed",reasoning_effort:"low",max_completion_tokens:maxCompletion,temperature:0.2},"product "+label);
- const content=result.choices?.[0]?.message?.content||"",jsonText=extractGroqJson(content);
- if(!jsonText)throw new Error("Groq did not return a complete JSON object for "+label+".");
- try{return JSON.parse(jsonText)}catch{throw new Error("Groq returned malformed JSON for "+label+".");}
+ const choice=result.choices?.[0]||{},message=choice.message||{},content=message.content||"",jsonText=extractGroqJson(content);
+ const meta="finish_reason="+String(choice.finish_reason||"unknown")+", completion_tokens="+String(result.usage?.completion_tokens??"unknown")+", reasoning_tokens="+String(result.usage?.completion_tokens_details?.reasoning_tokens??"unknown");
+ if(!jsonText)throw new Error("Groq did not return a complete JSON object for "+label+" ("+meta+"); content_length="+String(content.length)+"; reasoning_present="+Boolean(message.reasoning)+".");
+ try{const parsed=JSON.parse(jsonText);Object.defineProperty(parsed,"__groq_meta",{value:meta,enumerable:false});return parsed}catch{throw new Error("Groq returned malformed JSON for "+label+" ("+meta+").");}
 }
 async function askGroqProduct(type,candidates,events,research,publishDate){
  // Each featured category owns its fixtures. Later stages may only use fixtures
@@ -412,7 +413,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   "Candidate rows include de-vigged bookmaker consensus probability, price edge in percentage points and bookmaker coverage. Treat consensus probability as the baseline; do not invent large probability uplifts. Prioritise outcome likelihood and genuine price value over chasing a combined-odds target.",
   "Use only supplied candidate IDs, markets, selections and prices; never invent or alter them. Prices are snapshots, not guarantees.",
   "AI must make the final selection decision; candidate ranking is only a shortlist, never an automatic pick. Consider every supplied market type and line for the fixture, not merely the first available or highest-priced option. For EVERY selected leg, provide a specific evidence-based rationale of at least 40 characters explaining why that exact market is preferable using consensus probability, price edge, bookmaker coverage and relevant verified match context: referee tendencies where confirmed, goal types and scoring/conceding patterns, table position and match importance, injuries, home/away advantage, tactics and form. Explain material risks and uncertainty; do not overstate weak samples or unavailable research. If the evidence does not justify the required number of selections, withhold rather than force a pick.",
-  "Research dossier:",research.dossier.slice(0,3500),
+  "Research dossier:",research.dossier.slice(0,1500),
   "Research citation metadata:",JSON.stringify(research.citations.slice(0,5))
  ];
  if(type==="all_matches"){
@@ -451,7 +452,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   }
  }
  const commonPrompt=[...common,"Candidate rows (last columns: fair market probability %, price edge percentage points, bookmaker count):",JSON.stringify(rows)];
- let prompt,maxCompletion=type==="safe_picks"?1200:type==="super_5"?1500:1800;
+ let prompt,maxCompletion=type==="safe_picks"?1200:type==="super_5"?2200:2600;
  if(type==="super_5")prompt=[
   "Return JSON only: {\"super_5\":{\"headline\":\"...\",\"analysis_note\":\"...\",\"selections\":[{\"candidate_id\":\"...\",\"probability\":0,\"note\":\"...\"}]}}.",
   "SUPER 5: select EXACTLY five different fixtures, one market per match. Every individual decimal price MUST be between 1.50 and 2.00 inclusive. There is NO minimum or target for combined odds. Do not chase a 30.00 combined price, use longshots, or sacrifice outcome probability to inflate the accumulator. Prioritise strongest consensus probability and positive price edge, with verified match context as a secondary factor. Return exactly five distinct candidate IDs.",
@@ -478,7 +479,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   throw new Error(type+" withheld: the AI could not make and justify its own selections; automatic market ranking is not an acceptable substitute. "+String(error?.message||error));
  }
  if(type==="super_5"||type==="super_10"){
-  const entries=generated?.[type]?.selections,ids=Array.isArray(entries)?entries.map(item=>item?.candidate_id):[];
+  const entries=generated?.[type]?.selections,ids=Array.isArray(entries)?entries.map(item=>item?.candidate_id):[];const responseMeta=generated?.__groq_meta||"finish_reason=unknown";
   const byId=new Map(stage.map(item=>[item.candidate_id,item]));
   const uniqueIds=new Set(ids);
   const uniqueFixtures=new Set(ids.map(id=>byId.get(id)?.event_id).filter(Boolean));
@@ -487,7 +488,7 @@ async function askGroqProduct(type,candidates,events,research,publishDate){
   const badProbabilities=entries.filter(item=>!Number.isFinite(Number(item.probability))||Number(item.probability)<=0||Number(item.probability)>=100).length;
   const valid=ids.length===limit&&uniqueIds.size===limit&&uniqueFixtures.size===limit&&unknownIds.length===0&&badOdds.length===0&&badProbabilities===0;
   if(!valid){
-   throw new Error(type+" AI response validation failed: expected "+limit+" legs, received "+ids.length+"; unique IDs "+uniqueIds.size+"; distinct fixtures "+uniqueFixtures.size+"; unknown IDs "+unknownIds.length+"; out-of-band prices "+badOdds.length+"; invalid probabilities "+badProbabilities+". No algorithmic substitutions are permitted.");
+   throw new Error(type+" AI response validation failed: expected "+limit+" legs, received "+ids.length+"; unique IDs "+uniqueIds.size+"; distinct fixtures "+uniqueFixtures.size+"; unknown IDs "+unknownIds.length+"; out-of-band prices "+badOdds.length+"; invalid probabilities "+badProbabilities+"; "+responseMeta+". No algorithmic substitutions are permitted.");
   }
  }
  generated.__allowed_candidate_ids=stage.map(item=>item.candidate_id);

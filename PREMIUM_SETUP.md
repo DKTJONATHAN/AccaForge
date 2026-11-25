@@ -43,7 +43,7 @@ The dedicated Premium pipeline uses OddsPapi v4:
 - Odds: bookmaker prices from `/odds`, normalized using `/markets` metadata
 - Form: each team's last five completed fixtures and scores from OddsPapi
 
-The default tournament slugs are `premier-league,laliga,serie-a,bundesliga,ligue-1`. To change them, add a Cloudflare Worker **variable** named `PREMIUM_TOURNAMENT_SLUGS` with comma-separated OddsPapi tournament slugs. The Worker caps a run at 10 fixtures. The client respects OddsPapi endpoint cooldowns and rotates keys when a key is throttled or a provider request fails. Competition coverage, bookmaker availability and request quotas depend on your OddsPapi plan.
+The default tournament slugs are `premier-league,laliga,serie-a,bundesliga,ligue-1`. To change them, add a Cloudflare Worker **variable** named `PREMIUM_TOURNAMENT_SLUGS` with comma-separated OddsPapi tournament slugs. The Worker searches a configurable 7-day forward window by default (`PREMIUM_FIXTURE_WINDOW_DAYS`, maximum 9 days) and caps a run at 5 fixtures by default (`PREMIUM_MAX_FIXTURES`, maximum 12). It requests only not-yet-started fixtures with bookmaker odds, then fetches current odds and recent team form. The client respects OddsPapi endpoint cooldowns and rotates keys when a key is throttled or a provider request fails. Competition coverage, bookmaker availability and request quotas depend on your OddsPapi plan.
 
 ## Groq model
 

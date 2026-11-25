@@ -60,6 +60,44 @@ export class OddsPapiClient {
     return Array.isArray(rows) ? rows : [];
   }
 
+  async getFixturesForWindow(startDate, days, tournaments) {
+    const fromDate = new Date(startDate + "T00:00:00+03:00");
+    const from = fromDate.toISOString();
+    const to = new Date(fromDate.getTime() + days * 86400000).toISOString();
+    const results = [];
+    for (const tournament of tournaments) {
+      let rows;
+      try {
+        rows = await this.get("/fixtures", {
+          tournamentId: tournament.tournamentId, from, to, statusId: 0, hasOdds: true
+        }, 2000);
+      } catch (error) {
+        if (error?.status === 404 && error?.code === "FIXTURE_NOT_FOUND") {
+          console.log("OddsPapi fixture discovery: " + tournament.tournamentSlug + " returned no odds-backed fixtures in the requested window.");
+          continue;
+        }
+        throw error;
+      }
+      const fixtures = (Array.isArray(rows) ? rows : []).filter(item => {
+        const kickoff = Date.parse(item.startTime || "");
+        return Number.isFinite(kickoff) && kickoff >= fromDate.getTime() && kickoff < fromDate.getTime() + days * 86400000;
+      });
+      console.log("OddsPapi fixture discovery: " + tournament.tournamentSlug + " returned " + fixtures.length + " odds-backed fixtures in " + days + " days.");
+      for (const item of fixtures) {
+        results.push({
+          fixture: { id: item.fixtureId, date: item.startTime, status: { short: Number(item.statusId) === 0 ? "NS" : "UNK" } },
+          league: { id: item.tournamentId, slug: item.tournamentSlug || tournament.tournamentSlug, name: item.tournamentName || tournament.tournamentName, type: "League", country: item.categoryName },
+          teams: {
+            home: { id: item.participant1Id, name: item.participant1Name },
+            away: { id: item.participant2Id, name: item.participant2Name }
+          },
+          raw: item
+        });
+      }
+    }
+    return results;
+  }
+
   async getFixturesForDate(date, tournaments) {
     const from = new Date(date + "T00:00:00+03:00").toISOString();
     const to = new Date(new Date(date + "T00:00:00+03:00").getTime() + 86400000).toISOString();
