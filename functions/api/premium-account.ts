@@ -16,7 +16,11 @@ interface Env {
   DARAJA_ENV: string;
   DARAJA_CALLBACK_URL: string;
 }
-interface AuthUser { id: string; email?: string | null; phone?: string | null; phone_confirmed_at?: string | null; user_metadata?: Record<string, unknown> }
+interface AuthUser { id: string; email?: string | null; email_confirmed_at?: string | null; phone?: string | null; phone_confirmed_at?: string | null; user_metadata?: Record<string, unknown> }
+const OWNER_PREMIUM_EMAIL = "jonathanmwaniki07@gmail.com";
+function hasOwnerPremiumGrant(user: AuthUser): boolean {
+  return user.email?.trim().toLowerCase() === OWNER_PREMIUM_EMAIL && Boolean(user.email_confirmed_at);
+}
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }
 });
@@ -155,12 +159,14 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
     const user = await authenticate(request, env);
     if (!user) return json({ error: "Sign in to view your Premium account." }, 401);
     if (path === "/api/premium/account/predictions") {
+      const ownerGrant = hasOwnerPremiumGrant(user);
       const nowIso = new Date().toISOString();
-      const activeRows = await dbJson(env, `/rest/v1/subscriptions?user_id=eq.${user.id}&status=eq.active&expires_at=gt.${encodeURIComponent(nowIso)}&select=plan_id,expires_at&order=expires_at.desc&limit=1`);
+      const activeRows = ownerGrant ? [] : await dbJson(env, `/rest/v1/subscriptions?user_id=eq.${user.id}&status=eq.active&expires_at=gt.${encodeURIComponent(nowIso)}&select=plan_id,expires_at&order=expires_at.desc&limit=1`);
       const active = (activeRows as Array<{ plan_id: string; expires_at: string }>)[0];
-      if (!active) return json({ error: "An active Premium subscription is required to view Premium predictions." }, 403);
-      const planRows = await dbJson(env, `/rest/v1/subscription_plans?id=eq.${active.plan_id}&select=duration_days`);
-      const duration = Math.max(1, Math.min(365, Number((planRows as Array<{ duration_days: number }>)[0]?.duration_days || 30)));
+      if (!ownerGrant && !active) return json({ error: "An active Premium subscription is required to view Premium predictions." }, 403);
+      const planRows = active ? await dbJson(env, `/rest/v1/subscription_plans?id=eq.${active.plan_id}&select=duration_days`) : [];
+      // Owner testing access is perpetual; keep the same bounded one-year archive window as paid plans.
+      const duration = ownerGrant ? 365 : Math.max(1, Math.min(365, Number((planRows as Array<{ duration_days: number }>)[0]?.duration_days || 30)));
       const cutoff = new Date(Date.now() - duration * 86400000);
       const cutoffDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(cutoff);
       const predictions = await dbJson(env, `/rest/v1/premium_predictions?publication_date=gte.${cutoffDate}&or=(status.eq.published,status.eq.settled)&select=id,fixture_id,publication_date,market_key,market_name,selection_name,odds,bookmaker,estimated_probability,confidence_score,reasoning,status,result,published_at&order=publication_date.desc,published_at.desc&limit=150`);
@@ -182,6 +188,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
       });
     }
     if (path === "/api/premium/account/me") {
+      const ownerGrant = hasOwnerPremiumGrant(user);
       const [phones, subscriptionsResponse, paymentsResponse, profileResponse] = await Promise.all([
         verifiedPhones(env, user),
         db(env, `/rest/v1/subscriptions?user_id=eq.${user.id}&select=id,plan_id,phone,status,starts_at,expires_at,auto_renew_enabled,created_at&order=created_at.desc&limit=20`),
@@ -197,7 +204,11 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
         account: { id: user.id, email: user.email || null, display_name: profiles[0]?.display_name || String(user.user_metadata?.full_name || ""), avatar_url: profiles[0]?.avatar_url || null },
         verified_phones: phones,
         subscriptions, payments,
-        entitlement: active ? { is_premium: true, expires_at: active.expires_at, plan_id: active.plan_id } : { is_premium: false, expires_at: null, plan_id: null }
+        entitlement: ownerGrant
+          ? { is_premium: true, is_owner_grant: true, expires_at: null, plan_id: null }
+          : active
+            ? { is_premium: true, is_owner_grant: false, expires_at: active.expires_at, plan_id: active.plan_id }
+            : { is_premium: false, is_owner_grant: false, expires_at: null, plan_id: null }
       });
     }
     return json({ error: "Not found." }, 404);
