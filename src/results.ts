@@ -9,7 +9,7 @@ const resultSchema=[
 "CREATE TABLE IF NOT EXISTS edition_results (acca_id TEXT PRIMARY KEY, product_type TEXT NOT NULL, headline TEXT NOT NULL, publish_date TEXT NOT NULL, leg_count INTEGER NOT NULL DEFAULT 0, won_legs INTEGER NOT NULL DEFAULT 0, lost_legs INTEGER NOT NULL DEFAULT 0, void_legs INTEGER NOT NULL DEFAULT 0, pending_legs INTEGER NOT NULL DEFAULT 0, pass_legs INTEGER NOT NULL DEFAULT 0, outcome TEXT NOT NULL DEFAULT 'PENDING', effective_odds REAL, profit REAL, result_note TEXT NOT NULL DEFAULT '', settled_at TEXT)"
 ];
 async function ensureResultsSchema(env:ResultsEnv){for(const sql of resultSchema)await env.DB.prepare(sql).run();}
-function oddsApiKeys(env:ResultsEnv){return [...new Set([env.ODDSAPI_KEY,env.ODDSAPI_KEY1,env.ODDSAPI_KEY2,env.ODDSAPI_KEY3,env.ODDS_API_KEY].map(key=>key?.trim()).filter((key):key is string=>Boolean(key)))];}
+function oddsApiKeys(env:ResultsEnv){return [...new Set([env.ODDS_API_KEY,...Array.from({length:8},(_,index)=>env[`ODDS_API_KEY${index+1}` as keyof ResultsEnv] as string|undefined),env.ODDSAPI_KEY,env.ODDSAPI_KEY1,env.ODDSAPI_KEY2,env.ODDSAPI_KEY3].flatMap(key=>(key||\"\").split(\",\")).map(key=>key.trim()).filter(Boolean))];}
 async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<ScoreEvent[]|null>{
  const keys=oddsApiKeys(env);
  for(let index=0;index<keys.length;index++){
