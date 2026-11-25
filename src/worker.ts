@@ -295,17 +295,22 @@ async function renderHome(request:Request,env:Env){
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const tasks: Promise<unknown>[] = [
-      cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); })
-    ];
-    if (controller.cron === "15 2 * * *") {
+    // Reuse the Worker’s existing five-minute cron so Premium does not consume
+    // additional account-level Cron Trigger slots. scheduledTime is UTC.
+    const scheduledAt = new Date(controller.scheduledTime);
+    const isFiveMinuteTick = controller.cron === "*/5 * * * *";
+    const tasks: Promise<unknown>[] = [];
+    if (isFiveMinuteTick) {
+      tasks.push(cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); }));
+    }
+    if (isFiveMinuteTick && scheduledAt.getUTCHours() === 2 && scheduledAt.getUTCMinutes() === 15) {
       const { runPremiumResearch } = await import("../scripts/generate-premium.mjs");
       tasks.push(runPremiumResearch(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium research failed", error); }));
-    } else if (controller.cron === "0 7 * * *") {
+    } else if (isFiveMinuteTick && scheduledAt.getUTCHours() === 7 && scheduledAt.getUTCMinutes() === 0) {
       const { runPremiumSettlement } = await import("../scripts/settle-premium.mjs");
       tasks.push(runPremiumSettlement(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium settlement failed", error); }));
     }
-    ctx.waitUntil(Promise.all(tasks));
+    if (tasks.length) ctx.waitUntil(Promise.all(tasks));
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
