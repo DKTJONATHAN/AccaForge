@@ -5,6 +5,8 @@ export class OddsPapiClient {
   constructor(keys) {
     this.keys = [...new Set((keys || []).map(value => String(value || "").trim()).filter(Boolean))];
     this.cursor = 0;
+    this.lastRequestAt = new Map();
+    this.requestCount = 0;
     if (!this.keys.length) throw new Error("No PREMIUM_FOOTBALL_KEY credentials were supplied.");
   }
 
@@ -12,12 +14,16 @@ export class OddsPapiClient {
     let lastError;
     for (let attempt = 0; attempt < this.keys.length; attempt++) {
       const index = (this.cursor + attempt) % this.keys.length;
+      const scheduledAt = Math.max(Date.now(), this.lastRequestAt.get(path) || 0);
+      this.lastRequestAt.set(path, scheduledAt + cooldownMs);
+      if (scheduledAt > Date.now()) await sleep(scheduledAt - Date.now());
       const url = new URL(BASE + path);
       for (const [name, value] of Object.entries(params)) {
         if (value !== undefined && value !== null) url.searchParams.set(name, String(value));
       }
       url.searchParams.set("apiKey", this.keys[index]);
       try {
+        this.requestCount++;
         const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
         if (response.status === 429 || response.status >= 500) {
           const body = await response.json().catch(() => ({}));
@@ -34,7 +40,6 @@ export class OddsPapiClient {
           continue;
         }
         this.cursor = (index + 1) % this.keys.length;
-        if (cooldownMs) await sleep(cooldownMs);
         return await response.json();
       } catch (error) {
         lastError = error;
