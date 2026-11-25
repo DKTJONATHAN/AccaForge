@@ -53,9 +53,8 @@ If the model passes, provider odds are missing, or the evidence fails validation
 
 ## Cloudflare schedule
 
-- **Premium Research:** Cloudflare Cron Trigger `15 2 * * *` (05:15 Africa/Nairobi).
-- **Premium Results:** Cloudflare Cron Trigger `0 7 * * *` (10:00 Africa/Nairobi).
-- Both jobs execute inside the AccaForge Worker and read the existing Cloudflare Worker secrets directly. GitHub Actions is no longer used to schedule or run Premium jobs.
+- The Worker reuses its existing five-minute Cron Trigger (`*/5 * * * *`) and dispatches **Premium Research** at 02:15 UTC (05:15 Africa/Nairobi) and **Premium Results** at 07:00 UTC (10:00 Africa/Nairobi), based on the scheduled event timestamp.
+- No additional account-level Cron Trigger slots are required. Both jobs execute inside the AccaForge Worker and read the existing Cloudflare Worker secrets directly. GitHub Actions is no longer used to schedule or run Premium jobs.
 
 The research workflow publishes only validated rows in `premium_predictions`. The results workflow settles those rows against OddsPapi final-period scores using the same supported-market settlement rules as the public engine.
 
