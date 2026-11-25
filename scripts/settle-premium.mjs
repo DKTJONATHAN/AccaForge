@@ -1,7 +1,7 @@
 import { settleSelection } from "../src/settlement.mjs";
 import { OddsPapiClient } from "./lib/oddspapi.mjs";
 
-const env = process.env;
+export async function runPremiumSettlement(env) {
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const FOOTBALL_KEYS = ["PREMIUM_FOOTBALL_KEY", "PREMIUM_FOOTBALL_KEY1", "PREMIUM_FOOTBALL_KEY2"].map(name => (env[name] || "").trim()).filter(Boolean);
@@ -91,10 +91,15 @@ async function main() {
   });
   console.log(JSON.stringify({ status: "succeeded", fixtures_checked: checked, predictions_settled: settled }));
 }
-main().catch(async error => {
+return main().catch(async error => {
   console.error("Premium settlement failed:", error instanceof Error ? error.message : "unknown error");
   if (runId) {
     try { await db("/rest/v1/premium_workflow_runs?id=eq." + runId, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "failed", failure_code: "PREMIUM_SETTLEMENT_FAILED", summary: { fixtures_checked: checked, predictions_settled: settled }, finished_at: new Date().toISOString() }) }); } catch { /* keep original error */ }
   }
-  process.exitCode = 1;
-});
+  throw error;
+  });
+}
+
+if (typeof process !== "undefined" && process.argv?.[1]?.endsWith("/settle-premium.mjs")) {
+  runPremiumSettlement(process.env).catch(error => { console.error("Premium settlement failed:", error instanceof Error ? error.message : "unknown error"); process.exitCode = 1; });
+}

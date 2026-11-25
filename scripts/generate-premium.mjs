@@ -1,11 +1,15 @@
 import { buildOddsCandidates, summarizeTeamForm, validatePremiumPick } from "./lib/premium-engine.mjs";
 import { OddsPapiClient } from "./lib/oddspapi.mjs";
 
-const env = process.env;
+export async function runPremiumResearch(env) {
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const FOOTBALL_KEYS = ["PREMIUM_FOOTBALL_KEY", "PREMIUM_FOOTBALL_KEY1", "PREMIUM_FOOTBALL_KEY2"].map(name => (env[name] || "").trim()).filter(Boolean);
-const GROQ_KEYS = ["GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2", "GROQ_API_KEY3", "GROQ_API_KEY4"].map(name => (env[name] || "").trim()).filter(Boolean);
+const GROQ_KEYS = [...new Set([
+  ...(env.GEMINI_API_KEYS || "").split(/[;,\s]+/),
+  ...["GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2", "GROQ_API_KEY3", "GROQ_API_KEY4",
+      "GEMINI_API_KEY", "GEMINI_API_KEY1", "GEMINI_API_KEY2", "GEMINI_API_KEY3", "GEMINI_API_KEY4"].map(name => env[name] || "")
+].map(value => String(value).trim()).filter(Boolean))];
 const oddsPapi = new OddsPapiClient(FOOTBALL_KEYS);
 const GROQ_MODEL = (env.PREMIUM_GROQ_MODEL || "openai/gpt-oss-120b").trim();
 const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 10)));
@@ -251,8 +255,13 @@ async function main() {
   await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, api_calls: apiCalls });
   console.log(JSON.stringify({ status: "succeeded", provider: PROVIDER, football_keys_available: FOOTBALL_KEYS.length, groq_keys_available: GROQ_KEYS.length, fixtures: discovered, picks: validated.length, api_calls: apiCalls }));
 }
-main().catch(async error => {
+return main().catch(async error => {
   console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error");
   try { await updateRun("failed", { api_calls: apiCalls }, "PREMIUM_GENERATION_FAILED"); } catch { /* preserve the original failure */ }
-  process.exitCode = 1;
-});
+  throw error;
+  });
+}
+
+if (typeof process !== "undefined" && process.argv?.[1]?.endsWith("/generate-premium.mjs")) {
+  runPremiumResearch(process.env).catch(error => { console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error"); process.exitCode = 1; });
+}

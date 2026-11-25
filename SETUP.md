@@ -96,7 +96,7 @@ AccaForge is for adults aged 18+ and provides football information for entertain
 
 ## Premium payment configuration (not yet production-approved)
 
-The current Premium API implementation is backed by Supabase REST and Safaricom Daraja STK Push. It requires these additional **Cloudflare Worker secrets/variables** before the checkout route can operate:
+The Premium API and scheduled OddsPapi research/settlement runtime are backed by Supabase REST, OddsPapi, Groq and Safaricom Daraja STK Push. Configure these **Cloudflare Worker secrets/variables**:
 
 | Name | Type | Purpose |
 |---|---|---|
@@ -108,5 +108,8 @@ The current Premium API implementation is backed by Supabase REST and Safaricom 
 | `DARAJA_PASSKEY` | Secret | Safaricom STK Push passkey |
 | `DARAJA_ENV` | Variable | `sandbox` for testing; `production` only after approval |
 | `DARAJA_CALLBACK_URL` | Variable | Public HTTPS URL ending in `/api/premium/callback` |
+| `PREMIUM_FOOTBALL_KEY`, `PREMIUM_FOOTBALL_KEY1`, `PREMIUM_FOOTBALL_KEY2` | Secrets | Three rotating OddsPapi football keys |
+| `GEMINI_API_KEYS` or existing `GEMINI_API_KEY`…`GEMINI_API_KEY4` | Secrets | Reuse the existing Groq key pool; no separate Premium Groq credentials |
+| `PREMIUM_TOURNAMENT_SLUGS` | Variable (optional) | Comma-separated OddsPapi tournament slugs; defaults are built into the Worker |
 
 Apply `supabase/migrations/20261124142410_create_premium_subscription_tables.sql` to the intended Supabase project and confirm the seeded plan before exposing checkout. The migration currently seeds **KSh 199 for 30 days**, while the Premium proposal discusses higher target prices; align the live plan rows and public price copy before launch. The M-Pesa integration has not passed a security review: do not switch Daraja to production or accept live payments until callback verification, payment idempotency, checkout-status authorization, expiry handling and server-side feature entitlements are fixed and tested.

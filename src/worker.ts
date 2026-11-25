@@ -17,6 +17,23 @@ interface Env {
   MEDIA: R2Bucket;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  PREMIUM_FOOTBALL_KEY?: string;
+  PREMIUM_FOOTBALL_KEY1?: string;
+  PREMIUM_FOOTBALL_KEY2?: string;
+  GROQ_API_KEY?: string;
+  GROQ_API_KEY1?: string;
+  GROQ_API_KEY2?: string;
+  GROQ_API_KEY3?: string;
+  GROQ_API_KEY4?: string;
+  GEMINI_API_KEYS?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_API_KEY1?: string;
+  GEMINI_API_KEY2?: string;
+  GEMINI_API_KEY3?: string;
+  GEMINI_API_KEY4?: string;
+  PREMIUM_TOURNAMENT_SLUGS?: string;
+  PREMIUM_MAX_FIXTURES?: string;
+  PREMIUM_GROQ_MODEL?: string;
 }
 interface AccaRow {
   id:string; target_odds:number; actual_odds:number; status:string; product_type:string;
@@ -277,8 +294,18 @@ async function renderHome(request:Request,env:Env){
 }
 
 export default {
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); }));
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const tasks: Promise<unknown>[] = [
+      cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); })
+    ];
+    if (controller.cron === "15 2 * * *") {
+      const { runPremiumResearch } = await import("../scripts/generate-premium.mjs");
+      tasks.push(runPremiumResearch(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium research failed", error); }));
+    } else if (controller.cron === "0 7 * * *") {
+      const { runPremiumSettlement } = await import("../scripts/settle-premium.mjs");
+      tasks.push(runPremiumSettlement(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium settlement failed", error); }));
+    }
+    ctx.waitUntil(Promise.all(tasks));
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);

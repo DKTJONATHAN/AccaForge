@@ -15,7 +15,7 @@ Every selection displays its market, best listed bookmaker price, a probability 
 - React + TypeScript + Vite, deployed as a Cloudflare Worker with static assets
 - Cloudflare Worker routes for the public read API and server-rendered editorial pages
 - Cloudflare D1 for structured predictions and a rolling three-day archive
-- GitHub Actions for daily generation at 09:00 Africa/Nairobi
+- Cloudflare Cron Triggers for Premium research (05:15) and settlement (10:00) Africa/Nairobi; GitHub Actions remain responsible for the public edition workflows
 - The Odds API for fixtures and available bookmaker markets
 - Groq for web research and analytical recommendations
 
