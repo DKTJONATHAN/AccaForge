@@ -16,7 +16,7 @@ interface Env {
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
   SUPABASE_URL?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;\n  ODDS_API_KEY?: string;\n  ODDS_API_KEY1?: string;\n  ODDS_API_KEY2?: string;\n  ODDS_API_KEY3?: string;\n  ODDS_API_KEY4?: string;\n  ODDS_API_KEY5?: string;\n  ODDS_API_KEY6?: string;\n  ODDS_API_KEY7?: string;\n  ODDS_API_KEY8?: string;\n  ODDSAPI_KEY?: string;\n  ODDSAPI_KEY1?: string;\n  ODDSAPI_KEY2?: string;\n  ODDSAPI_KEY3?: string;
   PREMIUM_FOOTBALL_KEY?: string;
   PREMIUM_FOOTBALL_KEY1?: string;
   PREMIUM_FOOTBALL_KEY2?: string;
