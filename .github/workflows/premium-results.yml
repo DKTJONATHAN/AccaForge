@@ -23,11 +23,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate settlement script syntax
-        run: node --check scripts/settle-premium.mjs
+      - name: Validate settlement and OddsPapi syntax
+        run: node --check scripts/lib/oddspapi.mjs && node --check scripts/settle-premium.mjs
       - name: Settle completed Premium fixtures
         run: node scripts/settle-premium.mjs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PREMIUM_FOOTBALL_API_KEY: ${{ secrets.PREMIUM_FOOTBALL_API_KEY }}
+          PREMIUM_FOOTBALL_KEY: ${{ secrets.PREMIUM_FOOTBALL_KEY }}
+          PREMIUM_FOOTBALL_KEY1: ${{ secrets.PREMIUM_FOOTBALL_KEY1 }}
+          PREMIUM_FOOTBALL_KEY2: ${{ secrets.PREMIUM_FOOTBALL_KEY2 }}

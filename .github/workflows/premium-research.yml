@@ -28,18 +28,20 @@ jobs:
       - name: Run Premium market-engine tests
         run: node --test scripts/lib/premium-engine.test.mjs
       - name: Validate Premium pipeline syntax
-        run: node --check scripts/generate-premium.mjs
+        run: node --check scripts/lib/oddspapi.mjs && node --check scripts/generate-premium.mjs
       - name: Generate evidence-validated Premium predictions
         run: node scripts/generate-premium.mjs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PREMIUM_FOOTBALL_API_KEY: ${{ secrets.PREMIUM_FOOTBALL_API_KEY }}
-          PREMIUM_API_KEY1: ${{ secrets.PREMIUM_API_KEY1 }}
-          PREMIUM_API_KEY2: ${{ secrets.PREMIUM_API_KEY2 }}
-          PREMIUM_API_KEY3: ${{ secrets.PREMIUM_API_KEY3 }}
-          PREMIUM_API_KEY4: ${{ secrets.PREMIUM_API_KEY4 }}
-          PREMIUM_API_KEY5: ${{ secrets.PREMIUM_API_KEY5 }}
+          PREMIUM_FOOTBALL_KEY: ${{ secrets.PREMIUM_FOOTBALL_KEY }}
+          PREMIUM_FOOTBALL_KEY1: ${{ secrets.PREMIUM_FOOTBALL_KEY1 }}
+          PREMIUM_FOOTBALL_KEY2: ${{ secrets.PREMIUM_FOOTBALL_KEY2 }}
+          GROQ_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY1: ${{ secrets.GEMINI_API_KEY1 }}
+          GROQ_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+          GROQ_API_KEY3: ${{ secrets.GEMINI_API_KEY3 }}
+          GROQ_API_KEY4: ${{ secrets.GEMINI_API_KEY4 }}
           PREMIUM_GROQ_MODEL: openai/gpt-oss-120b
-          PREMIUM_LEAGUE_IDS: ${{ vars.PREMIUM_LEAGUE_IDS }}
+          PREMIUM_TOURNAMENT_SLUGS: ${{ vars.PREMIUM_TOURNAMENT_SLUGS }}
           PREMIUM_MAX_FIXTURES: "10"

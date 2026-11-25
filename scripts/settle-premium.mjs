@@ -1,17 +1,18 @@
 import { settleSelection } from "../src/settlement.mjs";
+import { OddsPapiClient } from "./lib/oddspapi.mjs";
 
 const env = process.env;
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const FOOTBALL_KEY = (env.PREMIUM_FOOTBALL_API_KEY || "").trim();
-const API_BASE = "https://v3.football.api-sports.io";
-const PROVIDER = "api-football";
+const FOOTBALL_KEYS = ["PREMIUM_FOOTBALL_KEY", "PREMIUM_FOOTBALL_KEY1", "PREMIUM_FOOTBALL_KEY2"].map(name => (env[name] || "").trim()).filter(Boolean);
+const oddsPapi = new OddsPapiClient(FOOTBALL_KEYS);
+const PROVIDER = "oddspapi";
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 let runId = null;
 let settled = 0;
 let checked = 0;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_KEY) throw new Error("Missing SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or PREMIUM_FOOTBALL_API_KEY.");
+if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_KEYS.length) throw new Error("Missing Supabase credentials or PREMIUM_FOOTBALL_KEY[1..2].");
 
 function headers() {
   const value = new Headers({ apikey: SUPABASE_KEY, "Content-Type": "application/json" });
@@ -24,14 +25,6 @@ async function db(path, init = {}) {
   if (response.status === 204) return null;
   const text = await response.text();
   return text ? JSON.parse(text) : null;
-}
-async function football(id) {
-  const url = new URL(API_BASE + "/fixtures");
-  url.searchParams.set("id", String(id));
-  const response = await fetch(url, { headers: { "x-apisports-key": FOOTBALL_KEY }, signal: AbortSignal.timeout(25000) });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload || (payload.errors && Object.keys(payload.errors).length)) throw new Error("Premium fixture result lookup failed (" + response.status + ").");
-  return payload.response?.[0] || null;
 }
 async function main() {
   const runs = await db("/rest/v1/premium_workflow_runs", {
@@ -46,13 +39,13 @@ async function main() {
     "&select=id,provider_event_id,sport_key,competition,home_team,away_team,raw_snapshot&order=commence_time.asc&limit=20");
   for (const stored of fixtures || []) {
     checked++;
-    const current = await football(stored.provider_event_id);
+    const current = await oddsPapi.getFixture(stored.provider_event_id);
     if (!current) continue;
-    const short = String(current.fixture?.status?.short || "");
-    const fixtureStatus = short === "FT" ? "finished" :
-      ["1H","HT","2H","ET","P","LIVE"].includes(short) ? "in_play" :
-      ["PST","SUSP"].includes(short) ? "postponed" :
-      ["CANC","ABD","AWD","WO"].includes(short) ? "cancelled" : "scheduled";
+    const statusName = String(current.statusName || "").toLowerCase();
+    const statusId = Number(current.statusId);
+    const fixtureStatus = statusId === 2 || statusName === "finished" || statusName === "ended" ? "finished" :
+      statusId === 1 || statusName === "in-play" || statusName === "live" ? "in_play" :
+      statusId === 3 || statusName === "cancelled" ? "cancelled" : "scheduled";
     await db("/rest/v1/premium_fixtures?id=eq." + stored.id, {
       method: "PATCH", headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ fixture_status: fixtureStatus, raw_snapshot: current, updated_at: new Date().toISOString() })
@@ -69,9 +62,12 @@ async function main() {
       continue;
     }
     if (fixtureStatus !== "finished") continue;
-    const homeScore = current.goals?.home;
-    const awayScore = current.goals?.away;
-    if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) continue;
+    const scorePayload = await oddsPapi.getScore(stored.provider_event_id);
+    const periods = scorePayload?.scores?.periods || scorePayload?.scores || {};
+    const finalScore = periods.result || periods.fulltime || periods["3"] || periods["2"];
+    const homeScore = Number(finalScore?.participant1Score);
+    const awayScore = Number(finalScore?.participant2Score);
+    if (!finalScore || !Number.isInteger(homeScore) || !Number.isInteger(awayScore)) continue;
     const predictions = await db("/rest/v1/premium_predictions?fixture_id=eq." + stored.id + "&status=eq.published&result=is.null&select=id,market_key,market_name,selection_name,odds,bookmaker");
     for (const prediction of predictions || []) {
       const outcome = settleSelection({
