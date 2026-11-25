@@ -1,15 +1,16 @@
 import { buildOddsCandidates, summarizeTeamForm, validatePremiumPick } from "./lib/premium-engine.mjs";
+import { OddsPapiClient } from "./lib/oddspapi.mjs";
 
 const env = process.env;
 const SUPABASE_URL = (env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const FOOTBALL_KEY = (env.PREMIUM_FOOTBALL_API_KEY || "").trim();
-const GROQ_KEYS = Array.from({ length: 5 }, (_, i) => (env["PREMIUM_API_KEY" + (i + 1)] || "").trim()).filter(Boolean);
+const FOOTBALL_KEYS = ["PREMIUM_FOOTBALL_KEY", "PREMIUM_FOOTBALL_KEY1", "PREMIUM_FOOTBALL_KEY2"].map(name => (env[name] || "").trim()).filter(Boolean);
+const GROQ_KEYS = ["GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2", "GROQ_API_KEY3", "GROQ_API_KEY4"].map(name => (env[name] || "").trim()).filter(Boolean);
+const oddsPapi = new OddsPapiClient(FOOTBALL_KEYS);
 const GROQ_MODEL = (env.PREMIUM_GROQ_MODEL || "openai/gpt-oss-120b").trim();
 const MAX_FIXTURES = Math.min(12, Math.max(1, Number(env.PREMIUM_MAX_FIXTURES || 10)));
-const LEAGUE_IDS = new Set((env.PREMIUM_LEAGUE_IDS || "39,140,78,135,61,88,94,276").split(",").map(Number).filter(Number.isFinite));
-const PROVIDER = "api-football";
-const API_BASE = "https://v3.football.api-sports.io";
+const LEAGUE_SLUGS = new Set((env.PREMIUM_TOURNAMENT_SLUGS || "premier-league,laliga,serie-a,bundesliga,ligue-1").split(",").map(value => value.trim().toLowerCase()).filter(Boolean));
+const PROVIDER = "oddspapi";
 const now = new Date();
 const publicationDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 const apiCalls = { football: 0, groq: 0 };
@@ -17,8 +18,8 @@ const groqLastUsed = new Map(GROQ_KEYS.map(key => [key, 0]));
 let groqCursor = 0;
 let runId = null;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_KEY || !GROQ_KEYS.length) {
-  throw new Error("Missing required Premium pipeline configuration: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PREMIUM_FOOTBALL_API_KEY and PREMIUM_API_KEY1..5.");
+if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_KEYS.length || !GROQ_KEYS.length) {
+  throw new Error("Missing required Premium configuration: Supabase credentials, at least one PREMIUM_FOOTBALL_KEY[1..2], and at least one existing GROQ_API_KEY[1..4] credential.");
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -39,17 +40,6 @@ async function supabase(path, init = {}) {
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
-async function football(path, params = {}) {
-  const url = new URL(API_BASE + path);
-  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
-  const response = await fetch(url, { headers: { "x-apisports-key": FOOTBALL_KEY }, signal: AbortSignal.timeout(25000) });
-  apiCalls.football++;
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload || (payload.errors && Object.keys(payload.errors).length)) {
-    throw new Error("Premium football data request failed (" + response.status + ").");
-  }
-  return payload;
-}
 function addDays(date, days) {
   const value = new Date(date + "T12:00:00+03:00");
   value.setDate(value.getDate() + days);
@@ -57,12 +47,9 @@ function addDays(date, days) {
 }
 function isEligibleFixture(item) {
   const league = item.league || {};
-  const status = item.fixture?.status?.short;
-  const leagueType = String(league.type || "").toLowerCase();
-  const name = String(league.name || "").toLowerCase();
-  return status === "NS" && LEAGUE_IDS.has(Number(league.id)) &&
-    (!leagueType || leagueType === "league") &&
-    !/(cup|copa|coupe|pokal|beker|knockout|champions league|europa league)/i.test(name);
+  return item.fixture?.status?.short === "NS" &&
+    LEAGUE_SLUGS.has(String(league.slug || "").toLowerCase()) &&
+    !/(cup|copa|coupe|pokal|beker|knockout|champions league|europa league)/i.test(String(league.name || ""));
 }
 function sportKey(league) {
   return "soccer_" + String(league.name || "football").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -91,7 +78,7 @@ async function storeFixture(item) {
   return id;
 }
 async function getForm(teamId) {
-  const data = await football("/fixtures", { team: teamId, last: 5, status: "FT", timezone: "Africa/Nairobi" });
+  const data = await oddsPapi.getTeamForm(teamId);
   return summarizeTeamForm(data, teamId);
 }
 function systemPrompt() {
@@ -183,86 +170,14 @@ async function main() {
   runId = runRows?.[0]?.id;
   if (!runId) throw new Error("Could not create Premium workflow run record.");
 
+  const tournamentRows = await oddsPapi.getTournaments();
+  const tournaments = tournamentRows.filter(item => LEAGUE_SLUGS.has(String(item.tournamentSlug || "").toLowerCase()));
+  if (!tournaments.length) throw new Error("OddsPapi returned no configured football tournaments. Check PREMIUM_TOURNAMENT_SLUGS and account coverage.");
   const dates = [publicationDate, addDays(publicationDate, 1)];
   const allFixtures = [];
-  for (const date of dates) {
-    const payload = await football("/fixtures", { date, timezone: "Africa/Nairobi" });
-    allFixtures.push(...(payload.response || []).filter(isEligibleFixture));
-  }
-  const unique = [...new Map(allFixtures.map(item => [String(item.fixture?.id), item])).values()]
+  for (const date of dates) allFixtures.push(...await oddsPapi.getFixturesForDate(date, tournaments));
+  const unique = [...new Map(allFixtures.filter(isEligibleFixture).map(item => [String(item.fixture?.id), item])).values()]
     .sort((a, b) => String(a.fixture.date).localeCompare(String(b.fixture.date)))
     .slice(0, MAX_FIXTURES);
+  const marketCatalog = await oddsPapi.getMarketCatalog();
 
-  const validated = [];
-  let discovered = 0;
-  for (const item of unique) {
-    discovered++;
-    const fixtureId = await storeFixture(item);
-    const home = item.teams.home;
-    const away = item.teams.away;
-    const [oddsPayload, homeForm, awayForm] = await Promise.all([
-      football("/odds", { fixture: item.fixture.id }),
-      getForm(home.id),
-      getForm(away.id)
-    ]);
-    const candidates = buildOddsCandidates(oddsPayload, home.name, away.name);
-    if (candidates.length < 3 || homeForm.matches < 3 || awayForm.matches < 3) continue;
-
-    const context = {
-      home_team: home.name, away_team: away.name, competition: item.league.name,
-      commence_time: item.fixture.date, home_form: homeForm, away_form: awayForm, candidates
-    };
-    const ai = await analyzeFixture(context);
-    const decision = validatePremiumPick(ai, candidates);
-    if (!decision.ok) continue;
-
-    const evidence = {
-      provider: PROVIDER,
-      provider_fixture_id: item.fixture.id,
-      fetched_at: new Date().toISOString(),
-      home_form: homeForm,
-      away_form: awayForm,
-      selected_candidate_id: decision.candidate.candidate_id,
-      implied_probability: decision.implied_probability,
-      edge_percentage_points: decision.edge_percentage_points,
-      ai_evidence: decision.evidence
-    };
-    const row = {
-      fixture_id: fixtureId,
-      publication_date: publicationDate,
-      market_key: decision.candidate.market_key,
-      market_name: decision.candidate.market_name,
-      selection_name: decision.candidate.selection_name,
-      odds: decision.candidate.odds,
-      bookmaker: decision.candidate.bookmaker,
-      estimated_probability: decision.estimated_probability,
-      confidence_score: decision.confidence_score,
-      reasoning: decision.reasoning,
-      evidence,
-      status: "validated",
-      updated_at: new Date().toISOString()
-    };
-    const saved = await supabase("/rest/v1/premium_predictions?on_conflict=fixture_id,publication_date,market_key,selection_name", {
-      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(row)
-    });
-    if (saved?.[0]?.id) validated.push(saved[0].id);
-  }
-
-  if (!validated.length) {
-    await updateRun("withheld", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: 0, predictions_published: 0, api_calls: apiCalls, reason: "No fixture passed evidence, odds and confidence validation. No Premium picks were published." });
-    console.log(JSON.stringify({ status: "withheld", fixtures: discovered, picks: 0, api_calls: apiCalls }));
-    return;
-  }
-
-  const published = await supabase("/rest/v1/premium_predictions?id=in.(" + validated.join(",") + ")&status=eq.validated", {
-    method: "PATCH", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-  });
-  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, api_calls: apiCalls });
-  console.log(JSON.stringify({ status: "succeeded", fixtures: discovered, picks: validated.length, api_calls: apiCalls }));
-}
-main().catch(async error => {
-  console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error");
-  try { await updateRun("failed", { api_calls: apiCalls }, "PREMIUM_GENERATION_FAILED"); } catch { /* preserve the original failure */ }
-  process.exitCode = 1;
-});
