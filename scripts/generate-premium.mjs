@@ -257,7 +257,7 @@ async function main() {
 }
 return main().catch(async error => {
   console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error");
-  try { await updateRun("failed", { api_calls: apiCalls }, "PREMIUM_GENERATION_FAILED"); } catch { /* preserve the original failure */ }
+  try { await updateRun("failed", { api_calls: apiCalls, error: String(error?.message || "unknown error").slice(0, 300) }, "PREMIUM_GENERATION_FAILED"); } catch { /* preserve the original failure */ }
   throw error;
   });
 }
