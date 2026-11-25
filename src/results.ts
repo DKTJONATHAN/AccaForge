@@ -19,7 +19,7 @@ async function fetchScoresWithRotation(env:ResultsEnv,sportKey:string):Promise<S
    const response=await fetch(endpoint,{headers:{"User-Agent":"AccaForge/1.0"}});
    if(response.ok)return await response.json() as ScoreEvent[];
    console.error("Results feed key slot",index+1,"failed for",sportKey,"with HTTP",response.status);
-   if(![401,403,429].includes(response.status))return null;
+   if(![401,403,408,425,429].includes(response.status)&&response.status<500)return null;
   }catch(error){console.error("Results feed request failed for",sportKey,"on key slot",index+1,error);}
  }
  return null;
