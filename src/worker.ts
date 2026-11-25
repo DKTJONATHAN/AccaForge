@@ -16,7 +16,20 @@ interface Env {
   ASSETS: Fetcher;
   MEDIA: R2Bucket;
   SUPABASE_URL?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;\n  ODDS_API_KEY?: string;\n  ODDS_API_KEY1?: string;\n  ODDS_API_KEY2?: string;\n  ODDS_API_KEY3?: string;\n  ODDS_API_KEY4?: string;\n  ODDS_API_KEY5?: string;\n  ODDS_API_KEY6?: string;\n  ODDS_API_KEY7?: string;\n  ODDS_API_KEY8?: string;\n  ODDSAPI_KEY?: string;\n  ODDSAPI_KEY1?: string;\n  ODDSAPI_KEY2?: string;\n  ODDSAPI_KEY3?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  ODDS_API_KEY?: string;
+  ODDS_API_KEY1?: string;
+  ODDS_API_KEY2?: string;
+  ODDS_API_KEY3?: string;
+  ODDS_API_KEY4?: string;
+  ODDS_API_KEY5?: string;
+  ODDS_API_KEY6?: string;
+  ODDS_API_KEY7?: string;
+  ODDS_API_KEY8?: string;
+  ODDSAPI_KEY?: string;
+  ODDSAPI_KEY1?: string;
+  ODDSAPI_KEY2?: string;
+  ODDSAPI_KEY3?: string;
   PREMIUM_FOOTBALL_KEY?: string;
   PREMIUM_FOOTBALL_KEY1?: string;
   PREMIUM_FOOTBALL_KEY2?: string;
@@ -366,12 +379,20 @@ if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 2 && scheduledAt.getUTCM
       } catch(error) {
         console.error("AccaForge sitemap could not read published editions.",error);
       }
-      const body='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+entries.join("\n")+'\n</urlset>';
+      const body='<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+'+entries.join("
+")+'
+</urlset>';
       return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"application/xml; charset=utf-8","Cache-Control":"public, max-age=300, s-maxage=300","X-Content-Type-Options":"nosniff"}});
     }
     if (url.pathname === "/robots.txt") {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-      const body="User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: "+SITE_ORIGIN+"/sitemap.xml\n";
+      const body="User-agent: *
+Allow: /
+Disallow: /api/
+Sitemap: "+SITE_ORIGIN+"/sitemap.xml
+";
       return new Response(request.method==="HEAD"?null:body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"public, max-age=300","X-Content-Type-Options":"nosniff"}});
     }
     const requestedPath=url.pathname.replace(/\/$/,"") || "/";
