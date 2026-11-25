@@ -45,6 +45,9 @@ export class OddsPapiClient {
         this.cursor = (index + 1) % this.keys.length;
         return await response.json();
       } catch (error) {
+        // A missing fixture for this date is a normal empty result, not a key failure.
+        // Let getFixturesForDate handle it immediately instead of retrying every key.
+        if (error?.status === 404 && error?.code === "FIXTURE_NOT_FOUND") throw error;
         lastError = error;
         this.cursor = (index + 1) % this.keys.length;
       }
