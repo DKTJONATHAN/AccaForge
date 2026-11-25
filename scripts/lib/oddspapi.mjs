@@ -12,8 +12,9 @@ export class OddsPapiClient {
 
   async get(path, params = {}, cooldownMs = 0) {
     let lastError;
+    const startCursor = this.cursor;
     for (let attempt = 0; attempt < this.keys.length; attempt++) {
-      const index = (this.cursor + attempt) % this.keys.length;
+      const index = (startCursor + attempt) % this.keys.length;
       const scheduledAt = Math.max(Date.now(), this.lastRequestAt.get(path) || 0);
       this.lastRequestAt.set(path, scheduledAt + cooldownMs);
       if (scheduledAt > Date.now()) await sleep(scheduledAt - Date.now());
@@ -29,14 +30,12 @@ export class OddsPapiClient {
           const body = await response.json().catch(() => ({}));
           const retryMs = Math.max(cooldownMs, Number(body?.error?.retryMs || 0), 1200);
           lastError = new Error("OddsPapi temporarily rate-limited or unavailable (" + response.status + ").");
-          this.cursor = (index + 1) % this.keys.length;
           if (attempt + 1 < this.keys.length) await sleep(retryMs);
           continue;
         }
         if (!response.ok) {
           const body = await response.text().catch(() => "");
           lastError = new Error("OddsPapi request rejected (" + response.status + "): " + body.slice(0, 180));
-          this.cursor = (index + 1) % this.keys.length;
           continue;
         }
         this.cursor = (index + 1) % this.keys.length;
@@ -87,8 +86,10 @@ export class OddsPapiClient {
     const bookmakers = [];
     for (const [bookmakerName, bookmaker] of Object.entries(payload?.bookmakerOdds || {})) {
       const bets = [];
+      if (bookmaker?.bookmakerIsActive === false || bookmaker?.suspended === true) continue;
       for (const [marketId, marketData] of Object.entries(bookmaker?.markets || {})) {
         const market = marketCatalog.get(String(marketId));
+        if (marketData?.marketActive === false) continue;
         if (!market || market.playerProp || !market.outcomes?.length) continue;
         const values = [];
         for (const [outcomeId, outcomeData] of Object.entries(marketData?.outcomes || {})) {
@@ -101,7 +102,7 @@ export class OddsPapiClient {
               ? " " + String(Math.abs(Number(market.handicap))) : "";
             const outcomeName = String(outcomeMeta.outcomeName || "");
             const marketName = String(market.marketName || "");
-            const value = /over|under/i.test(outcomeName) && line ? outcomeName + line : outcomeName;
+            const value = /over|under/i.test(outcomeName) && line && !/\\d/.test(outcomeName) ? outcomeName + line : outcomeName;
             values.push({ value, odd: String(odd) });
           }
         }
