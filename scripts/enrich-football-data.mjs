@@ -61,6 +61,33 @@ const seededCompetitions = {
   soccer_mexico_ligamx: ["Mexican Liga MX", "Liga MX"],
   soccer_argentina_primera_division: ["Argentine Primera Division", "Liga Profesional"]
 };
+const seededCompetitionCountries = {
+  soccer_epl: ["England"],
+  soccer_england_championship: ["England"],
+  soccer_england_league_one: ["England"],
+  soccer_england_league_two: ["England"],
+  soccer_uefa_champs_league: ["Europe", "World", "International"],
+  soccer_uefa_europa_league: ["Europe", "World", "International"],
+  soccer_uefa_europa_conference_league: ["Europe", "World", "International"],
+  soccer_uefa_nations_league: ["Europe", "World", "International"],
+  soccer_spain_la_liga: ["Spain"],
+  soccer_germany_bundesliga: ["Germany"],
+  soccer_italy_serie_a: ["Italy"],
+  soccer_france_ligue_one: ["France"],
+  soccer_netherlands_eredivisie: ["Netherlands"],
+  soccer_portugal_primeira_liga: ["Portugal"],
+  soccer_scotland_premiership: ["Scotland"],
+  soccer_belgium_first_div: ["Belgium"],
+  soccer_turkey_super_league: ["Turkey"],
+  soccer_usa_mls: ["USA"],
+  soccer_brazil_campeonato: ["Brazil"],
+  soccer_brazil_serie_b: ["Brazil"],
+  soccer_australia_aleague: ["Australia"],
+  soccer_japan_j_league: ["Japan"],
+  soccer_mexico_ligamx: ["Mexico"],
+  soccer_argentina_primera_division: ["Argentina"]
+};
+const leagueCatalogueCache = new Map();
 const teamKey = value => aliases[normalize(value)] || normalize(value);
 const hash = value => createHash("sha256").update(value).digest("hex");
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -177,18 +204,28 @@ function leagueForCompetition(team, sportKey) {
 
 async function findProviderLeague(sportKey) {
   const candidates = seededCompetitions[sportKey] || [];
-  for (const candidateName of candidates) {
-    const payload = await sportsDb("searchleague.php", { l: candidateName });
-    const leagues = Array.isArray(payload.leagues) ? payload.leagues : [];
-    const exact = leagues.find(item =>
-      item.strSport === "Soccer" &&
-      normalize(item.strLeague) === normalize(candidateName)
-    );
+  const countries = seededCompetitionCountries[sportKey] || [];
+  for (const country of countries) {
+    let leagues = leagueCatalogueCache.get(country);
+    if (!leagues) {
+      const payload = await sportsDb("search_all_leagues.php", { c: country, s: "Soccer" });
+      leagues = Array.isArray(payload.countries) ? payload.countries
+        : Array.isArray(payload.leagues) ? payload.leagues : [];
+      leagueCatalogueCache.set(country, leagues);
+    }
+    const exact = leagues.find(item => {
+      if (item.strSport !== "Soccer" || !item.idLeague) return false;
+      const leagueName = normalize(item.strLeague);
+      return candidates.some(alias => {
+        const expected = normalize(alias);
+        return leagueName === expected || leagueName.includes(expected) || expected.includes(leagueName);
+      });
+    });
     if (exact?.idLeague) {
       return {
         strLeague: clean(exact.strLeague),
         idLeague: Number(exact.idLeague),
-        strCountry: clean(exact.strCountry || "")
+        strCountry: clean(exact.strCountry || country)
       };
     }
   }
