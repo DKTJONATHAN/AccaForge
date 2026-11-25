@@ -5,8 +5,9 @@ AccaForge maintains a reusable football artwork catalogue for every competition 
 ## Providers and credentials
 
 - **TheSportsDB V1 public API** supplies soccer team records, league metadata, club badges and competition artwork.
-- Its public key is `123`; no sports-data API secret is required.
-- The free service documents a 30-request-per-minute limit. The enrichment script spaces requests, retries rate-limit responses with a delay, and uses a single representative fixture per published competition to discover the league roster rather than searching every historical fixture team separately.
+- Without a secret, the workflow uses the public key `123`. An optional GitHub Actions secret, `THESPORTSDB_API_KEY`, enables a paid TheSportsDB key when one is available.
+- The free service documents a 30-request-per-minute limit and limits the league-team list endpoint to 10 records; paid access supports up to 3,000 team records. The workflow therefore also resolves every distinct club found in AccaForge's published fixture and result history, so historical clubs beyond the free roster cap are still cached. A paid key is required to reliably import the complete provider roster for every league.
+- Requests are paced below the documented free-tier limit and rate-limit responses are retried after a delay.
 - TheSportsDB is community-maintained; exact sport and league checks are required before saving a badge.
 
 ## Processing sequence
@@ -14,7 +15,7 @@ AccaForge maintains a reusable football artwork catalogue for every competition 
 1. The enrichment workflow starts only after **AccaForge Generate All Matches** succeeds on `main`, then waits **10 minutes** before discovery. Manual dispatch uses the same delay.
 2. It reads every distinct competition key represented in published AccaForge editions, not just today's fixtures.
 3. For each competition, it resolves a representative club to the correct soccer league and retrieves the league details and full club roster through TheSportsDB.
-4. It saves competition metadata and all available club badge source URLs to D1 (`sports_leagues` and `team_badges`). Existing R2 object keys are retained where possible; uncertain or unmatched clubs are not assigned guessed artwork.
+4. It saves competition metadata and available club badge source URLs to D1 (`sports_leagues` and `team_badges`). It also searches every distinct club in AccaForge's published fixture and result history, not just the current matchday. The free provider key returns at most 10 clubs from a league roster endpoint; add the optional paid `THESPORTSDB_API_KEY` GitHub secret for complete provider rosters. Existing R2 object keys are retained where possible; uncertain or unmatched clubs are not assigned guessed artwork.
 5. The Cloudflare Worker media-cache task downloads pending league and club images into the existing `accaforge-media` R2 bucket, stores their object keys in D1, and serves them through `/media-cache/...` with immutable cache headers.
 6. The public `/api/content` response reads these D1 records. Visitor requests do not perform provider searches or download artwork.
 
@@ -34,6 +35,7 @@ Keep the existing secrets used by the daily workflow:
 - `CLOUDFLARE_API_TOKEN` — Cloudflare API token with permission to query and edit the AccaForge D1 database.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `D1_DATABASE_ID`
+- Optional `THESPORTSDB_API_KEY` — a paid TheSportsDB key for complete league rosters; without it the workflow uses public key `123` and supplements the capped rosters with clubs from AccaForge's published history.
 - The existing Odds API and Groq secrets used by generation and results refresh.
 
 No new sports-data API secret is required. The Worker already uses the configured D1 binding and `MEDIA` R2 binding.
