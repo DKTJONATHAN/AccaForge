@@ -176,7 +176,7 @@ async function main() {
   if (!runId) throw new Error("Could not create Premium workflow run record.");
 
   const tournamentRows = await oddsPapi.getTournaments();
-  const tournaments = tournamentRows.filter(item => LEAGUE_SLUGS.has(String(item.tournamentSlug || "").toLowerCase()));
+  const tournaments = tournamentRows.filter(item => LEAGUE_SLUGS.has(String(item.tournamentSlug || "").toLowerCase())).slice(0, 10);
   if (!tournaments.length) throw new Error("OddsPapi returned no configured football tournaments. Check PREMIUM_TOURNAMENT_SLUGS and account coverage.");
   const dates = [publicationDate, addDays(publicationDate, 1)];
   const allFixtures = [];
