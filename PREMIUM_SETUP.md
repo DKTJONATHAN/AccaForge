@@ -10,14 +10,12 @@ Add these under **Repository → Settings → Secrets and variables → Actions 
 |---|---|
 | `SUPABASE_URL` | The AccaForge Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role secret used only by server-side workflows |
-| `PREMIUM_FOOTBALL_API_KEY` | Dedicated API-Football API key |
-| `PREMIUM_API_KEY1` | Premium Groq key 1 |
-| `PREMIUM_API_KEY2` | Premium Groq key 2 |
-| `PREMIUM_API_KEY3` | Premium Groq key 3 |
-| `PREMIUM_API_KEY4` | Premium Groq key 4 |
-| `PREMIUM_API_KEY5` | Premium Groq key 5 |
+| `PREMIUM_FOOTBALL_KEY` | Primary OddsPapi key |
+| `PREMIUM_FOOTBALL_KEY1` | OddsPapi key 2 |
+| `PREMIUM_FOOTBALL_KEY2` | OddsPapi key 3 |
+| `GEMINI_API_KEY` … `GEMINI_API_KEY4` | Existing Groq credentials used by public workflows; mapped unchanged into Premium as `GROQ_API_KEY` … `GROQ_API_KEY4` |
 
-**Important:** `PREMIUM_API_KEY1` through `PREMIUM_API_KEY5` must contain Groq credentials. They are a separate pool and do not replace or rename the existing public-edition `GEMINI_API_KEY*` secrets (which continue to contain the public workflows' Groq credentials).
+**Important:** Premium reuses the existing Groq credential pool. The legacy GitHub secret names `GEMINI_API_KEY` through `GEMINI_API_KEY4` are mapped unchanged into Premium as `GROQ_API_KEY` through `GROQ_API_KEY4`. Do not rename or overwrite those secrets.
 
 Add a Cloudflare Worker variable named `PREMIUM_SUPPORT_WHATSAPP` containing the support WhatsApp number in international digits-only format (for example, country code followed by subscriber number, without `+`). The account dashboard shows the WhatsApp support link only when this variable is configured.\n\n## Cloudflare Worker configuration
 
@@ -35,15 +33,16 @@ The Supabase publishable key is public and is bundled as the default browser Aut
 
 ## Football data provider
 
-The dedicated Premium pipeline uses API-Football:
+The dedicated Premium pipeline uses OddsPapi v4:
 
-- API base: `https://v3.football.api-sports.io`
-- Authentication header: `x-apisports-key`
-- Fixture discovery: daily fixtures in the `Africa/Nairobi` timezone
-- Odds: pre-match bookmaker markets for each eligible fixture
-- Form: each team's last five completed matches
+- API base: `https://api.oddspapi.io/v4`
+- Authentication: `apiKey` query parameter; the client rotates the three configured football keys and keeps them server-side
+- Football sport ID: `10`; tournament discovery is dynamic
+- Fixture discovery: upcoming fixtures in the `Africa/Nairobi` publication window
+- Odds: bookmaker prices from `/odds`, normalized using `/markets` metadata
+- Form: each team's last five completed fixtures and scores from OddsPapi
 
-The default league filter is `39,140,78,135,61,88,94,276`. To change it, add a GitHub Actions **variable** named `PREMIUM_LEAGUE_IDS` containing comma-separated API-Football league IDs. The research job caps a run at 10 fixtures and makes two date-discovery calls plus odds/form lookups; the results job checks completed fixtures separately. API-Football's free plan currently advertises 100 requests per day, so the pipeline deliberately caps its workload. Competition/season coverage and odds availability still depend on the provider's coverage flags and plan.
+The default tournament slugs are `premier-league,laliga,serie-a,bundesliga,ligue-1`. To change them, add a GitHub Actions **variable** named `PREMIUM_TOURNAMENT_SLUGS` with comma-separated OddsPapi tournament slugs. The research job caps a run at 10 fixtures. The client respects OddsPapi endpoint cooldowns and rotates keys when a key is throttled or a provider request fails. Competition coverage, bookmaker availability and request quotas depend on your OddsPapi plan.
 
 ## Groq model
 
@@ -56,7 +55,7 @@ If the model passes, provider odds are missing, or the evidence fails validation
 - **Premium Research:** daily at 05:15 Africa/Nairobi; can also be run manually from GitHub Actions.
 - **Premium Results:** daily at 10:00 Africa/Nairobi; can also be run manually.
 
-The research workflow publishes only validated rows in `premium_predictions`. The results workflow settles those rows against API-Football full-time scores using the same supported-market settlement rules as the public engine.
+The research workflow publishes only validated rows in `premium_predictions`. The results workflow settles those rows against OddsPapi final-period scores using the same supported-market settlement rules as the public engine.
 
 ## Authentication setup
 
