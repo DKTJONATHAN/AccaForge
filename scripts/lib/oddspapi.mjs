@@ -35,7 +35,10 @@ export class OddsPapiClient {
         }
         if (!response.ok) {
           const body = await response.text().catch(() => "");
-          lastError = new Error("OddsPapi request rejected (" + response.status + "): " + body.slice(0, 180));
+          const error = new Error("OddsPapi request rejected (" + response.status + "): " + body.slice(0, 180));
+          error.status = response.status;
+          try { error.code = JSON.parse(body)?.error?.code || null; } catch { error.code = null; }
+          lastError = error;
           continue;
         }
         this.cursor = (index + 1) % this.keys.length;
@@ -58,9 +61,17 @@ export class OddsPapiClient {
     const to = new Date(new Date(date + "T00:00:00+03:00").getTime() + 86400000).toISOString();
     const results = [];
     for (const tournament of tournaments) {
-      const rows = await this.get("/fixtures", {
-        tournamentId: tournament.tournamentId, from, to, statusId: 0, hasOdds: true
-      }, 2000);
+      let rows;
+      try {
+        rows = await this.get("/fixtures", {
+          tournamentId: tournament.tournamentId, from, to, statusId: 0, hasOdds: true
+        }, 2000);
+      } catch (error) {
+        // OddsPapi uses 404/FIXTURE_NOT_FOUND when a tournament has no fixtures
+        // in the requested date window. That is an empty result, not a pipeline failure.
+        if (error?.status === 404 && error?.code === "FIXTURE_NOT_FOUND") continue;
+        throw error;
+      }
       for (const item of Array.isArray(rows) ? rows : []) {
         results.push({
           fixture: { id: item.fixtureId, date: item.startTime, status: { short: Number(item.statusId) === 0 ? "NS" : "UNK" } },
