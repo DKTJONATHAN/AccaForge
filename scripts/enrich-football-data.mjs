@@ -220,9 +220,8 @@ async function saveLeague(team, sportKey, runDate) {
 console.log("TheSportsDB enrichment starting for " + names.length + " representative club names across " + fixtures.length + " published competitions; each resolved league will be expanded to its full roster.");
 for (const name of names) {
   try {
-    const old = (await d1("SELECT image_key,source_url FROM team_badges WHERE team_name=?", [name]))[0];
-    // Even when this representative club already has a cached badge, resolve its league:
-    // the full roster may still contain dozens of clubs that have never been cached.
+    // Resolve every league even when a representative club already has a cached badge:
+    // the full roster may still contain clubs that have never been cached.
     const payload = await sportsDb("searchteams.php", { t: name });
     const candidates = Array.isArray(payload.teams) ? payload.teams : [];
     const team = candidates.find(item => item.strSport === "Soccer" && teamKey(item.strTeam) === teamKey(name));
