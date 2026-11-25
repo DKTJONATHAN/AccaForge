@@ -60,7 +60,7 @@ export class OddsPapiClient {
       for (const item of Array.isArray(rows) ? rows : []) {
         results.push({
           fixture: { id: item.fixtureId, date: item.startTime, status: { short: Number(item.statusId) === 0 ? "NS" : "UNK" } },
-          league: { id: item.tournamentId, name: item.tournamentName || tournament.tournamentName, type: "League", country: item.categoryName },
+          league: { id: item.tournamentId, slug: item.tournamentSlug || tournament.tournamentSlug, name: item.tournamentName || tournament.tournamentName, type: "League", country: item.categoryName },
           teams: {
             home: { id: item.participant1Id, name: item.participant1Name },
             away: { id: item.participant2Id, name: item.participant2Name }
@@ -124,6 +124,10 @@ export class OddsPapiClient {
       });
     }
     return { response };
+  }
+
+  async getFixture(fixtureId) {
+    return this.get("/fixture", { fixtureId }, 200);
   }
 
   async getScore(fixtureId) {
