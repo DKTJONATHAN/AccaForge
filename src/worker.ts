@@ -7,7 +7,7 @@ import App from "./App";
 import type { AccasResponse } from "./types";
 import type { ResultsPayload } from "./App";
 import { cacheSportsArtwork, cachedContentResponse, getCachedContent, serveCachedMedia } from "./content";
-import { getTrackRecord, resultsApi, trackRecordApi } from "./results";
+import { getTrackRecord, refreshYesterdayResults, resultsApi, trackRecordApi } from "./results";
 import { SITE_ORIGIN } from "./site-origin";
 import { editorialPages } from "./editorial";
 
@@ -316,6 +316,11 @@ export default {
     const tasks: Promise<unknown>[] = [];
     if (isFiveMinuteTick) {
       tasks.push(cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); }));
+    }
+    // Refresh stored match outcomes twice an hour using the production Worker D1 binding and secrets.
+    // This keeps results settlement independent of GitHub Actions secret configuration.
+    if (isFiveMinuteTick && scheduledAt.getUTCMinutes() % 30 === 0) {
+      tasks.push(refreshYesterdayResults(env).then(result => { console.log("Scheduled AccaForge results refresh completed", result); }).catch(error => { console.error("Scheduled AccaForge results refresh failed", error); }));
     }
 if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 2 && scheduledAt.getUTCMinutes() === 15) || (scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 55))) {
       const { runPremiumResearch } = await import("../scripts/generate-premium.mjs");
