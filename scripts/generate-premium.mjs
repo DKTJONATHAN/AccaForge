@@ -181,3 +181,77 @@ async function main() {
     .slice(0, MAX_FIXTURES);
   const marketCatalog = await oddsPapi.getMarketCatalog();
 
+
+  const validated = [];
+  let discovered = 0;
+  for (const item of unique) {
+    discovered++;
+    const fixtureId = await storeFixture(item);
+    const home = item.teams.home;
+    const away = item.teams.away;
+    const [oddsPayload, homeForm, awayForm] = await Promise.all([
+      oddsPapi.getOddsPayload(item.fixture.id, marketCatalog),
+      getForm(home.id),
+      getForm(away.id)
+    ]);
+    const candidates = buildOddsCandidates(oddsPayload, home.name, away.name);
+    if (candidates.length < 3 || homeForm.matches < 3 || awayForm.matches < 3) continue;
+
+    const context = {
+      home_team: home.name, away_team: away.name, competition: item.league.name,
+      commence_time: item.fixture.date, home_form: homeForm, away_form: awayForm, candidates
+    };
+    const ai = await analyzeFixture(context);
+    const decision = validatePremiumPick(ai, candidates);
+    if (!decision.ok) continue;
+
+    const evidence = {
+      provider: PROVIDER,
+      provider_fixture_id: item.fixture.id,
+      fetched_at: new Date().toISOString(),
+      home_form: homeForm,
+      away_form: awayForm,
+      selected_candidate_id: decision.candidate.candidate_id,
+      implied_probability: decision.implied_probability,
+      edge_percentage_points: decision.edge_percentage_points,
+      ai_evidence: decision.evidence
+    };
+    const row = {
+      fixture_id: fixtureId,
+      publication_date: publicationDate,
+      market_key: decision.candidate.market_key,
+      market_name: decision.candidate.market_name,
+      selection_name: decision.candidate.selection_name,
+      odds: decision.candidate.odds,
+      bookmaker: decision.candidate.bookmaker,
+      estimated_probability: decision.estimated_probability,
+      confidence_score: decision.confidence_score,
+      reasoning: decision.reasoning,
+      evidence,
+      status: "validated",
+      updated_at: new Date().toISOString()
+    };
+    const saved = await supabase("/rest/v1/premium_predictions?on_conflict=fixture_id,publication_date,market_key,selection_name", {
+      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(row)
+    });
+    if (saved?.[0]?.id) validated.push(saved[0].id);
+  }
+
+  if (!validated.length) {
+    await updateRun("withheld", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: 0, predictions_published: 0, api_calls: apiCalls, reason: "No fixture passed evidence, odds and confidence validation. No Premium picks were published." });
+    console.log(JSON.stringify({ status: "withheld", provider: PROVIDER, fixtures: discovered, picks: 0, api_calls: apiCalls }));
+    return;
+  }
+
+  const published = await supabase("/rest/v1/premium_predictions?id=in.(" + validated.join(",") + ")&status=eq.validated", {
+    method: "PATCH", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+  });
+  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, api_calls: apiCalls });
+  console.log(JSON.stringify({ status: "succeeded", provider: PROVIDER, football_keys_available: FOOTBALL_KEYS.length, groq_keys_available: GROQ_KEYS.length, fixtures: discovered, picks: validated.length, api_calls: apiCalls }));
+}
+main().catch(async error => {
+  console.error("Premium generation failed:", error instanceof Error ? error.message : "unknown error");
+  try { await updateRun("failed", { api_calls: apiCalls }, "PREMIUM_GENERATION_FAILED"); } catch { /* preserve the original failure */ }
+  process.exitCode = 1;
+});
