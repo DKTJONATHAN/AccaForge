@@ -1,6 +1,6 @@
 # AccaForge football artwork and standings
 
-AccaForge maintains a reusable football artwork catalogue for every competition represented in its published editions. The enrichment workflow discovers each competition from the published fixture history, resolves its canonical league through TheSportsDB, and imports the full club roster for that league. Metadata is stored in Cloudflare D1; image bytes are downloaded by the existing Worker media-cache task into the `accaforge-media` R2 bucket and served as immutable cached URLs.
+AccaForge maintains a reusable football artwork catalogue for every competition represented in its published editions. The enrichment workflow discovers each competition from published fixture history, resolves its canonical league through TheSportsDB, and imports the available club roster and badge URLs. Complete provider rosters require a paid TheSportsDB key because the public key limits each league-team list to 10 records. Metadata is stored in Cloudflare D1; image bytes are downloaded by the existing Worker media-cache task into the `accaforge-media` R2 bucket and served as immutable cached URLs.
 
 ## Providers and credentials
 
@@ -38,12 +38,5 @@ Keep the existing secrets used by the daily workflow:
 - Optional `THESPORTSDB_API_KEY` — a paid TheSportsDB key for complete league rosters; without it the workflow uses public key `123` and supplements the capped rosters with clubs from AccaForge's published history.
 - The existing Odds API and Groq secrets used by generation and results refresh.
 
-No new sports-data API secret is required. The Worker already uses the configured D1 binding and `MEDIA` R2 binding.
+No new sports-data API secret is required for free-mode operation. The Worker already uses the configured D1 binding and `MEDIA` R2 binding.
 
-## Manual run
-
-In GitHub, open **Actions → AccaForge Enrich Football Data → Run workflow**. A manual run also observes the 10-minute wait before processing today's fixtures and yesterday's results. The Worker then caches the actual image files in R2 on its next scheduled run.
-
-## Coverage and safety
-
-TheSportsDB is community-maintained and does not contain every team or competition. Its free search endpoint returns a limited result set. AccaForge therefore accepts only exact normalized team matches and competition matches supported by the team's competition list. Unmatched items remain without a crest rather than displaying another club's artwork. Competition standings already saved in D1 remain intact.
