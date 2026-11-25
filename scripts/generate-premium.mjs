@@ -211,11 +211,11 @@ async function main() {
     fixtures_returned: allFixtures.length,
     fixtures_eligible: eligibleFixtures.length,
     fixtures_selected: unique.length,
-    odds_fetch_failed: 0,
+    provider_data_failed: 0,
     insufficient_candidates: 0,
     insufficient_form: 0,
     groq_failed: 0,
-    ai_passed: 0,
+    ai_withheld_or_rejected: 0,
     validation_rejections: {}
   };
   let discovered = 0;
@@ -232,7 +232,7 @@ async function main() {
         getForm(away.id)
       ]);
     } catch (error) {
-      diagnostics.odds_fetch_failed++;
+      diagnostics.provider_data_failed++;
       console.warn("Premium provider data unavailable for " + home.name + " vs " + away.name + ": " + String(error?.message || error).slice(0, 220));
       continue;
     }
@@ -262,7 +262,7 @@ async function main() {
     }
     const decision = validatePremiumPick(ai, candidates);
     if (!decision.ok) {
-      diagnostics.ai_passed++;
+      diagnostics.ai_withheld_or_rejected++;
       diagnostics.validation_rejections[decision.reason] = (diagnostics.validation_rejections[decision.reason] || 0) + 1;
       continue;
     }
@@ -309,7 +309,7 @@ async function main() {
     method: "PATCH", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
   });
-  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, api_calls: apiCalls });
+  await updateRun("succeeded", { provider: PROVIDER, fixtures_discovered: discovered, predictions_validated: validated.length, predictions_published: published?.length || validated.length, diagnostics, api_calls: apiCalls });
   console.log(JSON.stringify({ status: "succeeded", provider: PROVIDER, football_keys_available: FOOTBALL_KEYS.length, groq_keys_available: GROQ_KEYS.length, fixtures: discovered, picks: validated.length, diagnostics, api_calls: apiCalls }));
 }
 return main().catch(async error => {
