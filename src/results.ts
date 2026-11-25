@@ -1,5 +1,5 @@
 import { calculateEdition, settleSelection } from "./settlement.mjs";
-export interface ResultsEnv { DB: D1Database; ODDSAPI_KEY?: string; ODDSAPI_KEY1?: string; ODDSAPI_KEY2?: string; ODDSAPI_KEY3?: string; ODDS_API_KEY?: string }
+export interface ResultsEnv { DB: D1Database; ODDS_API_KEY?: string; ODDS_API_KEY1?: string; ODDS_API_KEY2?: string; ODDS_API_KEY3?: string; ODDS_API_KEY4?: string; ODDS_API_KEY5?: string; ODDS_API_KEY6?: string; ODDS_API_KEY7?: string; ODDS_API_KEY8?: string; ODDSAPI_KEY?: string; ODDSAPI_KEY1?: string; ODDSAPI_KEY2?: string; ODDSAPI_KEY3?: string }
 type PickRow={selection_id:string;acca_id:string;product_type:string;headline:string;publish_date:string;event_id:string;sport_key:string;commence_time:string;home_team:string;away_team:string;market_key:string;market_name:string;selection_name:string;odds:number;selection_status:string};
 type ScoreEvent={id:string;sport_key:string;home_team:string;away_team:string;completed:boolean;scores?:Array<{name:string;score:string|null}>};
 const resultSchema=[
