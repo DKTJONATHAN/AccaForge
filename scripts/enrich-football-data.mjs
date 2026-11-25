@@ -4,6 +4,7 @@ const env = process.env;
 const accountId = (env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 const databaseId = (env.D1_DATABASE_ID || "").trim();
 const cloudflareToken = (env.CLOUDFLARE_API_TOKEN || "").trim();
+const sportsDbKey = (env.THESPORTSDB_API_KEY || "123").trim();
 if (!accountId || !databaseId || !cloudflareToken) {
   throw new Error("Missing CLOUDFLARE_ACCOUNT_ID, D1_DATABASE_ID or CLOUDFLARE_API_TOKEN GitHub secret.");
 }
@@ -50,12 +51,16 @@ await d1("CREATE TABLE IF NOT EXISTS sports_leagues (sport_key TEXT PRIMARY KEY,
 
 const today = nairobiDate(0);
 const yesterday = nairobiDate(-1);
+// Build a league inventory from every competition represented in published AccaForge editions,
+ // not just the teams playing today. One recent fixture per competition is enough to resolve its
+ // canonical league ID; the provider's league roster endpoint then supplies every club badge.
 const fixtures = await d1(
-  "SELECT DISTINCT s.sport_key,s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' AND a.publish_date IN (?,?) " +
-  "UNION SELECT DISTINCT sport_key,home_team,away_team FROM result_selections WHERE publish_date IN (?,?)",
-  [today, yesterday, today, yesterday]
+  "SELECT DISTINCT s.sport_key,s.home_team,s.away_team FROM selections s JOIN accas a ON a.id=s.acca_id WHERE a.status='published' " +
+  "UNION SELECT DISTINCT sport_key,home_team,away_team FROM result_selections"
 );
 const names = [...new Set(fixtures.flatMap(row => [clean(row.home_team), clean(row.away_team)]).filter(Boolean))];
+const representatives = new Map();
+for (const row of fixtures) if (row.sport_key && !representatives.has(row.sport_key)) representatives.set(row.sport_key, row);
 if (!names.length) {
   console.log("No published fixtures or yesterday result fixtures found for " + yesterday + " and " + today + ".");
   process.exit(0);
@@ -68,17 +73,18 @@ let savedLeagueLogos = 0;
 let missing = 0;
 let lastRequestAt = 0;
 const leagueCache = new Map();
+const leagueTeamsCache = new Map();
 
 async function sportsDb(path, params) {
   const elapsed = Date.now() - lastRequestAt;
   if (elapsed < 2200) await wait(2200 - elapsed);
   lastRequestAt = Date.now();
-  const url = new URL("https://www.thesportsdb.com/api/v1/json/123/" + path);
+  const url = new URL("https://www.thesportsdb.com/api/v1/json/" + encodeURIComponent(sportsDbKey) + "/" + path);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
   for (let attempt = 0; attempt < 3; attempt++) {
     requestCount++;
     const response = await fetch(url, {
-      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.co.ke)" },
+      headers: { "User-Agent": "AccaForge/1.0 (+https://accaforge.co.ke)", "X-API-KEY": sportsDbKey },
       signal: AbortSignal.timeout(20000)
     });
     if (response.status === 429) {
@@ -169,22 +175,86 @@ async function saveLeague(team, sportKey, runDate) {
     "INSERT INTO sports_leagues (sport_key,league_id,season,league_name,country,logo_url,logo_key,standings_json,last_attempt_date,last_enriched_date,last_error,updated_at) " +
     "VALUES (?,?,?,?,?,?, '', '[]',?,?, '',CURRENT_TIMESTAMP) " +
     "ON CONFLICT(sport_key) DO UPDATE SET league_id=excluded.league_id,season=excluded.season,league_name=excluded.league_name,country=excluded.country," +
+    "logo_key=CASE WHEN excluded.logo_url<>'' AND sports_leagues.logo_url<>excluded.logo_url THEN '' ELSE sports_leagues.logo_key END," +
     "logo_url=CASE WHEN excluded.logo_url<>'' THEN excluded.logo_url ELSE sports_leagues.logo_url END," +
     "last_attempt_date=excluded.last_attempt_date,last_enriched_date=excluded.last_enriched_date,last_error='',updated_at=CURRENT_TIMESTAMP",
     [sportKey, selected.id, details.season, details.name, details.country, details.logo, runDate, runDate]
   );
   if (details.logo && !existing?.logo_url) savedLeagueLogos++;
+
+  // Expand this competition into its complete club roster. Store source URLs in D1;
+  // the existing Worker media-cache task downloads the bytes into R2 and writes image_key.
+  if (!leagueTeamsCache.has(selected.id)) {
+    try {
+      const roster = await sportsDb("search_all_teams.php", { l: details.name });
+      const clubs = Array.isArray(roster.teams) ? roster.teams : [];
+      const leagueName = normalize(details.name);
+      const safeClubs = clubs.filter(club =>
+        club.strSport === "Soccer" &&
+        (!club.strLeague || normalize(club.strLeague) === leagueName)
+      );
+      let saved = 0;
+      for (const club of safeClubs) {
+        const clubName = clean(club.strTeam);
+        const badge = String(club.strBadge || club.strTeamBadge || club.strLogo || "");
+        if (!clubName || !badge.toLowerCase().startsWith("https://")) continue;
+        await d1(
+          "INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?, '',?,CURRENT_TIMESTAMP) " +
+          "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name," +
+          "image_key=CASE WHEN team_badges.source_url<>excluded.source_url THEN '' ELSE team_badges.image_key END," +
+          "source_url=excluded.source_url," +
+          "updated_at=CURRENT_TIMESTAMP",
+          [clubName, teamKey(clubName), badge]
+        );
+        saved++;
+      }
+      leagueTeamsCache.set(selected.id, saved);
+      savedTeamLogos += saved;
+      console.log("League roster discovered: " + details.name + " (" + saved + " club badges)");
+    } catch (error) {
+      console.warn("Full club roster lookup failed for " + details.name + ": " + String(error));
+      leagueTeamsCache.set(selected.id, 0);
+    }
+  }
   return true;
 }
 
-console.log("TheSportsDB enrichment starting for " + names.length + " unique teams across today's fixtures and yesterday's results.");
+const teamLookupCache = new Map();
+async function findProviderTeam(name) {
+  if (teamLookupCache.has(name)) return teamLookupCache.get(name);
+  const payload = await sportsDb("searchteams.php", { t: name });
+  const candidates = Array.isArray(payload.teams) ? payload.teams : [];
+  const team = candidates.find(item => item.strSport === "Soccer" && teamKey(item.strTeam) === teamKey(name)) || null;
+  teamLookupCache.set(name, team);
+  return team;
+}
+
+const resolvedLeagues = new Set();
+console.log("TheSportsDB enrichment starting for " + names.length + " historical published club names across " + representatives.size + " competitions.");
+// Resolve one representative club for every published competition first. This guarantees
+// roster discovery still runs when today's representative club already has a cached image.
+for (const [sportKey, row] of representatives) {
+  let resolved = false;
+  for (const candidate of [clean(row.home_team), clean(row.away_team)].filter(Boolean)) {
+    try {
+      const team = await findProviderTeam(candidate);
+      if (!team || !leagueForCompetition(team, sportKey)) continue;
+      await saveLeague(team, sportKey, today);
+      resolvedLeagues.add(sportKey);
+      resolved = true;
+      break;
+    } catch (error) {
+      console.warn("Competition discovery failed for " + sportKey + " using " + candidate + ": " + String(error));
+    }
+  }
+  if (!resolved) console.warn("No safe representative team-to-league match for " + sportKey);
+}
+
 for (const name of names) {
   try {
-    const old = (await d1("SELECT image_key,source_url FROM team_badges WHERE team_name=?", [name]))[0];
-    if (old?.image_key) continue;
-    const payload = await sportsDb("searchteams.php", { t: name });
-    const candidates = Array.isArray(payload.teams) ? payload.teams : [];
-    const team = candidates.find(item => item.strSport === "Soccer" && teamKey(item.strTeam) === teamKey(name));
+    const existing = (await d1("SELECT source_url FROM team_badges WHERE team_name=?", [name]))[0];
+    if (existing?.source_url) continue;
+    const team = await findProviderTeam(name);
     if (!team) {
       missing++;
       console.log("No safe exact TheSportsDB match for: " + name);
@@ -195,15 +265,19 @@ for (const name of names) {
     if (badge && /^https:\/\//i.test(badge)) {
       await d1(
         "INSERT INTO team_badges (team_name,normalized_name,image_key,source_url,updated_at) VALUES (?,?, '',?,CURRENT_TIMESTAMP) " +
-        "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP",
+        "ON CONFLICT(team_name) DO UPDATE SET normalized_name=excluded.normalized_name," +
+        "image_key=CASE WHEN team_badges.source_url<>excluded.source_url THEN '' ELSE team_badges.image_key END," +
+        "source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP",
         [name, teamKey(name), badge]
       );
       savedTeamLogos++;
     }
     const relevantRows = fixtures.filter(row => teamKey(row.home_team) === teamKey(name) || teamKey(row.away_team) === teamKey(name));
     for (const row of relevantRows) {
+      if (resolvedLeagues.has(row.sport_key)) continue;
       try {
         await saveLeague(team, row.sport_key, today);
+        resolvedLeagues.add(row.sport_key);
       } catch (error) {
         console.warn("Competition artwork save failed for " + row.sport_key + ": " + String(error));
       }
@@ -214,7 +288,7 @@ for (const name of names) {
   }
 }
 console.log("TheSportsDB enrichment complete: " + JSON.stringify({
-  today, yesterday, fixtures: fixtures.length, uniqueTeams: names.length, matchedTeams,
+  today, yesterday, publishedFixturesAndResults: fixtures.length, distinctHistoricalClubs: names.length, competitions: representatives.size, matchedTeams, rosterLookups: leagueTeamsCache.size,
   savedTeamLogos, savedLeagueLogos, unmatchedTeams: missing, apiRequests: requestCount,
-  cacheDestination: "Cloudflare R2 via the scheduled Worker media-cache task"
+  metadataDestination: "Cloudflare D1 (team_badges and sports_leagues)", cacheDestination: "Cloudflare R2 via the scheduled Worker media-cache task"
 }));

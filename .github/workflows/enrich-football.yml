@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Discover artwork for today's fixtures and yesterday's results, then cache it in Cloudflare"
+        description: "Discover every club and league represented in published AccaForge competitions, then cache artwork in Cloudflare"
         required: true
         type: choice
         options:
@@ -25,9 +25,9 @@ concurrency:
 jobs:
   enrich:
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
-    name: Discover club crests and competition artwork
+    name: Discover full league rosters, club crests and competition artwork
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Wait 10 minutes after all generation workflows finish
         run: sleep 600
@@ -40,9 +40,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Discover team and competition artwork for today and yesterday
+      - name: Discover every published league and all club artwork
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          THESPORTSDB_API_KEY: ${{ secrets.THESPORTSDB_API_KEY }}
         run: node scripts/enrich-football-data.mjs

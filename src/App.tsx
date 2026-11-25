@@ -118,10 +118,11 @@ function SiteHeader({pathname,member,leagueBadges}:{pathname:string;member?:Memb
   </header>
   <nav className="league-quickbar" aria-label="Top football competitions">{leagues.slice(0,7).map(league=><a href={competitionPaths[league.key]||"/competitions"} key={league.key}>{leagueBadges[league.key]&&<img src={leagueBadges[league.key]} alt="" loading="lazy"/>}{league.name}</a>)}</nav>
   <nav className="mobile-dock" aria-label="Main mobile navigation">
-   <a className={pathname==="/"?"active":""} href="/"><Home size={18}/><span>Home</span></a>
-   <a className={pathname==="/daily"||products.some(item=>item[3]===pathname)?"active":""} href="/daily"><Target size={18}/><span>Daily</span></a>
-   <a className={pathname==="/recent"?"active":""} href="/recent"><CalendarRange size={18}/><span>Archive</span></a>
-   <a className={pathname==="/results"?"active":""} href="/results"><ClipboardCheck size={18}/><span>Results</span></a>
+   <a className={pathname==="/"?"active":""} aria-current={pathname==="/"?"page":undefined} href="/"><Home size={19}/><span>Home</span></a>
+   <a className={pathname==="/daily"||products.some(item=>item[3]===pathname)?"active":""} aria-current={pathname==="/daily"||products.some(item=>item[3]===pathname)?"page":undefined} href="/daily"><Target size={19}/><span>Matches</span></a>
+   <a className={pathname==="/recent"?"active":""} aria-current={pathname==="/recent"?"page":undefined} href="/recent"><CalendarRange size={19}/><span>Archive</span></a>
+   <a className={pathname==="/results"?"active":""} aria-current={pathname==="/results"?"page":undefined} href="/results"><ClipboardCheck size={19}/><span>Results</span></a>
+   <a className={pathname==="/premium"?"active":""} aria-current={pathname==="/premium"?"page":undefined} href="/premium"><Crown size={19}/><span>Premium</span></a>
   </nav>
  </>;
 }

@@ -1255,3 +1255,29 @@ html,body,.app{background:var(--page)}
 .premium-prediction-metrics strong{color:#233e2d;font-size:12px}
 .premium-predictions-list article>p{margin:12px 0 5px;color:#53675a;font-size:12px;line-height:1.65}
 @media(max-width:560px){.premium-prediction-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.premium-predictions-heading{align-items:flex-start}}
+
+
+/* Mobile dock refresh: five clear destinations, balanced spacing and safe-area support */
+@media(max-width:760px){
+  body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+  .mobile-dock{
+    left:10px;right:10px;bottom:max(8px,env(safe-area-inset-bottom));
+    z-index:40;grid-template-columns:repeat(5,minmax(0,1fr));
+    min-height:66px;padding:7px 6px;
+    border:1px solid #dce6df;border-radius:16px;
+    background:rgba(255,255,255,.97);
+    box-shadow:0 8px 28px rgba(7,27,18,.14);
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  }
+  .mobile-dock a{
+    min-width:0;min-height:50px;gap:4px;border-radius:11px;
+    color:#738078;font-size:10px;font-weight:600;letter-spacing:.005em;
+    transition:background .16s ease,color .16s ease;
+  }
+  .mobile-dock a svg{flex:0 0 auto;stroke-width:1.9}
+  .mobile-dock a span{line-height:1.1;white-space:nowrap}
+  .mobile-dock a.active{color:#075f3a;background:#eaf5ed}
+  .mobile-dock a.active svg{stroke-width:2.25}
+  .mobile-dock a:focus-visible{outline-offset:-2px}
+}
+@media(prefers-reduced-motion:reduce){.mobile-dock a{transition:none}}
