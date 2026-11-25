@@ -184,7 +184,7 @@ export const onRequestGet = async ({ request, env }: { request: Request; env: En
           fixture: byId.get(row.fixture_id) || null
         })),
         archive_days: duration,
-        subscription_expires_at: active.expires_at
+        subscription_expires_at: active?.expires_at ?? null
       });
     }
     if (path === "/api/premium/account/me") {
