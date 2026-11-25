@@ -30,4 +30,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PREMIUM_FOOTBALL_API_KEY: ${{ secrets.PREMIUM_FOOTBALL_API_KEY }}
+          PREMIUM_FOOTBALL_KEY: ${{ secrets.PREMIUM_FOOTBALL_KEY }}
+          PREMIUM_FOOTBALL_KEY1: ${{ secrets.PREMIUM_FOOTBALL_KEY1 }}
+          PREMIUM_FOOTBALL_KEY2: ${{ secrets.PREMIUM_FOOTBALL_KEY2 }}
