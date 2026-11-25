@@ -31,7 +31,7 @@ async function fetchScores(sportKey){
    const response=await fetch(url,{headers:{"User-Agent":"AccaForge/1.0"},signal:AbortSignal.timeout(30000)});
    if(response.ok)return await response.json();
    console.warn("Odds API score request for "+sportKey+" returned HTTP "+response.status+" on key slot "+(i+1)+".");
-   if(![401,403,429].includes(response.status))return null;
+   if(![401,403,408,425,429].includes(response.status)&&response.status<500)return null;
   }catch(error){console.warn("Score request failed for "+sportKey+": "+String(error));}
  }
  return null;
