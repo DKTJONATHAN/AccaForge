@@ -15,7 +15,7 @@ type AccountData = {
   verified_phones: string[];
   subscriptions: Array<{ id: string; plan_id: string; phone: string; status: string; starts_at: string; expires_at: string; auto_renew_enabled: boolean }>;
   payments: Array<{ id: string; plan_id: string; amount_ksh: number; status: string; mpesa_receipt: string | null; result_desc: string | null; created_at: string; expires_at: string | null }>;
-  entitlement: { is_premium: boolean; expires_at: string | null; plan_id: string | null };
+  entitlement: { is_premium: boolean; is_owner_grant?: boolean; expires_at: string | null; plan_id: string | null };
 };
 const STORAGE_KEY = "accaforge-auth-session";
 const VERIFIER_KEY = "accaforge-google-pkce";
@@ -330,7 +330,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
         <label className="premium-account-field">Email address<input value={account?.account.email || session.user?.email || ""} readOnly/></label>
         <button className="button button-secondary" disabled={busy} onClick={saveProfile}>Save profile</button>
       </div>
-      {account?.entitlement.is_premium ? <div className="premium-account-entitlement"><div><span className="eyebrow">SUBSCRIPTION ACTIVE</span><h3><Crown size={19}/> Premium access is active</h3><p>Access remains active until {new Date(account.entitlement.expires_at!).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}. Renew any time with a new M-PESA prompt.</p></div><span className="premium-account-status">ACTIVE</span></div> : <div className="premium-account-entitlement is-inactive"><div><span className="eyebrow">SUBSCRIPTION</span><h3>Premium is not active</h3><p>Choose a plan below and approve the M-PESA prompt to unlock Premium.</p></div><span className="premium-account-status">FREE</span></div>}
+      {account?.entitlement.is_premium ? <div className="premium-account-entitlement"><div><span className="eyebrow">{account.entitlement.is_owner_grant ? "OWNER TEST ACCESS" : "SUBSCRIPTION ACTIVE"}</span><h3><Crown size={19}/> Premium access is active</h3><p>{account.entitlement.is_owner_grant ? "Your owner account has permanent, free Premium access for testing. No payment or renewal is required." : `Access remains active until ${new Date(account.entitlement.expires_at!).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}. Renew any time with a new M-PESA prompt.`}</p></div><span className="premium-account-status">ACTIVE</span></div> : <div className="premium-account-entitlement is-inactive"><div><span className="eyebrow">SUBSCRIPTION</span><h3>Premium is not active</h3><p>Choose a plan below and approve the M-PESA prompt to unlock Premium.</p></div><span className="premium-account-status">FREE</span></div>}
       {account?.entitlement.is_premium && <div className="premium-account-card premium-predictions-card">
         <div className="premium-predictions-heading"><div><h3><Crown size={17}/> Premium predictions</h3><p>Separate Premium research. Each published pick is checked against real bookmaker odds and fixture evidence.</p></div><span>{predictions.length} picks</span></div>
         {!predictions.length ? <div className="premium-predictions-empty">No Premium picks have passed today's evidence and price checks yet. We never publish a forced selection.</div> :
@@ -342,15 +342,15 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
           </article>)}</div>}
       </div>}
       <div className="premium-account-columns">
-        <div className="premium-account-card">
+        {!account?.entitlement.is_owner_grant && <div className="premium-account-card">
           <h3><Smartphone size={17}/> Verified M-PESA number</h3>
           {account?.verified_phones.length ? <p>Saved number: <strong>{account.verified_phones[0]}</strong></p> : <p>Add and verify the number that should receive your M-PESA payment prompts.</p>}
           <label className="premium-account-field">Mobile number<input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712345678"/></label>
           <button className="button button-secondary" disabled={busy || !phone.trim()} onClick={requestPhoneOtp}>{busy ? "Please wait…" : "Send verification code"}</button>
           <div className="premium-account-otp"><input aria-label="SMS verification code" inputMode="numeric" maxLength={6} value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="6-digit code"/><button className="button button-secondary" disabled={busy || otp.length !== 6} onClick={verifyPhoneOtp}>Verify number</button></div>
           <button className="text-link" onClick={claimLegacy} disabled={busy || !account?.verified_phones.length}>Recover an existing Premium subscription</button>
-        </div>
-        <div className="premium-account-card">
+        </div>}
+        {!account?.entitlement.is_owner_grant && <div className="premium-account-card">
           <h3><Crown size={17}/> Renew or upgrade</h3>
           {plansLoading ? <p>Loading plans…</p> : plans.length ? <>
             <label className="premium-account-field">Subscription plan<select value={selectedPlan?.id || ""} onChange={e => setPlanId(e.target.value)}>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · KES {plan.price_ksh}</option>)}</select></label>
@@ -360,7 +360,7 @@ export default function PremiumAccountPanel({ plans, plansLoading }: { plans: Su
             {checkoutState === "success" && <div className="premium-account-alert is-notice"><CheckCircle2 size={16}/> Payment confirmed and Premium access updated.</div>}
           </> : <p>Subscription plans are temporarily unavailable.</p>}
           <small>The Till number is selected securely by AccaForge. You only approve the prompt on your phone. Renewals are customer-initiated; no recurring deductions are enabled.</small>
-        </div>
+        </div>}
       </div>
       {config?.support_whatsapp && <div className="premium-account-card premium-support-card">
         <h3><Smartphone size={17}/> Premium customer support</h3>
