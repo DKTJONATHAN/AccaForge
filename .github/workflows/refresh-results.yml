@@ -2,7 +2,7 @@ name: AccaForge Refresh Results
 
 on:
   schedule:
-    - cron: "10 0 * * *" # 03:10 AM Africa/Nairobi
+    - cron: "*/30 * * * *" # Every 30 minutes; refresh delayed scores throughout the day
   workflow_dispatch:
 
 permissions:
