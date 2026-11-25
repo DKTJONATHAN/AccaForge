@@ -303,10 +303,10 @@ export default {
     if (isFiveMinuteTick) {
       tasks.push(cacheSportsArtwork(env).catch(error => { console.error("Scheduled sports artwork cache failed", error); }));
     }
-    if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 2 && scheduledAt.getUTCMinutes() === 15) || ((scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 10) || (scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 20)))) {
+if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 2 && scheduledAt.getUTCMinutes() === 15) || (scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 30))) {
       const { runPremiumResearch } = await import("../scripts/generate-premium.mjs");
       tasks.push(runPremiumResearch(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium research failed", error); }));
-    } else if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 7 && scheduledAt.getUTCMinutes() === 0) || ((scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 10) || (scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 15)))) {
+} else if (isFiveMinuteTick && ((scheduledAt.getUTCHours() === 7 && scheduledAt.getUTCMinutes() === 0) || (scheduledAt.getUTCHours() === 8 && scheduledAt.getUTCMinutes() === 35))) {
       const { runPremiumSettlement } = await import("../scripts/settle-premium.mjs");
       tasks.push(runPremiumSettlement(env as unknown as Record<string, string | undefined>).catch(error => { console.error("Cloudflare Premium settlement failed", error); }));
     }
