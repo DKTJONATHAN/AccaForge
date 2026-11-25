@@ -28,7 +28,7 @@ jobs:
       - name: Run Premium market-engine tests
         run: node --test scripts/lib/premium-engine.test.mjs
       - name: Validate Premium pipeline syntax
-        run: node --check scripts/generate-premium.mjs
+        run: node --check scripts/lib/oddspapi.mjs && node --check scripts/generate-premium.mjs
       - name: Generate evidence-validated Premium predictions
         run: node scripts/generate-premium.mjs
         env:
