@@ -150,6 +150,7 @@ async function analyzeFixture(context) {
   throw lastError || new Error("All Premium Groq keys failed.");
 }
 async function updateRun(status, summary = {}, failureCode = null) {
+  apiCalls.football = oddsPapi.requestCount;
   if (!runId) return;
   await supabase("/rest/v1/premium_workflow_runs?id=eq." + runId, {
     method: "PATCH", headers: { Prefer: "return=minimal" },
